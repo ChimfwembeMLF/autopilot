@@ -1,0 +1,22 @@
+server: 
+  port: 3000
+
+db:
+  type: 'postgres'
+  port: 5432
+
+jwt:
+  expiresIn: 3600
+
+redis:
+  port: 6379
+  host: 'localhost'
+
+app: 
+  version: 1.0
+
+
+
+
+  
+
