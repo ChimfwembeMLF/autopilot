@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TenantBillingRecords } from '@/components/TenantBillingRecords';
-import { aiUsageApi, tenantMembersApi } from '@/lib/api';
-import { invokeEdgeFunction } from '@/lib/edgeFunctions';
+import { subscriptionsApi, paymentsApi, tenantMembersApi } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
@@ -19,9 +18,15 @@ import { CreditCard, Smartphone, Zap, Users, CheckCircle2, AlertTriangle, Loader
 import { format } from 'date-fns';
 
 interface Subscription {
-  plan: string; status: string; seat_limit: number;
-  billing_period_start: string; billing_period_end: string;
-  paystack_customer_id: string | null;
+  plan: string;
+  status: string;
+  seatLimit: number | null;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  aiCallsLimit: number | null;
+  aiCallsUsed: number;
+  aiCallsRemaining: number | null;
+  dailyWorkflowEnabled: boolean;
 }
 
 const PLANS = [
@@ -38,7 +43,6 @@ export default function BillingPage() {
   const [aiUsed, setAiUsed]   = useState(0);
   const [seats, setSeats]     = useState(0);
   const [loading, setLoading] = useState(true);
-  const [upgrading, setUpgrading] = useState<string | null>(null);
 
   // Mobile money dialog state
   const [mmOpen, setMmOpen]           = useState(false);
@@ -51,10 +55,9 @@ export default function BillingPage() {
   useEffect(() => { if (tenant) load(); }, [tenant]);
 
   useEffect(() => {
-    // Handle return from Paystack checkout
     const params = new URLSearchParams(window.location.search);
-    if (params.get('success') === '1') {
-      toast({ title: '🎉 Payment successful!', description: 'Your plan has been upgraded. It may take a moment to reflect.' });
+    if (params.get('success') === '1' || params.get('deposit')) {
+      toast({ title: 'Payment received', description: 'Your plan upgrade is being applied.' });
       window.history.replaceState({}, '', '/billing');
       setTimeout(() => load(), 2000);
     }
@@ -64,20 +67,15 @@ export default function BillingPage() {
     if (!tenant) return;
     setLoading(true);
     try {
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-      const [usageAll, membersAll] = await Promise.all([
-        aiUsageApi.findAll(),
+      const [summary, membersAll] = await Promise.all([
+        subscriptionsApi.getForTenant(tenant.id),
         tenantMembersApi.findAll(tenant.id),
       ]);
-      const usageList = (Array.isArray(usageAll) ? usageAll : []).filter(
-        (u: Record<string, unknown>) =>
-          u.tenantId === tenant.id && String(u.created_at ?? '') >= monthStart,
-      );
       const members = (Array.isArray(membersAll) ? membersAll : []).filter(
         (m: Record<string, unknown>) => m.tenantId === tenant.id && m.isActive !== false,
       );
-      setSub(null);
-      setAiUsed(usageList.length);
+      setSub(summary);
+      setAiUsed(summary.aiCallsUsed);
       setSeats(members.length);
     } catch {
       setSub(null);
@@ -89,18 +87,7 @@ export default function BillingPage() {
 
   async function handleUpgrade(plan: string) {
     if (!tenant || plan === 'free') return;
-    setUpgrading(plan);
-    try {
-      const res = await invokeEdgeFunction('create-checkout', {
-        body: { plan, tenant_id: tenant.id },
-      });
-      if (res.error) throw new Error(res.error.message);
-      const { authorization_url } = (res.data ?? {}) as { authorization_url: string };
-      window.location.href = authorization_url;
-    } catch (e: any) {
-      toast({ title: 'Checkout failed', description: e.message, variant: 'destructive' });
-    }
-    setUpgrading(null);
+    openMobileMoney(plan);
   }
 
   function openMobileMoney(plan: string) {
@@ -115,16 +102,20 @@ export default function BillingPage() {
     if (!tenant || !mmPhone.trim()) return;
     setMmSubmitting(true);
     try {
-      const { data, error } = await invokeEdgeFunction('initiate-pawapay-deposit', {
-        body: { plan: mmPlan, tenant_id: tenant.id, phone: mmPhone.trim(), correspondent: mmNetwork },
+      const result = await paymentsApi.initiateDeposit({
+        tenantId: tenant.id,
+        plan: mmPlan,
+        phone: mmPhone.trim(),
+        correspondent: mmNetwork,
       });
-      if (error) throw new Error(error.message);
-      const result = data as { error?: string; depositId?: string } | null;
-      if (result?.error) throw new Error(result.error);
-      setMmDepositId(result?.depositId ?? null);
-      toast({ title: 'Payment request sent!', description: 'Check your phone and approve the mobile money prompt.' });
-    } catch (e: any) {
-      toast({ title: 'Payment failed', description: e.message, variant: 'destructive' });
+      setMmDepositId(result.paymentId);
+      toast({ title: 'Payment request sent!', description: result.message });
+    } catch (e: unknown) {
+      toast({
+        title: 'Payment failed',
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      });
     } finally {
       setMmSubmitting(false);
     }
@@ -132,12 +123,12 @@ export default function BillingPage() {
 
   const currentPlan = sub?.plan ?? 'free';
   const planConfig = PLANS.find(p => p.key === currentPlan);
-  const aiLimit = planConfig ? planConfig.aiLimit : 100;
-  const aiPct = aiLimit === Infinity ? 0 : Math.min((aiUsed / aiLimit) * 100, 100);
-  const seatLimit = planConfig && planConfig.seats !== '∞' ? planConfig.seats : sub?.seat_limit ?? 2;
-  const seatPct = seatLimit === '∞' ? 0 : Math.min((seats / seatLimit) * 100, 100);
-  const isAtAiLimit = aiLimit !== Infinity && aiUsed >= aiLimit;
-  const isAtSeatLimit = seatLimit !== '∞' && seats >= seatLimit;
+  const aiLimit = sub?.aiCallsLimit ?? (planConfig ? planConfig.aiLimit : 100);
+  const aiPct = aiLimit === Infinity || aiLimit === null ? 0 : Math.min((aiUsed / aiLimit) * 100, 100);
+  const seatLimit = sub?.seatLimit ?? (planConfig && planConfig.seats !== '∞' ? planConfig.seats : 2);
+  const seatPct = seatLimit === '∞' ? 0 : Math.min((seats / Number(seatLimit)) * 100, 100);
+  const isAtAiLimit = aiLimit !== Infinity && aiLimit !== null && aiUsed >= aiLimit;
+  const isAtSeatLimit = seatLimit !== '∞' && seats >= Number(seatLimit);
 
   return (
     <PermissionGate require={P.settings.billing} fallback={true}>
@@ -169,7 +160,9 @@ export default function BillingPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Resets end of billing period
+                {sub?.billingPeriodEnd
+                  ? `Resets ${format(new Date(sub.billingPeriodEnd), 'MMM d, yyyy')}`
+                  : 'Resets end of billing period'}
               </p>
             </div>
 
@@ -214,8 +207,11 @@ export default function BillingPage() {
                   </div>
                   <ul className="space-y-2 text-sm flex-1">
                     {[
-                      `${plan.aiLimit} AI generations/month`,
+                      `${aiLimit === null || aiLimit === Infinity ? 'Unlimited' : aiLimit} AI generations/month`,
                       `${plan.seats} team seats`,
+                      plan.key === 'free'
+                        ? 'Manual content only (no daily auto-generate)'
+                        : 'Daily auto-generate at 08:00',
                       `${plan.tenants} workspace${plan.tenants === 1 ? '' : 's'}`,
                     ].map(f => (
                       <li key={f} className="flex items-center gap-2">
@@ -240,8 +236,7 @@ export default function BillingPage() {
                       onClick={() => openMobileMoney(plan.key)}
                     >
                       <Smartphone className="h-3.5 w-3.5 mr-1.5" />
-                      {/* Pay with Mobile Money */}
-                    {upgrading === plan.key ? 'Redirecting…' : isCurrent ? 'Current Plan' : `Upgrade to ${plan.label}`}
+                      {isCurrent ? 'Current Plan' : `Upgrade to ${plan.label}`}
                     </Button>
                   )}
                 </div>

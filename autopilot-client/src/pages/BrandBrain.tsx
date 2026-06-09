@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Brain, Building2, Users, Megaphone, MessageCircle, ShieldCheck, Save, Globe, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useFormSuggestions } from "@/hooks/useFormSuggestions";
+import { SuggestedField } from "@/components/form/SuggestedField";
 import { brandProfilesApi } from "@/lib/api";
-import { invokeEdgeFunction } from "@/lib/edgeFunctions";
-import RichTextEditor from "@/components/RichTextEditor";
-import { ScrapeBrandBrain } from "@/components/ScrapeBrandBrain";
-import { DocumentUpload } from "@/components/DocumentUpload";
 
 interface BrandData {
   companyName: string;
@@ -32,6 +30,48 @@ interface BrandData {
   competitors: string;
   keywords: string;
   websiteUrl: string;
+}
+
+type FieldDef = {
+  key: keyof BrandData;
+  label: string;
+  type: "input" | "textarea";
+  placeholder?: string;
+  rows?: number;
+};
+
+const BRAND_FIELD_KEYS: (keyof BrandData)[] = [
+  "companyName", "industry", "description", "services", "targetAudience",
+  "audiencePainPoints", "toneOfVoice", "brandPersonality", "currentOffers",
+  "uniqueSellingPoints", "faqs", "caseStudies", "bannedWords", "bannedTopics",
+  "competitors", "keywords",
+];
+
+function coerceScrapedValue(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (Array.isArray(v)) return v.map(coerceScrapedValue).filter(Boolean).join("\n");
+  if (typeof v === "object") {
+    return Object.entries(v as Record<string, unknown>)
+      .map(([k, val]) => {
+        const inner = coerceScrapedValue(val);
+        return inner ? `${k}: ${inner}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(v);
+}
+
+function applyScrapedResult(prev: BrandData, scraped: Record<string, unknown>, fallbackUrl: string): BrandData {
+  const updated = { ...prev, websiteUrl: String(scraped.websiteUrl ?? fallbackUrl).trim() };
+  for (const key of BRAND_FIELD_KEYS) {
+    const val = coerceScrapedValue(scraped[key]);
+    if (val) {
+      updated[key] = val;
+    }
+  }
+  return updated;
 }
 
 const initialData: BrandData = {
@@ -82,54 +122,54 @@ const toApi = (d: BrandData) => ({
   websiteUrl: d.websiteUrl,
 });
 
-const sections = [
+const sections: Array<{ id: string; label: string; icon: typeof Building2; fields: FieldDef[] }> = [
   {
     id: "company", label: "Company", icon: Building2,
     fields: [
       { key: "companyName", label: "Company Name", type: "input", placeholder: "Acme Inc." },
       { key: "industry", label: "Industry", type: "input", placeholder: "SaaS, E-commerce, Real Estate..." },
-      { key: "description", label: "Company Description", type: "textarea", placeholder: "What does your company do?" },
-      { key: "services", label: "Products & Services", type: "textarea", placeholder: "List your main products/services" },
-      { key: "uniqueSellingPoints", label: "Unique Selling Points", type: "textarea", placeholder: "What makes you different?" },
+      { key: "description", label: "Company Description", type: "textarea", placeholder: "What does your company do?", rows: 5 },
+      { key: "services", label: "Products & Services", type: "textarea", placeholder: "List your main products and services", rows: 4 },
+      { key: "uniqueSellingPoints", label: "Unique Selling Points", type: "textarea", placeholder: "What makes you different?", rows: 4 },
     ],
   },
   {
     id: "audience", label: "Audience", icon: Users,
     fields: [
-      { key: "targetAudience", label: "Target Audience", type: "textarea", placeholder: "Demographics, job titles, interests..." },
-      { key: "audiencePainPoints", label: "Pain Points", type: "textarea", placeholder: "What problems does your audience face?" },
-      { key: "competitors", label: "Competitors", type: "textarea", placeholder: "Who are your main competitors?" },
+      { key: "targetAudience", label: "Target Audience", type: "textarea", placeholder: "Demographics, job titles, interests...", rows: 4 },
+      { key: "audiencePainPoints", label: "Pain Points", type: "textarea", placeholder: "What problems does your audience face?", rows: 4 },
+      { key: "competitors", label: "Competitors", type: "textarea", placeholder: "Who are your main competitors?", rows: 4 },
     ],
   },
   {
     id: "voice", label: "Voice & Tone", icon: Megaphone,
     fields: [
-      { key: "toneOfVoice", label: "Tone of Voice", type: "textarea", placeholder: "Professional, casual, witty..." },
-      { key: "brandPersonality", label: "Brand Personality", type: "textarea", placeholder: "If your brand were a person..." },
-      { key: "keywords", label: "Key Phrases & Keywords", type: "textarea", placeholder: "Phrases you want to use often" },
+      { key: "toneOfVoice", label: "Tone of Voice", type: "textarea", placeholder: "Professional, casual, witty...", rows: 3 },
+      { key: "brandPersonality", label: "Brand Personality", type: "textarea", placeholder: "If your brand were a person...", rows: 3 },
+      { key: "keywords", label: "Key Phrases & Keywords", type: "textarea", placeholder: "Phrases you want to use often", rows: 3 },
     ],
   },
   {
     id: "offers", label: "Offers & CTAs", icon: MessageCircle,
     fields: [
-      { key: "currentOffers", label: "Current Offers", type: "textarea", placeholder: "Active promotions, deals..." },
-      { key: "faqs", label: "FAQs", type: "textarea", placeholder: "Common questions and answers" },
-      { key: "caseStudies", label: "Case Studies", type: "textarea", placeholder: "Success stories, client wins..." },
+      { key: "currentOffers", label: "Current Offers", type: "textarea", placeholder: "Active promotions, deals...", rows: 3 },
+      { key: "faqs", label: "FAQs", type: "textarea", placeholder: "Common questions and answers", rows: 5 },
+      { key: "caseStudies", label: "Case Studies", type: "textarea", placeholder: "Success stories, client wins...", rows: 5 },
     ],
   },
   {
     id: "guardrails", label: "Guardrails", icon: ShieldCheck,
     fields: [
-      { key: "bannedWords", label: "Banned Words", type: "textarea", placeholder: "Words the AI should never use" },
-      { key: "bannedTopics", label: "Banned Topics", type: "textarea", placeholder: "Topics to avoid in all content" },
+      { key: "bannedWords", label: "Banned Words", type: "textarea", placeholder: "Words the AI should never use", rows: 3 },
+      { key: "bannedTopics", label: "Banned Topics", type: "textarea", placeholder: "Topics to avoid in all content", rows: 3 },
     ],
   },
 ];
 
 const BrandBrain = () => {
   const [data, setData] = useState<BrandData>(initialData);
+  const [activeTab, setActiveTab] = useState("company");
   const [saving, setSaving] = useState(false);
-  const [profileId, setProfileId] = useState<string | null>(null);
   const [scrapeUrl, setScrapeUrl] = useState("");
   const [scraping, setScraping] = useState(false);
   const { toast } = useToast();
@@ -138,19 +178,38 @@ const BrandBrain = () => {
 
   const [loading, setLoading] = useState(true);
 
+  const visibleFieldKeys = useMemo(
+    () =>
+      sections
+        .find((s) => s.id === activeTab)
+        ?.fields.filter((f) => f.key !== "websiteUrl")
+        .map((f) => f.key) ?? [],
+    [activeTab],
+  );
+
+  const suggestionValues = useMemo(
+    () =>
+      Object.fromEntries(
+        visibleFieldKeys.map((key) => [key, data[key as keyof BrandData] ?? ""]),
+      ),
+    [visibleFieldKeys, data],
+  );
+
+  const { getPlaceholder, getSuggestionsForField, getSelectedIndex, setFieldIndex, pauseField, isFieldActive } = useFormSuggestions({
+    form: "brand-brain",
+    tenantId: tenant?.id,
+    fieldKeys: visibleFieldKeys,
+    values: suggestionValues,
+    enabled: !loading && !tenantLoading,
+  });
+
   useEffect(() => {
     if (!user || !tenant) return;
     const load = async () => {
       try {
-        const all = await brandProfilesApi.findAll();
-        const list = Array.isArray(all) ? all : [];
-        const row = list.find(
-          (p: Record<string, unknown>) =>
-            p.tenantId === tenant.id && p.userId === user.id,
-        );
-        if (row) {
-          setProfileId(String(row.id));
-          const d = fromApi(row);
+        const row = await brandProfilesApi.getMine(tenant.id);
+        if (row?.id) {
+          const d = fromApi(row as Record<string, unknown>);
           setData(d);
           if (d.websiteUrl) setScrapeUrl(d.websiteUrl);
         }
@@ -163,7 +222,7 @@ const BrandBrain = () => {
     load();
   }, [user, tenant]);
 
-  const updateField = (key: string, value: string) => {
+  const updateField = (key: keyof BrandData, value: string) => {
     setData((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -172,34 +231,32 @@ const BrandBrain = () => {
   );
 
   const handleScrape = async () => {
-    if (!scrapeUrl.trim()) return;
+    if (!scrapeUrl.trim() || !tenant) return;
     setScraping(true);
     try {
-      const { data: result, error } = await invokeEdgeFunction("scrape-brand", {
-        body: { url: scrapeUrl.trim() },
+      const result = await brandProfilesApi.scrapeWebsite({
+        url: scrapeUrl.trim(),
+        tenantId: tenant.id,
       });
-      if (error) throw error;
-      if (!result || typeof result !== 'object') throw new Error("Scraping failed");
-
-      // Normalise: arrays → comma-separated strings
-      const normalise = (v: unknown, _key: string): string => {
-        if (Array.isArray(v)) return v.join(", ");
-        if (typeof v === "string") return v;
-        return "";
-      };
+      if (!result || typeof result !== "object") throw new Error("Scraping failed");
 
       const scraped = result as Record<string, unknown>;
-      setData((prev) => {
-        const updated = { ...prev, websiteUrl: scrapeUrl.trim() };
-        for (const key of Object.keys(scraped) as (keyof BrandData)[]) {
-          const val = normalise(scraped[key], key);
-          if (val.trim().length > 0) updated[key] = val;
-        }
-        return updated;
+      setData((prev) => applyScrapedResult(prev, scraped, scrapeUrl.trim()));
+
+      const filledCount = BRAND_FIELD_KEYS.filter((k) => coerceScrapedValue(scraped[k])).length;
+      toast({
+        title: "Auto-fill complete",
+        description: filledCount
+          ? `Populated ${filledCount} field${filledCount === 1 ? "" : "s"} from your website. Review and save.`
+          : "No fields could be extracted — try a different URL or fill in manually.",
+        variant: filledCount ? "default" : "destructive",
       });
-      toast({ title: "Auto-fill complete", description: "Brand Brain populated from your website. Review and save!" });
-    } catch (error: any) {
-      toast({ title: "Scrape failed", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({
+        title: "Scrape failed",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
     } finally {
       setScraping(false);
     }
@@ -209,20 +266,17 @@ const BrandBrain = () => {
     if (!user || !tenant) return;
     setSaving(true);
     try {
-      const payload = {
+      await brandProfilesApi.save({
         tenantId: tenant.id,
-        userId: user.id,
         ...toApi(data),
-      };
-      if (profileId) {
-        await brandProfilesApi.update(profileId, payload);
-      } else {
-        const created = await brandProfilesApi.create(payload);
-        setProfileId(String(created.id));
-      }
+      });
       toast({ title: "Brand Brain saved", description: "Your brand profile has been updated." });
-    } catch (error: any) {
-      toast({ title: "Error saving", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({
+        title: "Error saving",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -245,7 +299,9 @@ const BrandBrain = () => {
           </div>
           <div>
             <h1 className="text-3xl font-bold font-display">Brand Brain</h1>
-            <p className="text-muted-foreground text-sm">Everything the AI needs to represent your brand accurately.</p>
+            <p className="text-muted-foreground text-sm">
+              Everything the AI needs to represent your brand accurately.
+            </p>
           </div>
         </div>
         <Button onClick={handleSave} disabled={saving} className="shrink-0">
@@ -283,11 +339,11 @@ const BrandBrain = () => {
               {scraping ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</> : "Auto-fill"}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">Paste your website URL to auto-populate all fields using AI.</p>
+          <p className="text-xs text-muted-foreground mt-2">Paste your website URL to auto-populate fields using AI.</p>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="company">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start overflow-x-auto bg-card border">
           {sections.map((s) => (
             <TabsTrigger key={s.id} value={s.id} className="gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
@@ -302,15 +358,20 @@ const BrandBrain = () => {
               <Card key={field.key} className="border-border/50">
                 <CardContent className="p-4 space-y-2">
                   <Label htmlFor={field.key}>{field.label}</Label>
-                  {field.type === "input" ? (
-                    <Input id={field.key} placeholder={field.placeholder} value={(data as any)[field.key]} onChange={(e) => updateField(field.key, e.target.value)} />
-                  ) : (
-                    <RichTextEditor
-                      value={(data as any)[field.key]}
-                      onChange={(val) => updateField(field.key, val)}
-                      placeholder={field.placeholder}
-                    />
-                  )}
+                  <SuggestedField
+                    id={field.key}
+                    type={field.type}
+                    value={data[field.key]}
+                    onChange={(value) => updateField(field.key, value)}
+                    fallbackPlaceholder={field.placeholder}
+                    placeholder={getPlaceholder(field.key, field.placeholder ?? "")}
+                    suggestions={getSuggestionsForField(field.key)}
+                    selectedIndex={getSelectedIndex(field.key)}
+                    onSelectIndex={(index) => setFieldIndex(field.key, index)}
+                    onPauseRotation={() => pauseField(field.key)}
+                    isLive={isFieldActive(field.key)}
+                    rows={field.rows ?? 4}
+                  />
                 </CardContent>
               </Card>
             ))}

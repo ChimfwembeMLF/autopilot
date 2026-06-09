@@ -21,6 +21,7 @@ export class AiUsageCreateDto {
 
   tokensUsed: string;
 
+  @IsOptional()
   @IsDate()
-  createdAt: Date;
+  createdAt?: Date;
 }

@@ -2,12 +2,10 @@ import {
   IsString,
   IsOptional,
   IsUUID,
-  IsBoolean,
   IsDate,
   IsArray,
-  IsNumber,
-  IsInt,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class ContentItemsCreateDto {
   @IsUUID()
@@ -16,11 +14,17 @@ export class ContentItemsCreateDto {
   @IsUUID()
   workspaceId: string;
 
+  /** Set server-side from JWT; optional in request body. */
+  @IsOptional()
   @IsUUID()
-  userId: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  userId?: string;
 
+  /** Resolved server-side from tenant + user brand profile when omitted. */
+  @IsOptional()
   @IsUUID()
-  brandProfileId: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  brandProfileId?: string;
 
   @IsString()
   contentType: string;
@@ -70,10 +74,4 @@ export class ContentItemsCreateDto {
   @IsOptional()
   @IsDate()
   deletedAt?: Date;
-
-  @IsDate()
-  createdAt: Date;
-
-  @IsDate()
-  updatedAt: Date;
 }

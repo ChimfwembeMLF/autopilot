@@ -96,7 +96,7 @@ const Scheduler = () => {
   const loadPosts = async () => {
     if (!user) return;
     try {
-      const all = await contentItemsApi.findAll();
+      const all = await contentItemsApi.findAll(tenant?.id);
       const list = (Array.isArray(all) ? all : [])
         .filter((item: Record<string, unknown>) =>
           item.userId === user.id && (!tenant?.id || item.tenantId === tenant.id),
@@ -197,16 +197,37 @@ const Scheduler = () => {
   };
 
   const handleDailyWorkflow = async () => {
+    if (!tenant) {
+      toast({ title: "Select a workspace", description: "Choose a tenant before auto-generating.", variant: "destructive" });
+      return;
+    }
     setRunningWorkflow(true);
     try {
-      const { data, error } = await invokeEdgeFunction("daily-content-workflow");
+      const { data, error } = await invokeEdgeFunction("daily-content-workflow", {
+        body: { tenantId: tenant.id },
+      });
       if (error) throw error;
-      const result = data as { error?: string; generated?: number } | null;
-      if (result?.error) throw new Error(result.error);
-      toast({ title: "Workflow complete!", description: `Generated ${result?.generated || 0} pieces.` });
-      loadPosts();
-    } catch (err: any) {
-      toast({ title: "Workflow failed", description: err.message, variant: "destructive" });
+      const result = data as { generated?: number; skipped?: number; errors?: string[] } | null;
+      const generated = result?.generated ?? 0;
+      const skipped = result?.skipped ?? 0;
+      const firstError = result?.errors?.[0];
+      if (generated === 0 && firstError) {
+        throw new Error(firstError.replace(/^[^:]+:\s*/, ""));
+      }
+      toast({
+        title: generated > 0 ? "Workflow complete!" : "Nothing generated",
+        description: generated > 0
+          ? `Generated ${generated} draft${generated === 1 ? "" : "s"}.${skipped ? ` Skipped ${skipped}.` : ""}`
+          : firstError ?? "Complete Brand Brain setup and upgrade to Starter or Pro for daily auto-generate.",
+        variant: generated > 0 ? "default" : "destructive",
+      });
+      if (generated > 0) loadPosts();
+    } catch (err: unknown) {
+      toast({
+        title: "Workflow failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
     } finally {
       setRunningWorkflow(false);
     }

@@ -2,19 +2,18 @@ import {
   IsString,
   IsOptional,
   IsUUID,
-  IsBoolean,
-  IsDate,
-  IsArray,
-  IsNumber,
-  IsInt,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class BrandProfilesCreateDto {
   @IsUUID()
   tenantId: string;
 
+  /** Set server-side from JWT; optional in request body. */
+  @IsOptional()
   @IsUUID()
-  userId: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  userId?: string;
 
   @IsOptional()
   @IsString()

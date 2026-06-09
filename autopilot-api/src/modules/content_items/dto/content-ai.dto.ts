@@ -1,0 +1,104 @@
+import { IsBoolean, IsOptional, IsString, IsUUID, IsArray } from 'class-validator';
+
+export class GenerateContentDto {
+  @IsOptional()
+  @IsString()
+  theme?: string;
+
+  @IsOptional()
+  @IsString()
+  draft?: string;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
+  @IsOptional()
+  @IsString()
+  workspace_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  tenantId?: string;
+
+  @IsOptional()
+  @IsString()
+  contentType?: string;
+
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  save?: boolean;
+}
+
+export class RepurposeContentDto {
+  @IsUUID()
+  contentId: string;
+}
+
+export class AdaptPlatformsDto {
+  @IsUUID()
+  tenantId: string;
+
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsString()
+  content: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  platforms: string[];
+}
+
+export class GenerateImageDto {
+  @IsString()
+  prompt: string;
+
+  @IsUUID()
+  tenantId: string;
+
+  @IsOptional()
+  @IsUUID()
+  contentId?: string;
+
+  @IsOptional()
+  @IsString()
+  contentType?: string;
+}
+
+export class GenerateSlideshowDto {
+  @IsString()
+  theme: string;
+
+  @IsUUID()
+  tenantId: string;
+
+  @IsOptional()
+  slideCount?: number;
+
+  @IsOptional()
+  @IsUUID()
+  contentId?: string;
+}
+
+export class PublishContentDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  platforms?: string[];
+
+  /** Per-platform copy + media; used when publishing immediately after save */
+  @IsOptional()
+  platformPayloads?: Record<string, unknown>;
+}
+
+export class DailyWorkflowDto {
+  @IsOptional()
+  @IsUUID()
+  tenantId?: string;
+}

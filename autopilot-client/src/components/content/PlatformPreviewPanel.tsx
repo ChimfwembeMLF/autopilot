@@ -64,9 +64,16 @@ export function PlatformPreviewPanel({
         </TabsList>
         {platforms.map((p) => {
           const payload = displayPayloads[p] ?? { content: '', title };
+          const payloadWithMedia = {
+            ...payload,
+            media:
+              payload.media?.length
+                ? payload.media
+                : mediaUrls.map((url) => ({ url, type: 'image' as const })),
+          };
           return (
             <TabsContent key={p} value={p} className="space-y-3 mt-3">
-              <PlatformPreview platform={p} payload={payload} mediaUrls={mediaUrls} />
+              <PlatformPreview platform={p} payload={payloadWithMedia} />
               {showEditors && onEditPayload && (
                 <div className="space-y-2">
                   <Label className="text-xs">Edit {platformOf(p).label} copy</Label>

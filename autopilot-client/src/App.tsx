@@ -16,6 +16,7 @@ import Index from "./pages/Index";
 import BrandBrain from "./pages/BrandBrain";
 import ContentEngine from "./pages/ContentEngine";
 import EditContent from "./pages/EditContent";
+import CampaignsPage from "./pages/CampaignsPage";
 import Scheduler from "./pages/Scheduler";
 import LeadAgent from "./pages/LeadAgent";
 import Analytics from "./pages/Analytics";
@@ -96,6 +97,7 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/brand-brain" element={<BrandBrain />} />
                   <Route path="/content" element={<ContentEngine />} />
+                  <Route path="/campaigns" element={<CampaignsPage />} />
                   <Route path="/content/edit/:id" element={<EditContent />} />
                   <Route path="/scheduler" element={<Scheduler />} />
                   <Route path="/leads" element={<LeadAgent />} />

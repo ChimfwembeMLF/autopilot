@@ -159,3 +159,42 @@
   font-weight: 600;
   margin: 0.5rem 0;
 }
+
+/* Brand Brain — GitHub-style markdown editor */
+.brand-markdown-editor .w-md-editor {
+  border: none !important;
+  box-shadow: none !important;
+  background: hsl(var(--background)) !important;
+}
+
+.brand-markdown-editor .w-md-editor-toolbar {
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--muted) / 0.35) !important;
+  padding: 4px 6px !important;
+}
+
+.brand-markdown-editor .w-md-editor-toolbar li > button {
+  color: hsl(var(--foreground)) !important;
+  border-radius: calc(var(--radius) - 4px) !important;
+}
+
+.brand-markdown-editor .w-md-editor-toolbar li > button:hover {
+  background: hsl(var(--primary) / 0.12) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+.brand-markdown-editor .w-md-editor-text-input,
+.brand-markdown-editor .w-md-editor-text-pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.6 !important;
+}
+
+.brand-markdown-editor .w-md-editor-text-input {
+  color: hsl(var(--foreground)) !important;
+}
+
+.brand-markdown-editor .w-md-editor-text-pre > code,
+.brand-markdown-editor .w-md-editor-text-pre {
+  color: hsl(var(--muted-foreground)) !important;
+}

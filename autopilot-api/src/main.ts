@@ -2,6 +2,7 @@ import './crypto-polyfill';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { setupSwagger } from './setup-swagger';
@@ -12,10 +13,14 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3000', 'http://localhost:5173'],
     credentials: true,
   });
   app.useStaticAssets(join(process.cwd(), 'public'));
+
+  const uploadsDir = join(process.cwd(), 'uploads');
+  if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
   // Enable express-session so Passport can store OAuth2 `state` in session
   const sessionSecret = process.env.SESSION_SECRET || 'dev_session_secret';

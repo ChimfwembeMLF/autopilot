@@ -98,6 +98,12 @@ export class FacebookPublishingService {
       };
       if (attachedMedia.length > 0) {
         postBody.attached_media = attachedMedia;
+      } else if (media && media.length > 0) {
+        return {
+          published: false,
+          message:
+            'Facebook could not fetch media attachments. Use a public HTTPS URL (Supabase storage or set API_PUBLIC_URL to a reachable host).',
+        };
       }
 
       const postRes = await axios.post(

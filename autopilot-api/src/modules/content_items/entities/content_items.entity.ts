@@ -26,8 +26,8 @@ export class ContentItems {
   workspaceId: string;
   @Column({ type: 'uuid' })
   userId: string;
-  @Column({ type: 'uuid' })
-  brandProfileId: string;
+  @Column({ type: 'uuid', nullable: true })
+  brandProfileId?: string;
   @Column({ type: 'text' })
   contentType: string;
   @Column({ type: 'text' })
@@ -36,6 +36,8 @@ export class ContentItems {
   content: string;
   @Column({ type: 'text', nullable: true })
   campaignTheme?: string;
+  @Column({ type: 'uuid', nullable: true })
+  campaignId?: string;
   @Column({ type: 'text', nullable: true })
   status?: string;
   @Column({ type: 'text', array: true, nullable: true })
@@ -67,7 +69,7 @@ export class ContentItems {
   @ManyToOne(() => UserEntity, { nullable: false })
   @JoinColumn({ name: 'user_id' })
   user: UserEntity;
-  @ManyToOne(() => BrandProfiles, { nullable: false })
+  @ManyToOne(() => BrandProfiles, { nullable: true })
   @JoinColumn({ name: 'brand_profile_id' })
-  brandProfile: BrandProfiles;
+  brandProfile?: BrandProfiles;
 }

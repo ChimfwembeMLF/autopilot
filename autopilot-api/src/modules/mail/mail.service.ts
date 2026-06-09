@@ -58,4 +58,14 @@ export class MailService {
 
     this.logger.log(`Password reset email sent to ${to}`);
   }
+
+  async sendGenericEmail(to: string, subject: string, text: string): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.warn(`Mail not configured — would send to ${to}: ${subject}`);
+      return;
+    }
+    const from = this.config.get<string>('MAIL_FROM');
+    await this.mailer.sendMail({ to, from, subject, text, html: `<pre>${text}</pre>` });
+    this.logger.log(`Email sent to ${to}: ${subject}`);
+  }
 }

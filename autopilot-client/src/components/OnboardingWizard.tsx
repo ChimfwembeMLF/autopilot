@@ -30,25 +30,13 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
     if (!user || !tenant || !form.company_name.trim()) return;
     setSaving(true);
     try {
-      const all = await brandProfilesApi.findAll();
-      const list = Array.isArray(all) ? all : [];
-      const existing = list.find(
-        (p: Record<string, unknown>) =>
-          p.tenantId === tenant.id && p.userId === user.id,
-      );
-
       const payload = {
         tenantId: tenant.id,
-        userId: user.id,
         companyName: form.company_name.trim(),
         description: form.description.trim() || undefined,
       };
 
-      if (existing?.id) {
-        await brandProfilesApi.update(String(existing.id), payload);
-      } else {
-        await brandProfilesApi.create(payload);
-      }
+      await brandProfilesApi.save(payload);
       toast({ title: 'Brand saved' });
       onComplete();
       navigate('/brand-brain');

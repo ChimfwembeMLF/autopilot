@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTenant } from '@/hooks/useTenant';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
+import { templatesApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -12,23 +13,32 @@ import { PermissionGate } from '@/components/PermissionGate';
 import { LayoutTemplate, Plus, Pencil, Trash2, Copy, CheckCircle2 } from 'lucide-react';
 
 interface Template {
-  id: string; tenant_id: string | null; platform: string; name: string;
-  description: string | null; is_active: boolean; is_system: boolean;
-  prompt_instructions: string; created_at: string;
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  contentType: string | null;
+  body: string | null;
+  platforms: string[] | null;
+  isActive: boolean;
+  created_at: string;
 }
 
 const PLATFORM_ICONS: Record<string, string> = {
   facebook:'🟦', linkedin:'💼', instagram:'📸', twitter:'🐦',
-  whatsapp:'💬', email:'📧', ad_copy:'📣',
+  whatsapp:'💬', email:'📧', ad_copy:'📣', content:'📝',
 };
 const PLATFORM_LABELS: Record<string, string> = {
   facebook:'Facebook', linkedin:'LinkedIn', instagram:'Instagram', twitter:'X / Twitter',
-  whatsapp:'WhatsApp', email:'Email', ad_copy:'Ad Copy',
+  whatsapp:'WhatsApp', email:'Email', ad_copy:'Ad Copy', content:'General',
 };
 const PLATFORMS = Object.keys(PLATFORM_LABELS);
 
+function templatePlatform(t: Template): string {
+  return t.platforms?.[0] ?? t.contentType ?? 'content';
+}
+
 export default function TemplatesPage() {
-  const navigate          = useNavigate();
   const { tenant }        = useTenant();
   const { can }           = usePermissions();
   const { toast }         = useToast();
@@ -39,36 +49,72 @@ export default function TemplatesPage() {
   useEffect(() => { if (tenant) load(); }, [tenant]);
 
   async function load() {
+    if (!tenant) return;
     setLoading(true);
-    setTemplates([]);
+    try {
+      const rows = await templatesApi.findAll(tenant.id);
+      setTemplates(Array.isArray(rows) ? rows : []);
+    } catch {
+      setTemplates([]);
+    }
     setLoading(false);
   }
 
-  function showComingSoon() {
-    toast({
-      title: 'Coming soon',
-      description: 'Content templates are not available yet.',
-    });
-  }
-
   async function toggleActive(tmpl: Template) {
-    if (!can(P.templates.activate) || tmpl.is_system) return;
-    showComingSoon();
+    if (!can(P.templates.activate) || !tenant) return;
+    try {
+      await templatesApi.update(tmpl.id, tenant.id, { isActive: !tmpl.isActive });
+      await load();
+    } catch (e: unknown) {
+      toast({
+        title: 'Update failed',
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      });
+    }
   }
 
-  async function cloneTemplate(_tmpl: Template) {
+  async function cloneTemplate(tmpl: Template) {
     if (!tenant) return;
-    showComingSoon();
+    try {
+      await templatesApi.create({
+        tenantId: tenant.id,
+        name: `${tmpl.name} (copy)`,
+        description: tmpl.description,
+        contentType: tmpl.contentType,
+        body: tmpl.body,
+        platforms: tmpl.platforms,
+        isActive: false,
+      });
+      toast({ title: 'Template cloned' });
+      await load();
+    } catch (e: unknown) {
+      toast({
+        title: 'Clone failed',
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      });
+    }
   }
 
   async function deleteTemplate(tmpl: Template) {
-    if (tmpl.is_system) return;
-    showComingSoon();
+    if (!tenant) return;
+    try {
+      await templatesApi.remove(tmpl.id, tenant.id);
+      toast({ title: 'Template deleted' });
+      await load();
+    } catch (e: unknown) {
+      toast({
+        title: 'Delete failed',
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      });
+    }
   }
 
-  const filtered = templates.filter(t => filterPlatform === 'all' || t.platform === filterPlatform);
+  const filtered = templates.filter(t => filterPlatform === 'all' || templatePlatform(t) === filterPlatform);
   const byPlatform = PLATFORMS.reduce<Record<string, Template[]>>((acc, p) => {
-    acc[p] = filtered.filter(t => t.platform === p); return acc;
+    acc[p] = filtered.filter(t => templatePlatform(t) === p); return acc;
   }, {});
 
   return (
@@ -87,7 +133,6 @@ export default function TemplatesPage() {
           </PermissionGate>
         </div>
 
-        {/* Platform filter */}
         <div className="flex flex-wrap gap-2">
           <Button variant={filterPlatform==='all'?'default':'outline'} size="sm" onClick={()=>setFilter('all')}>All</Button>
           {PLATFORMS.map(p=>(
@@ -98,7 +143,9 @@ export default function TemplatesPage() {
           ))}
         </div>
 
-        {loading ? <div className="py-12 text-center text-muted-foreground text-sm">Loading templates…</div> : (
+        {loading ? <div className="py-12 text-center text-muted-foreground text-sm">Loading templates…</div> : templates.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">No templates yet. Create one to guide AI generation.</div>
+        ) : (
           <div className="space-y-6">
             {PLATFORMS.filter(p => byPlatform[p]?.length > 0).map(platform => (
               <div key={platform} className="space-y-2">
@@ -111,12 +158,11 @@ export default function TemplatesPage() {
                   {byPlatform[platform].map(tmpl => (
                     <div key={tmpl.id}
                       className={`rounded-lg border bg-card p-4 flex items-start justify-between gap-4
-                        ${tmpl.is_active ? 'ring-2 ring-primary/30' : ''}`}>
+                        ${tmpl.isActive ? 'ring-2 ring-primary/30' : ''}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium text-sm">{tmpl.name}</p>
-                          {tmpl.is_system && <Badge variant="secondary" className="text-[10px]">System</Badge>}
-                          {tmpl.is_active && (
+                          {tmpl.isActive && (
                             <Badge className="gap-1 text-[10px] bg-green-600">
                               <CheckCircle2 className="h-3 w-3"/> Active
                             </Badge>
@@ -124,25 +170,25 @@ export default function TemplatesPage() {
                         </div>
                         {tmpl.description && <p className="text-xs text-muted-foreground mt-0.5">{tmpl.description}</p>}
                         <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-2 font-mono">
-                          {tmpl.prompt_instructions.slice(0, 120)}…
+                          {(tmpl.body ?? '').slice(0, 120)}{(tmpl.body?.length ?? 0) > 120 ? '…' : ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {!tmpl.is_system && can(P.templates.activate) && (
+                        {can(P.templates.activate) && (
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-muted-foreground">Active</span>
-                            <Switch checked={tmpl.is_active} onCheckedChange={()=>toggleActive(tmpl)} />
+                            <Switch checked={tmpl.isActive} onCheckedChange={()=>toggleActive(tmpl)} />
                           </div>
                         )}
                         <Button variant="ghost" size="sm" onClick={()=>cloneTemplate(tmpl)} title="Clone">
                           <Copy className="h-3.5 w-3.5"/>
                         </Button>
-                        {!tmpl.is_system && can(P.templates.edit) && (
+                        {can(P.templates.edit) && (
                           <Button variant="ghost" size="sm" asChild title="Edit">
                             <Link to={`/templates/${tmpl.id}`}><Pencil className="h-3.5 w-3.5"/></Link>
                           </Button>
                         )}
-                        {!tmpl.is_system && can(P.templates.delete) && (
+                        {can(P.templates.delete) && (
                           <Button variant="ghost" size="sm" onClick={()=>deleteTemplate(tmpl)}
                             className="text-destructive hover:text-destructive" title="Delete">
                             <Trash2 className="h-3.5 w-3.5"/>

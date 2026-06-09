@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useWorkspace } from '@/hooks/useWorkspace';
-import { sanitizeHtml } from '@/lib/sanitize';
 import {
   Pen, Sparkles, Copy, Check, Trash2, Loader2, RefreshCw, Pencil,
-  ChevronDown, ChevronUp, Plus, Send,
+  ChevronDown, ChevronUp, Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
@@ -19,10 +19,18 @@ import { ContentItem } from '@/components/content/types';
 import { ContentEditor } from '@/components/content/ContentEditor';
 import { PublishPanel } from '@/components/content/PublishPanel';
 
-type Panel = 'compose' | 'publish' | null;
+function plainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
 
 function ContentCard({
   item,
+  isActive,
   onCopy,
   onDelete,
   onEdit,
@@ -32,6 +40,7 @@ function ContentCard({
   repurposingId,
 }: {
   item: ContentItem;
+  isActive?: boolean;
   onCopy: (id: string, content: string) => void;
   onDelete: (id: string) => void;
   onEdit: (item: ContentItem) => void;
@@ -44,66 +53,92 @@ function ContentCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/30 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          {item.title && <span className="text-sm font-semibold">{item.title}</span>}
-          {item.status && (
-            <Badge variant="secondary" className="text-[10px] capitalize">
-              {item.status}
-            </Badge>
-          )}
-          {platforms.length > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-              Published to {platforms.length} platform{platforms.length !== 1 ? 's' : ''}
-            </span>
-          )}
+    <div
+      className={`rounded-xl border bg-card p-4 transition-all flex flex-col gap-3 ${
+        isActive ? 'border-primary ring-2 ring-primary/20 shadow-sm' : 'hover:border-primary/30'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            {item.title && <span className="text-sm font-semibold truncate">{item.title}</span>}
+            {isActive && (
+              <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
+                Editing
+              </Badge>
+            )}
+            {item.status && (
+              <Badge variant="secondary" className="text-[10px] capitalize">
+                {item.status}
+              </Badge>
+            )}
+          </div>
           {item.campaign_theme && (
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full border">
-              {item.campaign_theme.replace(/<[^>]*>/g, '').slice(0, 28)}
-            </span>
+            <p className="text-xs text-muted-foreground line-clamp-1">
+              {plainText(item.campaign_theme)}
+            </p>
           )}
         </div>
         <div className="flex gap-1 shrink-0">
-          <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onPublish(item)}>
+          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => onPublish(item)}>
             <Send className="h-3 w-3 mr-1" /> Publish
           </Button>
-          {[
-            { icon: Pencil, onClick: () => onEdit(item), title: 'Edit' },
-            {
-              icon: repurposingId === item.id ? Loader2 : RefreshCw,
-              onClick: () => onRepurpose(item.id),
-              title: 'Repurpose',
-            },
-            {
-              icon: copiedId === item.id ? Check : Copy,
-              onClick: () => onCopy(item.id, item.content ?? ''),
-              title: 'Copy',
-              color: copiedId === item.id ? 'text-green-600' : undefined,
-            },
-            { icon: Trash2, onClick: () => onDelete(item.id), title: 'Delete', color: 'text-destructive' },
-          ].map(({ icon: I, onClick, title, color }, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={onClick}
-              title={title}
-              className={`w-7 h-7 rounded-md flex items-center justify-center hover:bg-muted ${color ?? 'text-muted-foreground'}`}
-            >
-              <I size={13} className={title === 'Repurpose' && repurposingId === item.id ? 'animate-spin' : ''} />
-            </button>
-          ))}
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(item)} title="Edit">
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={() => onRepurpose(item.id)}
+            title="Repurpose"
+            disabled={repurposingId === item.id}
+          >
+            {repurposingId === item.id ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={() => onCopy(item.id, item.content ?? '')}
+            title="Copy"
+          >
+            {copiedId === item.id ? (
+              <Check className="h-3.5 w-3.5 text-green-600" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => onDelete(item.id)}
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
       {platforms.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           {platforms.map((p) => {
             const plat = platformOf(p);
             const Icon = plat.icon;
             return (
-              <span key={p} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <Icon size={12} style={{ color: plat.color }} />
+              <span
+                key={p}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full"
+              >
+                <Icon size={11} style={{ color: plat.color }} />
                 {plat.label}
               </span>
             );
@@ -112,21 +147,24 @@ function ContentCard({
       )}
 
       <div>
-        <div
-          className={`text-sm text-muted-foreground leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.content ?? '') }}
-        />
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="text-xs text-primary bg-transparent border-none cursor-pointer p-0 pt-1 flex items-center gap-1"
+        <p
+          className={`text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap ${expanded ? '' : 'line-clamp-2'}`}
         >
-          {expanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Show more</>}
-        </button>
+          {plainText(item.content ?? '')}
+        </p>
+        {(item.content?.length ?? 0) > 120 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs text-primary mt-1 flex items-center gap-1 hover:underline"
+          >
+            {expanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Show more</>}
+          </button>
+        )}
       </div>
 
       {item.created_at && (
-        <p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</p>
+        <p className="text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleString()}</p>
       )}
     </div>
   );
@@ -141,8 +179,8 @@ const ContentEngine = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [hasBrandBrain, setHasBrandBrain] = useState<boolean | null>(null);
   const [repurposingId, setRepurposingId] = useState<string | null>(null);
-  const [panel, setPanel] = useState<Panel>(null);
   const [activeItem, setActiveItem] = useState<ContentItem | null>(null);
+  const [publishItem, setPublishItem] = useState<ContentItem | null>(null);
   const { toast } = useToast();
 
   const mapContentItem = (item: Record<string, unknown>): ContentItem => ({
@@ -160,7 +198,7 @@ const ContentEngine = () => {
   const loadContent = async () => {
     if (!user) return;
     try {
-      const all = await contentItemsApi.findAll();
+      const all = await contentItemsApi.findAll(tenant?.id);
       const list = (Array.isArray(all) ? all : [])
         .filter((item: Record<string, unknown>) =>
           item.userId === user.id && (!tenant?.id || item.tenantId === tenant.id),
@@ -184,12 +222,13 @@ const ContentEngine = () => {
     const publishId = searchParams.get('publish');
     if (!editId && !publishId) return;
 
-    async function loadItem(id: string, mode: Panel) {
+    async function loadItem(id: string, mode: 'edit' | 'publish') {
       try {
         const data = await contentItemsApi.findOne(id);
         if (data) {
-          setActiveItem(mapContentItem(data));
-          setPanel(mode);
+          const mapped = mapContentItem(data);
+          if (mode === 'publish') setPublishItem(mapped);
+          else setActiveItem(mapped);
         }
       } catch {
         /* item missing */
@@ -197,48 +236,42 @@ const ContentEngine = () => {
     }
 
     if (publishId) void loadItem(publishId, 'publish');
-    else if (editId) void loadItem(editId, 'compose');
+    else if (editId) void loadItem(editId, 'edit');
   }, [searchParams]);
 
-  const clearParams = () => {
-    setSearchParams({}, { replace: true });
-    setPanel(null);
+  const resetDraft = () => {
     setActiveItem(null);
+    setSearchParams({}, { replace: true });
+  };
+
+  const closePublish = () => {
+    setPublishItem(null);
+    setSearchParams({}, { replace: true });
   };
 
   const checkBrandBrain = async () => {
-    if (!user || !tenant) return;
+    if (!tenant) return;
     try {
-      const all = await brandProfilesApi.findAll();
-      const list = Array.isArray(all) ? all : [];
-      setHasBrandBrain(list.some(
-        (p: Record<string, unknown>) => p.userId === user.id && p.tenantId === tenant.id,
-      ));
+      const profile = await brandProfilesApi.getMine(tenant.id);
+      setHasBrandBrain(Boolean(profile?.companyName || profile?.description));
     } catch {
       setHasBrandBrain(false);
     }
   };
 
-  const openCreate = () => {
-    setActiveItem(null);
-    setPanel('compose');
-    setSearchParams({}, { replace: true });
-  };
-
   const openEdit = (item: ContentItem) => {
     setActiveItem(item);
-    setPanel('compose');
     setSearchParams({ edit: item.id }, { replace: true });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const openPublish = (item: ContentItem) => {
-    setActiveItem(item);
-    setPanel('publish');
+    setPublishItem(item);
     setSearchParams({ publish: item.id }, { replace: true });
   };
 
   const copyContent = (id: string, content: string) => {
-    navigator.clipboard.writeText(content.replace(/<[^>]*>/g, ''));
+    navigator.clipboard.writeText(plainText(content));
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -246,7 +279,8 @@ const ContentEngine = () => {
   const deleteContent = async (id: string) => {
     await contentItemsApi.remove(id);
     setGeneratedContent((prev) => prev.filter((c) => c.id !== id));
-    if (activeItem?.id === id) clearParams();
+    if (activeItem?.id === id) resetDraft();
+    if (publishItem?.id === id) closePublish();
   };
 
   const handleRepurpose = async (id: string) => {
@@ -271,25 +305,34 @@ const ContentEngine = () => {
 
   const handleSaved = () => {
     loadContent();
-    clearParams();
+    resetDraft();
+  };
+
+  const handlePublished = () => {
+    loadContent();
+    closePublish();
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="max-w-6xl mx-auto space-y-6 pb-10">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/30 flex items-center justify-center">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
             <Pen size={18} className="text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold font-display tracking-tight">Content Engine</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Create content, publish to any platform when ready</p>
+            <p className="text-sm text-muted-foreground">Create, refine, and publish across platforms</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button asChild variant="outline" size="sm" className="h-9">
+            <Link to="/campaigns">AI Campaigns</Link>
+          </Button>
           {workspaces.length > 0 && (
             <Select value={activeWorkspace || ''} onValueChange={setActiveWorkspace}>
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-full sm:w-[180px] h-9">
                 <SelectValue placeholder="Workspace…" />
               </SelectTrigger>
               <SelectContent>
@@ -299,78 +342,82 @@ const ContentEngine = () => {
               </SelectContent>
             </Select>
           )}
-          <span className={`text-xs px-3 py-1 rounded-full border font-medium ${
+          <span className={`text-xs px-3 py-1.5 rounded-full border font-medium whitespace-nowrap ${
             hasBrandBrain === true ? 'bg-green-500/10 text-green-700 border-green-500/30' :
             hasBrandBrain === false ? 'bg-amber-500/10 text-amber-700 border-amber-500/30' :
             'bg-muted text-muted-foreground'
           }`}>
             {hasBrandBrain === null ? 'Checking…' : hasBrandBrain ? 'Brand Brain active' : 'No Brand Brain'}
           </span>
-          {!panel && (
-            <Button onClick={openCreate} className="gradient-primary text-primary-foreground border-0 shadow-glow">
-              <Plus className="h-4 w-4 mr-2" />
-              Create content
-            </Button>
-          )}
         </div>
       </div>
 
       {hasBrandBrain === false && (
         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
-          <Sparkles size={15} className="text-amber-500 flex-shrink-0" />
+          <Sparkles size={15} className="text-amber-500 shrink-0" />
           <p className="text-sm">
             <strong className="text-amber-600">Set up Brand Brain</strong> — the AI uses it to match your brand voice.
           </p>
         </div>
       )}
 
-      {panel === 'compose' && (
-        <ContentEditor
-          item={activeItem}
-          workspaceId={activeWorkspace}
-          onCancel={clearParams}
-          onSaved={handleSaved}
-        />
-      )}
-
-      {panel === 'publish' && activeItem && (
-        <PublishPanel
-          item={activeItem}
-          onCancel={clearParams}
-          onPublished={handleSaved}
-        />
-      )}
-
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold">Content Library</span>
-          <span className="text-xs text-muted-foreground">
-            {generatedContent.length} item{generatedContent.length !== 1 ? 's' : ''}
-          </span>
+      {/* Main layout: compose always visible + library */}
+      <div className="grid gap-6 lg:grid-cols-5 lg:items-start">
+        <div className="lg:col-span-2 lg:sticky lg:top-4">
+          <ContentEditor
+            item={activeItem}
+            workspaceId={activeWorkspace}
+            onReset={resetDraft}
+            onSaved={handleSaved}
+          />
         </div>
 
-        {generatedContent.length === 0 && !panel ? (
-          <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground text-sm">
-            No content yet — click <strong>Create content</strong> to get started.
+        <div className="lg:col-span-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Content library</h2>
+            <span className="text-xs text-muted-foreground">
+              {generatedContent.length} item{generatedContent.length !== 1 ? 's' : ''}
+            </span>
           </div>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {generatedContent.map((item) => (
-              <ContentCard
-                key={item.id}
-                item={item}
-                onCopy={copyContent}
-                onDelete={deleteContent}
-                onEdit={openEdit}
-                onPublish={openPublish}
-                onRepurpose={handleRepurpose}
-                copiedId={copiedId}
-                repurposingId={repurposingId}
-              />
-            ))}
-          </div>
-        )}
+
+          {generatedContent.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-muted/20 p-10 text-center">
+              <p className="text-sm text-muted-foreground">No saved drafts yet.</p>
+              <p className="text-xs text-muted-foreground mt-1">Compose on the left and hit Save draft.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {generatedContent.map((item) => (
+                <ContentCard
+                  key={item.id}
+                  item={item}
+                  isActive={activeItem?.id === item.id}
+                  onCopy={copyContent}
+                  onDelete={deleteContent}
+                  onEdit={openEdit}
+                  onPublish={openPublish}
+                  onRepurpose={handleRepurpose}
+                  copiedId={copiedId}
+                  repurposingId={repurposingId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Publish sheet */}
+      <Sheet open={!!publishItem} onOpenChange={(open) => { if (!open) closePublish(); }}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl p-0 flex flex-col overflow-hidden">
+          {publishItem && (
+            <PublishPanel
+              item={publishItem}
+              onCancel={closePublish}
+              onPublished={handlePublished}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

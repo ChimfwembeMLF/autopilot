@@ -1,12 +1,14 @@
-import React from "react";
+import React from 'react';
+import { paymentsApi } from '@/lib/api';
 
 interface BillingRecord {
-  deposit_id: string;
-  status: string;
-  amount: number;
-  currency: string;
-  provider: string | null;
-  created_at: string;
+  id: string;
+  status: string | null;
+  amount: string | null;
+  currency: string | null;
+  method: 'mobile_money';
+  plan: string | null;
+  createdAt: string;
 }
 
 export function TenantBillingRecords({ tenantId }: { tenantId: string }) {
@@ -18,15 +20,9 @@ export function TenantBillingRecords({ tenantId }: { tenantId: string }) {
     if (!tenantId) return;
     setLoading(true);
     setError(null);
-    fetch(`/rest/v1/pawa_deposits?tenant_id=eq.${tenantId}&order=created_at.desc`, {
-      headers: {
-        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-    })
-      .then(res => res.ok ? res.json() : Promise.reject(res))
+    paymentsApi.listDeposits(tenantId)
       .then(setRecords)
-      .catch(() => setError("Failed to load billing records."))
+      .catch(() => setError('Failed to load billing records.'))
       .finally(() => setLoading(false));
   }, [tenantId]);
 
@@ -36,28 +32,28 @@ export function TenantBillingRecords({ tenantId }: { tenantId: string }) {
   if (!records.length) return <div>No billing records found.</div>;
 
   return (
-    <div style={{marginTop:16}}>
+    <div style={{ marginTop: 16 }}>
       <h3>Billing Records</h3>
-      <table style={{width:'100%', borderCollapse:'collapse'}}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            <th style={{textAlign:'left'}}>Date</th>
+            <th style={{ textAlign: 'left' }}>Date</th>
+            <th>Plan</th>
             <th>Status</th>
             <th>Amount</th>
-            <th>Currency</th>
-            <th>Provider</th>
-            <th>Deposit ID</th>
+            <th>Method</th>
+            <th>Reference</th>
           </tr>
         </thead>
         <tbody>
-          {records.map(r => (
-            <tr key={r.deposit_id}>
-              <td>{new Date(r.created_at).toLocaleString()}</td>
-              <td>{r.status}</td>
-              <td>{r.amount}</td>
-              <td>{r.currency}</td>
-              <td>{r.provider || '-'}</td>
-              <td style={{fontSize:12}}>{r.deposit_id}</td>
+          {records.map((r) => (
+            <tr key={r.id}>
+              <td>{new Date(r.createdAt).toLocaleString()}</td>
+              <td>{r.plan ?? '-'}</td>
+              <td>{r.status ?? '-'}</td>
+              <td>{r.amount ? `${r.currency ?? 'ZMW'} ${r.amount}` : '-'}</td>
+              <td>Mobile Money</td>
+              <td style={{ fontSize: 12 }}>{r.id}</td>
             </tr>
           ))}
         </tbody>

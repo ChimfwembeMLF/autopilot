@@ -17,7 +17,10 @@ export class ContentItemsService {
     return this.repo.save(ent as ContentItems);
   }
 
-  async findAll(): Promise<ContentItems[]> {
+  async findAll(tenantId?: string): Promise<ContentItems[]> {
+    if (tenantId) {
+      return this.repo.find({ where: { tenantId } });
+    }
     return this.repo.find();
   }
 

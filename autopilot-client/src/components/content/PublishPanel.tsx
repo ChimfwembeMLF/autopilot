@@ -1,15 +1,28 @@
-import { useEffect, useState } from 'react';
-import { Send, Loader2, X, Link2, AlertCircle } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Send, Loader2, X, Link2, AlertCircle, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/hooks/useTenant';
-import { contentItemsApi, socialAccountsApi, SocialAccount } from '@/lib/api';
+import {
+  contentItemsApi,
+  socialAccountsApi,
+  mediaApi,
+  contentAiApi,
+  SocialAccount,
+} from '@/lib/api';
 import { invokeEdgeFunction } from '@/lib/edgeFunctions';
-import { buildPlatformPayloads, platformOf, PlatformPayload } from '@/lib/platforms';
-import { MultiPlatformPicker } from './MultiPlatformPicker';
+import {
+  buildPlatformPayloads,
+  platformOf,
+  PlatformPayload,
+  trimMediaForPlatform,
+  validatePlatformPayload,
+  PlatformMediaAttachment,
+} from '@/lib/platforms';
+import { normalizeMediaAsset, resolveMediaUrl, type MediaAsset } from '@/lib/mediaUrl';
+import { PlatformPickerCarousel } from './PlatformPickerCarousel';
 import { PlatformPreviewCarousel } from './PlatformPreviewCarousel';
 import { ContentItem } from './types';
 
@@ -19,6 +32,31 @@ interface PublishPanelProps {
   onPublished: () => void;
 }
 
+function toMediaAttachments(assets: MediaAsset[]): PlatformMediaAttachment[] {
+  return assets.map((a) => ({
+    url: a.mediaUrl,
+    type: a.mediaType === 'video' ? 'video' : 'image',
+    name: a.name ?? undefined,
+    fileSizeBytes: a.fileSizeBytes ?? undefined,
+  }));
+}
+
+function normalizePayloadsForPublish(
+  payloads: Record<string, PlatformPayload>,
+): Record<string, PlatformPayload> {
+  const out: Record<string, PlatformPayload> = {};
+  for (const [platform, payload] of Object.entries(payloads)) {
+    out[platform] = {
+      ...payload,
+      media: payload.media?.map((m) => ({
+        ...m,
+        url: resolveMediaUrl(m.url),
+      })),
+    };
+  }
+  return out;
+}
+
 export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps) {
   const { toast } = useToast();
   const { tenant } = useTenant();
@@ -26,40 +64,95 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [platformPayloads, setPlatformPayloads] = useState<Record<string, PlatformPayload>>({});
   const [publishing, setPublishing] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState<SocialAccount[]>([]);
+  const [libraryAssets, setLibraryAssets] = useState<MediaAsset[]>([]);
+  const initKeyRef = useRef('');
+
+  const loadLibrary = useCallback(async () => {
+    if (!tenant?.id) return;
+    try {
+      const rows = await mediaApi.findAll(tenant.id);
+      const all = (Array.isArray(rows) ? rows : []).map((r) =>
+        normalizeMediaAsset(r as Record<string, unknown>),
+      );
+      const linked = all.filter((a) => a.contentId === item.id);
+      const rest = all.filter((a) => a.contentId !== item.id);
+      setLibraryAssets([...linked, ...rest]);
+    } catch {
+      setLibraryAssets([]);
+    }
+  }, [tenant?.id, item.id]);
 
   useEffect(() => {
     if (!tenant?.id) return;
-    socialAccountsApi.findByTenant(tenant.id).then((data) => {
-      setConnectedAccounts(Array.isArray(data) ? data : []);
-    }).catch(() => setConnectedAccounts([]));
-  }, [tenant?.id]);
+    socialAccountsApi
+      .findByTenant(tenant.id)
+      .then((data) => setConnectedAccounts(Array.isArray(data) ? data : []))
+      .catch(() => setConnectedAccounts([]));
+    void loadLibrary();
+  }, [tenant?.id, loadLibrary]);
 
   useEffect(() => {
     const existing = item.platforms?.length ? item.platforms : [];
     setSelectedPlatforms(existing);
-    if (item.platformPayloads && Object.keys(item.platformPayloads).length) {
-      setPlatformPayloads(item.platformPayloads);
-    } else if (existing.length) {
-      setPlatformPayloads(buildPlatformPayloads(item.content ?? '', item.title ?? '', existing));
-    } else {
-      setPlatformPayloads({});
-    }
-  }, [item]);
+  }, [item.id, item.platforms?.join(',')]);
 
   useEffect(() => {
     if (!selectedPlatforms.length) {
       setPlatformPayloads({});
+      initKeyRef.current = '';
       return;
     }
-    setPlatformPayloads((prev) => {
-      const next = buildPlatformPayloads(item.content ?? '', item.title ?? '', selectedPlatforms);
+
+    const key = `${item.id}:${selectedPlatforms.join(',')}`;
+    if (initKeyRef.current === key) return;
+    initKeyRef.current = key;
+
+    const linked = libraryAssets.filter((a) => a.contentId === item.id);
+    const baseMedia = toMediaAttachments((linked.length ? linked : libraryAssets).slice(0, 10));
+    const next = buildPlatformPayloads(
+      item.content ?? '',
+      item.title ?? '',
+      selectedPlatforms,
+      baseMedia,
+    );
+
+    if (item.platformPayloads && Object.keys(item.platformPayloads).length) {
       for (const p of selectedPlatforms) {
-        if (prev[p]?.content) next[p] = { ...next[p], content: prev[p].content };
+        const saved = item.platformPayloads[p];
+        if (saved) {
+          next[p] = {
+            ...next[p],
+            content: saved.content ?? next[p].content,
+            title: saved.title ?? next[p].title,
+            media: saved.media?.length ? saved.media : next[p].media,
+          };
+        }
       }
-      return next;
+    }
+
+    setPlatformPayloads(next);
+  }, [selectedPlatforms.join(','), item.id, item.content, item.title, item.platformPayloads, libraryAssets]);
+
+  useEffect(() => {
+    if (!libraryAssets.length || !selectedPlatforms.length) return;
+    const linked = libraryAssets.filter((a) => a.contentId === item.id);
+    if (!linked.length) return;
+
+    setPlatformPayloads((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      const baseMedia = toMediaAttachments(linked);
+      for (const p of selectedPlatforms) {
+        if (!next[p]?.media?.length) {
+          next[p] = { ...next[p], media: trimMediaForPlatform(p, baseMedia) };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
-  }, [selectedPlatforms.join(','), item.content, item.title]);
+  }, [libraryAssets, item.id, selectedPlatforms.join(',')]);
 
   const updatePayload = (platform: string, patch: Partial<PlatformPayload>) => {
     setPlatformPayloads((prev) => ({
@@ -68,24 +161,118 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
     }));
   };
 
-  const connectedPlatforms = new Set(connectedAccounts.filter((a) => a.connected).map((a) => a.platform));
+  const applyMediaToAll = (sourcePlatform: string) => {
+    const sourceMedia = platformPayloads[sourcePlatform]?.media ?? [];
+    if (!sourceMedia.length) return;
+    setPlatformPayloads((prev) => {
+      const next = { ...prev };
+      for (const p of selectedPlatforms) {
+        next[p] = {
+          ...next[p],
+          media: trimMediaForPlatform(p, sourceMedia),
+        };
+      }
+      return next;
+    });
+    toast({
+      title: 'Media applied',
+      description: 'Attachments copied to all selected platforms (trimmed to each limit).',
+    });
+  };
+
+  const handleGenerateWithAi = async () => {
+    if (!tenant || !selectedPlatforms.length) {
+      toast({ title: 'Select platforms first', variant: 'destructive' });
+      return;
+    }
+    setGenerating(true);
+    try {
+      const { payloads } = await contentAiApi.adaptPlatforms({
+        tenantId: tenant.id,
+        platforms: selectedPlatforms,
+        title: item.title,
+        content: item.content ?? '',
+      });
+      setPlatformPayloads((prev) => {
+        const next = { ...prev };
+        for (const p of selectedPlatforms) {
+          if (payloads[p]) {
+            next[p] = {
+              ...next[p],
+              title: payloads[p].title,
+              content: payloads[p].content,
+              media: next[p]?.media,
+            };
+          }
+        }
+        return next;
+      });
+      toast({
+        title: 'AI copy ready',
+        description: `Adapted for ${selectedPlatforms.map((p) => platformOf(p).label).join(', ')}.`,
+      });
+    } catch (err: unknown) {
+      toast({
+        title: 'AI generation failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const connectedPlatforms = new Set(
+    connectedAccounts.filter((a) => a.connected).map((a) => a.platform),
+  );
   const missingConnect = selectedPlatforms.filter((p) => !connectedPlatforms.has(p));
+
+  const validationIssues = selectedPlatforms.flatMap((p) => {
+    const v = validatePlatformPayload(p, platformPayloads[p] ?? { content: '' });
+    return v.errors.map((e) => ({ platform: p, message: e }));
+  });
 
   const handlePublish = async () => {
     if (!selectedPlatforms.length) {
       toast({ title: 'Select at least one platform', variant: 'destructive' });
       return;
     }
+    if (validationIssues.length > 0) {
+      toast({
+        title: 'Fix validation issues',
+        description: validationIssues[0].message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!tenant) return;
+
     setPublishing(true);
     try {
-      const payloads =
+      const rawPayloads =
         Object.keys(platformPayloads).length > 0
           ? platformPayloads
           : buildPlatformPayloads(item.content ?? '', item.title ?? '', selectedPlatforms);
+      const publishPayloads = normalizePayloadsForPublish(rawPayloads);
+
+      const mediaByUrl = new Map<string, { url: string; type: string }>();
+      for (const p of selectedPlatforms) {
+        for (const m of publishPayloads[p]?.media ?? []) {
+          const url = resolveMediaUrl(m.url);
+          mediaByUrl.set(url, { url, type: m.type });
+        }
+      }
+      if (mediaByUrl.size > 0) {
+        await contentItemsApi.attachMedia(
+          item.id,
+          tenant.id,
+          Array.from(mediaByUrl.values()),
+        );
+      }
 
       await contentItemsApi.update(item.id, {
         platforms: selectedPlatforms,
-        platformPayloads: payloads,
+        platformPayloads: rawPayloads,
         contentType: selectedPlatforms[0],
         status: 'approved',
       } as any);
@@ -95,17 +282,18 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
           body: {
             contentId: item.id,
             platforms: selectedPlatforms,
-            platformPayloads: payloads,
+            platformPayloads: publishPayloads,
           },
         });
         toast({
           title: 'Published!',
           description: `Sent to ${selectedPlatforms.map((p) => platformOf(p).label).join(', ')}.`,
         });
-      } catch {
+      } catch (err: unknown) {
         toast({
-          title: 'Saved for publishing',
-          description: 'Platform targets saved — connect publish API to go live.',
+          title: 'Publish issue',
+          description: err instanceof Error ? err.message : 'Saved targets — check platform connections and public media URLs.',
+          variant: 'destructive',
         });
       }
       onPublished();
@@ -121,34 +309,54 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
   };
 
   return (
-    <Card className="border-primary/30 shadow-md">
-      <CardHeader className="pb-4">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="sticky top-0 z-10 bg-background border-b px-6 py-5">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="font-display text-lg">Publish content</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              {item.title || 'Untitled'} — pick platforms and preview before publishing.
+          <div className="pr-8">
+            <h2 className="font-display text-xl font-semibold">Publish content</h2>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              Grow Smarter, Sell Stronger with AgriWide — pick platforms and preview before publishing.
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onCancel}>
+          <Button type="button" variant="ghost" size="icon" onClick={onCancel} className="shrink-0">
             <X className="h-4 w-4" />
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
         <div>
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground mb-2 block">
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground mb-3 block">
             Select platforms
           </Label>
-          <MultiPlatformPicker values={selectedPlatforms} onChange={setSelectedPlatforms} />
+          <PlatformPickerCarousel values={selectedPlatforms} onChange={setSelectedPlatforms} />
         </div>
+
+        {selectedPlatforms.length > 0 && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={handleGenerateWithAi}
+            disabled={generating}
+          >
+            {generating ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            {generating ? 'Generating platform copy…' : 'Generate AI copy for selected platforms'}
+          </Button>
+        )}
 
         <PlatformPreviewCarousel
           platforms={selectedPlatforms}
           platformPayloads={platformPayloads}
           title={item.title}
           baseContent={item.content}
+          libraryAssets={libraryAssets}
           onEditPayload={updatePayload}
+          onApplyMediaToAll={applyMediaToAll}
           editable
         />
 
@@ -157,34 +365,38 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
             <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-amber-800 dark:text-amber-200">
-                Not connected for this workspace: {missingConnect.map((p) => platformOf(p).label).join(', ')}
+                Not connected for this workspace:{' '}
+                {missingConnect.map((p) => platformOf(p).label).join(', ')}
               </p>
-              <Link to="/publisher" className="inline-flex items-center gap-1 text-xs text-primary mt-1 hover:underline">
+              <Link
+                to="/publisher"
+                className="inline-flex items-center gap-1 text-xs text-primary mt-1 hover:underline"
+              >
                 <Link2 className="h-3 w-3" /> Connect accounts in Publisher Connect
               </Link>
             </div>
           </div>
         )}
+      </div>
 
-        <div className="flex gap-2 pt-2 border-t">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            className="flex-1 gradient-primary text-primary-foreground border-0"
-            onClick={handlePublish}
-            disabled={publishing || !selectedPlatforms.length}
-          >
-            {publishing ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Send className="h-4 w-4 mr-2" />
-            )}
-            Publish to {selectedPlatforms.length || 0} platform{selectedPlatforms.length !== 1 ? 's' : ''}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="sticky bottom-0 border-t bg-background px-6 py-4 flex gap-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          className="flex-1 gradient-primary text-primary-foreground border-0"
+          onClick={handlePublish}
+          disabled={publishing || generating || !selectedPlatforms.length || validationIssues.length > 0}
+        >
+          {publishing ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Send className="h-4 w-4 mr-2" />
+          )}
+          Publish to {selectedPlatforms.length || 0} platform{selectedPlatforms.length !== 1 ? 's' : ''}
+        </Button>
+      </div>
+    </div>
   );
 }

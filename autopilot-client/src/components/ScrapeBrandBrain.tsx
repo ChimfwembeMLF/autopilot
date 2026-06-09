@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edgeFunctions";
 
+import { useTenant } from "@/hooks/useTenant";
+
 interface ScrapeBrandBrainProps {
   onResult: (data: Partial<Record<string, string>>) => void;
 }
@@ -11,13 +13,14 @@ interface ScrapeBrandBrainProps {
 export function ScrapeBrandBrain({ onResult }: ScrapeBrandBrainProps) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const { tenant } = useTenant();
   const { toast } = useToast();
 
   async function handleScrape() {
     setLoading(true);
     try {
       const { data, error } = await invokeEdgeFunction("scrape-brand", {
-        body: { url },
+        body: { url, tenantId: tenant?.id },
       });
 
       if (error) throw error;

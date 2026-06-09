@@ -17,7 +17,8 @@ export class LeadsService {
     return this.repo.save(ent as Leads);
   }
 
-  async findAll(): Promise<Leads[]> {
+  async findAll(tenantId?: string): Promise<Leads[]> {
+    if (tenantId) return this.repo.find({ where: { tenantId } });
     return this.repo.find();
   }
 

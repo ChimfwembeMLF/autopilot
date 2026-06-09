@@ -1,6 +1,6 @@
 import {
   Brain, Pen, CalendarClock, MessageSquare, BarChart3, Zap, Settings,
-  Rocket, Link2, Image, LayoutTemplate, MessageSquareReply,
+  Rocket, Link2, Image, LayoutTemplate, MessageSquareReply, Megaphone,
   GitPullRequestArrow, Users, ClipboardList, ShieldCheck,
   ChevronsUpDown, Building2, CreditCard, Download,
 } from "lucide-react";
@@ -89,6 +89,7 @@ export function AppSidebar() {
               <NavItem title="Dashboard" url="/" icon={Zap} exact />
               <NavItem title="Brand Brain" url="/brand-brain" icon={Brain} />
               <NavItem title="Content Engine" url="/content" icon={Pen} />
+              <NavItem title="AI Campaigns" url="/campaigns" icon={Megaphone} />
               <NavItem title="Scheduler" url="/scheduler" icon={CalendarClock} />
               <NavItem title="Publisher" url="/publisher" icon={Link2} />
             </SidebarMenu>

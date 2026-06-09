@@ -1,15 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { AiUsage } from './entities/ai_usage.entity';
 import { AiUsageCreateDto } from './dto/create-ai_usage.dto';
 import { AiUsageUpdateDto } from './dto/update-ai_usage.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class AiUsageService {
   constructor(
     @InjectRepository(AiUsage)
     private readonly repo: Repository<AiUsage>,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async create(dto: AiUsageCreateDto): Promise<AiUsage> {
@@ -17,7 +19,8 @@ export class AiUsageService {
     return this.repo.save(ent as AiUsage);
   }
 
-  async findAll(): Promise<AiUsage[]> {
+  async findAll(tenantId?: string): Promise<AiUsage[]> {
+    if (tenantId) return this.repo.find({ where: { tenantId } });
     return this.repo.find();
   }
 
@@ -37,7 +40,13 @@ export class AiUsageService {
     if (res.affected === 0) throw new NotFoundException('AiUsage not found');
   }
 
-  async checkUsage(_tenantId: string, _userId: string): Promise<boolean> {
-    return true;
+  async checkUsage(tenantId: string, _userId: string): Promise<boolean> {
+    if (!tenantId) return true;
+    const check = await this.subscriptions.canUseAi(tenantId);
+    return check.allowed;
+  }
+
+  async assertWithinLimit(tenantId: string, _userId: string): Promise<void> {
+    await this.subscriptions.assertCanUseAi(tenantId);
   }
 }

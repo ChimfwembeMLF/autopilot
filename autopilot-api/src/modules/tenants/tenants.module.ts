@@ -12,9 +12,11 @@ import { RolePermissions } from '../auth/rbac/role_permissions/entities/role_per
 import { Workspaces } from '../workspaces/entities/workspaces.entity';
 import { ApprovalWorkflows } from '../approval_workflows/entities/approval_workflows.entity';
 import { UserEntity } from '../user/user.entity';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
+    SubscriptionsModule,
     TypeOrmModule.forFeature([
       Tenants,
       Profiles,

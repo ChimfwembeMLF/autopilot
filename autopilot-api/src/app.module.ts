@@ -8,7 +8,12 @@ import { typeOrmConfigFactory } from './database/ormconfig';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
+import { ContentCampaignsModule } from './modules/content_campaigns/content-campaigns.module';
 import { ContentItemsModule } from './modules/content_items/content_items.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { MediaModule } from './modules/media/media.module';
+import { TemplatesModule } from './modules/templates/templates.module';
 import { SocialAccountsModule } from './modules/social_accounts/social_accounts.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { PaymentFailuresModule } from './modules/payment_failures/payment_failures.module';
@@ -16,6 +21,8 @@ import { ApprovalRequestsModule } from './modules/approval_requests/approval_req
 import { WhatsappContactsModule } from './modules/whatsapp_contacts/whatsapp_contacts.module';
 import { AuditLogsModule } from './modules/audit_logs/audit_logs.module';
 import { AiUsageModule } from './modules/ai_usage/ai_usage.module';
+import { AiModule } from './modules/ai/ai.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 import { RbacModule } from './modules/auth/rbac/rbac.module';
 import { AutoReplyRulesModule } from './modules/auto_reply_rules/auto_reply_rules.module';
 import { CommentRepliesModule } from './modules/comment_replies/comment_replies.module';
@@ -58,6 +65,11 @@ import { SystemSettingsModule } from './modules/system_settings/system_settings.
     UserPermissionsModule,
     BrandProfilesModule,
     ContentItemsModule,
+    ContentCampaignsModule,
+    SubscriptionsModule,
+    PaymentsModule,
+    MediaModule,
+    TemplatesModule,
     SocialAccountsModule,
     LeadsModule,
     LeadSourcesModule,
@@ -70,6 +82,8 @@ import { SystemSettingsModule } from './modules/system_settings/system_settings.
     CommentRepliesModule,
     AuditLogsModule,
     AiUsageModule,
+    AiModule,
+    JobsModule,
     SystemSettingsModule,
   ],
   providers: [

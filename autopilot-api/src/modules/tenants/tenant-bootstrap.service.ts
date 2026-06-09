@@ -16,6 +16,7 @@ import {
   APPROVAL_WORKFLOW_DEFINITIONS,
   TENANT_SCOPED_PERMISSIONS,
 } from '../auth/rbac/rbac.constants';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class TenantBootstrapService {
@@ -30,6 +31,7 @@ export class TenantBootstrapService {
     @InjectRepository(RolePermissions) private readonly rolePermissionsRepo: Repository<RolePermissions>,
     @InjectRepository(Workspaces) private readonly workspacesRepo: Repository<Workspaces>,
     @InjectRepository(ApprovalWorkflows) private readonly workflowsRepo: Repository<ApprovalWorkflows>,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async ensurePermissionsSeeded(): Promise<void> {
@@ -134,7 +136,12 @@ export class TenantBootstrapService {
     }
 
     this.logger.log(`Bootstrapped tenant ${tenant.id} for user ${user.id}`);
+    await this.subscriptions.ensureForTenant(tenant.id, 'free');
     return tenant;
+  }
+
+  async ensureSubscriptionForExistingTenant(tenantId: string) {
+    return this.subscriptions.ensureForTenant(tenantId, 'free');
   }
 
   private async ensureProfile(user: UserEntity): Promise<void> {

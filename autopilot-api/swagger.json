@@ -654,6 +654,34 @@
         ]
       }
     },
+    "/api/v1/subscriptions/tenant/{tenantId}": {
+      "get": {
+        "operationId": "SubscriptionsController_getForTenant",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
     "/api/v1/tenant-members/invite": {
       "post": {
         "operationId": "TenantMembersController_invite",
@@ -1753,6 +1781,54 @@
         ]
       }
     },
+    "/api/v1/brand-profiles/scrape-website": {
+      "post": {
+        "operationId": "BrandProfilesController_scrape",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScrapeWebsiteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles/parse-document": {
+      "post": {
+        "operationId": "BrandProfilesController_parse",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
     "/api/v1/brand-profiles": {
       "post": {
         "operationId": "BrandProfilesController_create",
@@ -1772,18 +1848,65 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Brand Profiles"
         ]
       },
       "get": {
         "operationId": "BrandProfilesController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles/mine": {
+      "get": {
+        "operationId": "BrandProfilesController_findMine",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Brand Profiles"
         ]
@@ -1807,6 +1930,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Brand Profiles"
         ]
@@ -1838,6 +1966,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Brand Profiles"
         ]
@@ -1859,12 +1992,176 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Brand Profiles"
         ]
       }
     },
-    "/content-items": {
+    "/api/v1/ai/health": {
+      "get": {
+        "operationId": "AiController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/form-suggestions": {
+      "post": {
+        "operationId": "AiController_suggestions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormSuggestionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai-usage": {
+      "post": {
+        "operationId": "AiUsageController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiUsageCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      },
+      "get": {
+        "operationId": "AiUsageController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      }
+    },
+    "/api/v1/ai-usage/{id}": {
+      "get": {
+        "operationId": "AiUsageController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      },
+      "patch": {
+        "operationId": "AiUsageController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiUsageUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      },
+      "delete": {
+        "operationId": "AiUsageController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      }
+    },
+    "/api/v1/content-items": {
       "post": {
         "operationId": "ContentItemsController_create",
         "parameters": [],
@@ -1883,24 +2180,43 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Content Items"
         ]
       },
       "get": {
         "operationId": "ContentItemsController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Content Items"
         ]
       }
     },
-    "/content-items/{id}": {
+    "/api/v1/content-items/{id}": {
       "get": {
         "operationId": "ContentItemsController_findOne",
         "parameters": [
@@ -1918,6 +2234,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Content Items"
         ]
@@ -1949,6 +2270,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Content Items"
         ]
@@ -1970,8 +2296,714 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Content Items"
+        ]
+      }
+    },
+    "/api/v1/content-items/{id}/media": {
+      "post": {
+        "operationId": "ContentItemsController_attachMedia",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content Items"
+        ]
+      }
+    },
+    "/api/v1/content-ai/generate": {
+      "post": {
+        "operationId": "ContentAiController_generate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/repurpose": {
+      "post": {
+        "operationId": "ContentAiController_repurpose",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepurposeContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/adapt-platforms": {
+      "post": {
+        "operationId": "ContentAiController_adapt",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdaptPlatformsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/generate-image": {
+      "post": {
+        "operationId": "ContentAiController_image",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/generate-slideshow": {
+      "post": {
+        "operationId": "ContentAiController_slideshow",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateSlideshowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/auto-publish": {
+      "post": {
+        "operationId": "ContentAiController_runAutoPublish",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/daily-workflow": {
+      "post": {
+        "operationId": "ContentAiController_runDailyWorkflow",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyWorkflowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/content-ai/{contentId}/publish": {
+      "post": {
+        "operationId": "ContentAiController_publish",
+        "parameters": [
+          {
+            "name": "contentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content AI"
+        ]
+      }
+    },
+    "/api/v1/media": {
+      "get": {
+        "operationId": "MediaController_findAll",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/v1/media/upload": {
+      "post": {
+        "operationId": "MediaController_upload",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contentId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/v1/media/{id}": {
+      "delete": {
+        "operationId": "MediaController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/v1/content-campaigns/generate": {
+      "post": {
+        "operationId": "ContentCampaignsController_generate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content Campaigns"
+        ]
+      }
+    },
+    "/api/v1/content-campaigns": {
+      "get": {
+        "operationId": "ContentCampaignsController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content Campaigns"
+        ]
+      }
+    },
+    "/api/v1/content-campaigns/{id}": {
+      "get": {
+        "operationId": "ContentCampaignsController_getOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content Campaigns"
+        ]
+      },
+      "delete": {
+        "operationId": "ContentCampaignsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Content Campaigns"
+        ]
+      }
+    },
+    "/api/v1/payments/deposits/initiate": {
+      "post": {
+        "operationId": "PaymentsController_initiate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/deposits/check-pending": {
+      "post": {
+        "operationId": "PaymentsController_checkPending",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/payments/deposits/tenant/{tenantId}": {
+      "get": {
+        "operationId": "PaymentsController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/api/v1/templates": {
+      "get": {
+        "operationId": "TemplatesController_findAll",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Templates"
+        ]
+      },
+      "post": {
+        "operationId": "TemplatesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Templates"
+        ]
+      }
+    },
+    "/api/v1/templates/{id}": {
+      "get": {
+        "operationId": "TemplatesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Templates"
+        ]
+      },
+      "patch": {
+        "operationId": "TemplatesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Templates"
+        ]
+      },
+      "delete": {
+        "operationId": "TemplatesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Templates"
         ]
       }
     },
@@ -2229,6 +3261,48 @@
         ]
       }
     },
+    "/api/v1/leads/webhook": {
+      "post": {
+        "operationId": "LeadsController_webhook",
+        "parameters": [
+          {
+            "name": "x-webhook-secret",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Leads"
+        ]
+      }
+    },
+    "/api/v1/leads/send-email": {
+      "post": {
+        "operationId": "LeadsController_sendEmail",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Leads"
+        ]
+      }
+    },
     "/api/v1/leads": {
       "post": {
         "operationId": "LeadsController_create",
@@ -2248,18 +3322,37 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Leads"
         ]
       },
       "get": {
         "operationId": "LeadsController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Leads"
         ]
@@ -2283,6 +3376,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Leads"
         ]
@@ -2314,6 +3412,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Leads"
         ]
@@ -2335,6 +3438,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "Leads"
         ]
@@ -3439,117 +4547,6 @@
         ]
       }
     },
-    "/api/v1/ai-usage": {
-      "post": {
-        "operationId": "AiUsageController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AiUsageCreateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      },
-      "get": {
-        "operationId": "AiUsageController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      }
-    },
-    "/api/v1/ai-usage/{id}": {
-      "get": {
-        "operationId": "AiUsageController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      },
-      "patch": {
-        "operationId": "AiUsageController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AiUsageUpdateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      },
-      "delete": {
-        "operationId": "AiUsageController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      }
-    },
     "/api/v1/system-settings/theme": {
       "get": {
         "operationId": "SystemSettingsController_getTheme",
@@ -3816,6 +4813,10 @@
         "type": "object",
         "properties": {}
       },
+      "ScrapeWebsiteDto": {
+        "type": "object",
+        "properties": {}
+      },
       "BrandProfilesCreateDto": {
         "type": "object",
         "properties": {}
@@ -3824,11 +4825,55 @@
         "type": "object",
         "properties": {}
       },
+      "FormSuggestionsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AiUsageCreateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AiUsageUpdateDto": {
+        "type": "object",
+        "properties": {}
+      },
       "ContentItemsCreateDto": {
         "type": "object",
         "properties": {}
       },
       "ContentItemsUpdateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GenerateContentDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RepurposeContentDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdaptPlatformsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GenerateImageDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GenerateSlideshowDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DailyWorkflowDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PublishContentDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GenerateCampaignDto": {
         "type": "object",
         "properties": {}
       },
@@ -3913,14 +4958,6 @@
         "properties": {}
       },
       "AuditLogsUpdateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AiUsageCreateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AiUsageUpdateDto": {
         "type": "object",
         "properties": {}
       },

@@ -2,11 +2,8 @@ import {
   IsString,
   IsOptional,
   IsUUID,
-  IsBoolean,
   IsDate,
   IsArray,
-  IsNumber,
-  IsInt,
 } from 'class-validator';
 
 export class ContentItemsUpdateDto {
@@ -52,7 +49,7 @@ export class ContentItemsUpdateDto {
   platforms?: string[];
 
   @IsOptional()
-  platformPayloads?: string;
+  platformPayloads?: Record<string, unknown>;
 
   @IsOptional()
   @IsDate()
@@ -77,12 +74,4 @@ export class ContentItemsUpdateDto {
   @IsOptional()
   @IsDate()
   deletedAt?: Date;
-
-  @IsOptional()
-  @IsDate()
-  createdAt?: Date;
-
-  @IsOptional()
-  @IsDate()
-  updatedAt?: Date;
 }

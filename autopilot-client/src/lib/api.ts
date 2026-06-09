@@ -162,6 +162,39 @@ export function getSocialLoginUrl(provider: 'google' | 'facebook' | 'linkedin' |
 // ----------------------------------------------------------------------
 interface FetchOptions extends RequestInit {
     requireAuth?: boolean;
+    /** @internal retry after token refresh */
+    _isRetry?: boolean;
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+    if (refreshInFlight) return refreshInFlight;
+
+    refreshInFlight = (async () => {
+        const refreshToken = getRefreshToken();
+        if (!refreshToken) return null;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken }),
+            });
+            if (!response.ok) return null;
+
+            const body = await response.json() as { accessToken?: string; token?: string };
+            const next = body.accessToken ?? body.token ?? null;
+            if (next) setAuthToken(next);
+            return next;
+        } catch {
+            return null;
+        } finally {
+            refreshInFlight = null;
+        }
+    })();
+
+    return refreshInFlight;
 }
 
 async function request<T>(
@@ -206,6 +239,15 @@ async function request<T>(
             // ignore non-JSON error bodies
         }
         const isAuthError = response.status === 401 || response.status === 403;
+
+        if (isAuthError && requireAuth && !options._isRetry) {
+            const refreshed = await refreshAccessToken();
+            if (refreshed) {
+                return request<T>(endpoint, { ...options, _isRetry: true });
+            }
+            setAuthToken(null);
+        }
+
         throw new ApiError(errorMessage, { status: response.status, isAuthError });
     }
 
@@ -553,7 +595,18 @@ export const brandProfilesApi = {
             body: JSON.stringify(data),
         }),
 
-    findAll: () => request<any>('/api/v1/brand-profiles'),
+    findAll: (tenantId?: string) =>
+        request<any>(tenantId ? `/api/v1/brand-profiles?tenantId=${tenantId}` : '/api/v1/brand-profiles'),
+
+    getMine: (tenantId: string) =>
+        request<any | null>(`/api/v1/brand-profiles/mine?tenantId=${tenantId}`),
+
+    /** Creates or updates the profile for the current user + tenant (safe to call repeatedly). */
+    save: (data: BrandProfilesCreateDto) =>
+        request<any>('/api/v1/brand-profiles', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
 
     findOne: (id: string) => request<any>(`/api/v1/brand-profiles/${id}`),
 
@@ -565,28 +618,234 @@ export const brandProfilesApi = {
 
     remove: (id: string) =>
         request<any>(`/api/v1/brand-profiles/${id}`, { method: 'DELETE' }),
+
+    scrapeWebsite: (data: { url: string; tenantId: string }) =>
+        request<Record<string, string>>('/api/v1/brand-profiles/scrape-website', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    parseDocument: (file: File, tenantId: string) => {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('tenantId', tenantId);
+        const token = getAuthToken();
+        return fetch(`${API_BASE_URL}/api/v1/brand-profiles/parse-document`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: form,
+        }).then(async (res) => {
+            if (!res.ok) {
+                let msg = `HTTP ${res.status}`;
+                try {
+                    const body = await res.json();
+                    msg = body.message || msg;
+                } catch { /* ignore */ }
+                throw new Error(msg);
+            }
+            return res.json() as Promise<Record<string, string>>;
+        });
+    },
+};
+
+// ==================== Content AI (Mistral) ====================
+export const contentAiApi = {
+    generate: (data: {
+        theme?: string;
+        draft?: string;
+        workspaceId?: string;
+        workspace_id?: string;
+        tenantId?: string;
+        contentType?: string;
+        platform?: string;
+        save?: boolean;
+    }) =>
+        request<{ title: string; content: string; contentItemId?: string }>(
+            '/api/v1/content-ai/generate',
+            { method: 'POST', body: JSON.stringify(data) },
+        ),
+
+    repurpose: (contentId: string) =>
+        request<{ repurposed: number }>('/api/v1/content-ai/repurpose', {
+            method: 'POST',
+            body: JSON.stringify({ contentId }),
+        }),
+
+    adaptPlatforms: (data: {
+        tenantId: string;
+        platforms: string[];
+        content: string;
+        title?: string;
+    }) =>
+        request<{ payloads: Record<string, { title: string; content: string }>; tokensUsed: number }>(
+            '/api/v1/content-ai/adapt-platforms',
+            { method: 'POST', body: JSON.stringify(data) },
+        ),
+
+    generateImage: (data: { prompt: string; tenantId: string; contentId?: string; contentType?: string }) =>
+        request<{ media_url: string; media_type: string; mediaAssetId: string }>(
+            '/api/v1/content-ai/generate-image',
+            { method: 'POST', body: JSON.stringify(data) },
+        ),
+
+    generateSlideshow: (data: { theme: string; tenantId: string; slideCount?: number; contentId?: string }) =>
+        request<{ slides: string[] }>('/api/v1/content-ai/generate-slideshow', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    publish: (
+        contentId: string,
+        platforms?: string[],
+        platformPayloads?: Record<string, unknown>,
+    ) =>
+        request<{ published: boolean; results: Record<string, { published: boolean; message: string }> }>(
+            `/api/v1/content-ai/${contentId}/publish`,
+            { method: 'POST', body: JSON.stringify({ platforms, platformPayloads }) },
+        ),
+
+    autoPublish: () =>
+        request<{ attempted: number; published: number; failed: number; errors: string[] }>(
+            '/api/v1/content-ai/auto-publish',
+            { method: 'POST', body: JSON.stringify({}) },
+        ),
+
+    dailyWorkflow: (tenantId?: string) =>
+        request<{ generated: number; skipped?: number; errors: string[] }>(
+            '/api/v1/content-ai/daily-workflow',
+            { method: 'POST', body: JSON.stringify({ tenantId }) },
+        ),
+};
+
+export const contentCampaignsApi = {
+    generate: (data: {
+        tenantId: string;
+        workspaceId: string;
+        theme: string;
+        name?: string;
+        goal?: string;
+        platforms?: string[];
+        postCount?: number;
+        startDate?: string;
+    }) =>
+        request<{ campaign: Record<string, unknown>; posts: Record<string, unknown>[] }>(
+            '/api/v1/content-campaigns/generate',
+            { method: 'POST', body: JSON.stringify(data) },
+        ),
+
+    list: (tenantId: string) =>
+        request<Record<string, unknown>[]>(`/api/v1/content-campaigns?tenantId=${tenantId}`),
+
+    getOne: (id: string, tenantId: string) =>
+        request<{ campaign: Record<string, unknown>; posts: Record<string, unknown>[] }>(
+            `/api/v1/content-campaigns/${id}?tenantId=${tenantId}`,
+        ),
+
+    remove: (id: string, tenantId: string) =>
+        request<{ deleted: boolean }>(`/api/v1/content-campaigns/${id}?tenantId=${tenantId}`, {
+            method: 'DELETE',
+        }),
+};
+
+export const subscriptionsApi = {
+    getForTenant: (tenantId: string) =>
+        request<{
+            plan: string;
+            status: string;
+            dailyWorkflowEnabled: boolean;
+            aiCallsLimit: number | null;
+            aiCallsUsed: number;
+            aiCallsRemaining: number | null;
+            seatLimit: number | null;
+            billingPeriodStart: string;
+            billingPeriodEnd: string;
+        }>(`/api/v1/subscriptions/tenant/${tenantId}`),
+};
+
+export const paymentsApi = {
+    initiateDeposit: (data: { tenantId: string; plan: string; phone?: string; correspondent?: string }) =>
+        request<{ paymentId: string; status: string; message: string; plan?: string; amount?: string }>(
+            '/api/v1/payments/deposits/initiate',
+            { method: 'POST', body: JSON.stringify(data) },
+        ),
+    listDeposits: (tenantId: string) =>
+        request<Array<{
+            id: string;
+            plan: string | null;
+            status: string | null;
+            amount: string | null;
+            currency: string | null;
+            method: 'mobile_money';
+            createdAt: string;
+        }>>(`/api/v1/payments/deposits/tenant/${tenantId}`),
+    checkPending: () =>
+        request<{ completed: number }>('/api/v1/payments/deposits/check-pending', {
+            method: 'POST',
+            body: JSON.stringify({}),
+        }),
+};
+
+export const mediaApi = {
+    findAll: (tenantId: string) => request<any[]>(`/api/v1/media?tenantId=${tenantId}`),
+    upload: (file: File, tenantId: string, contentId?: string) => {
+        const form = new FormData();
+        form.append('file', file);
+        const token = getAuthToken();
+        const q = new URLSearchParams({ tenantId });
+        if (contentId) q.set('contentId', contentId);
+        return fetch(`${API_BASE_URL}/api/v1/media/upload?${q}`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: form,
+        }).then(async (res) => {
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+            return res.json();
+        });
+    },
+    remove: (id: string, tenantId: string) =>
+        request<any>(`/api/v1/media/${id}?tenantId=${tenantId}`, { method: 'DELETE' }),
+};
+
+export const templatesApi = {
+    findAll: (tenantId: string) => request<any[]>(`/api/v1/templates?tenantId=${tenantId}`),
+    create: (data: Record<string, unknown>) =>
+        request<any>('/api/v1/templates', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, tenantId: string, data: Record<string, unknown>) =>
+        request<any>(`/api/v1/templates/${id}?tenantId=${tenantId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
+    remove: (id: string, tenantId: string) =>
+        request<any>(`/api/v1/templates/${id}?tenantId=${tenantId}`, { method: 'DELETE' }),
 };
 
 // ==================== Content Items ====================
 export const contentItemsApi = {
     create: (data: ContentItemsCreateDto) =>
-        request<any>('/content-items', {
+        request<any>('/api/v1/content-items', {
             method: 'POST',
             body: JSON.stringify(data),
         }),
 
-    findAll: () => request<any>('/content-items'),
+    findAll: (tenantId?: string) =>
+        request<any>(tenantId ? `/api/v1/content-items?tenantId=${tenantId}` : '/api/v1/content-items'),
 
-    findOne: (id: string) => request<any>(`/content-items/${id}`),
+    findOne: (id: string) => request<any>(`/api/v1/content-items/${id}`),
 
     update: (id: string, data: ContentItemsUpdateDto) =>
-        request<any>(`/content-items/${id}`, {
+        request<any>(`/api/v1/content-items/${id}`, {
             method: 'PATCH',
             body: JSON.stringify(data),
         }),
 
+    attachMedia: (id: string, tenantId: string, items: Array<{ url: string; type?: string }>) =>
+        request<any>(`/api/v1/content-items/${id}/media`, {
+            method: 'POST',
+            body: JSON.stringify({ tenantId, items }),
+        }),
+
     remove: (id: string) =>
-        request<any>(`/content-items/${id}`, { method: 'DELETE' }),
+        request<any>(`/api/v1/content-items/${id}`, { method: 'DELETE' }),
 };
 
 // ==================== Leads ====================
@@ -609,6 +868,12 @@ export const leadsApi = {
 
     remove: (id: string) =>
         request<any>(`/api/v1/leads/${id}`, { method: 'DELETE' }),
+
+    sendEmail: (data: { to: string; subject: string; body: string }) =>
+        request<{ sent: boolean }>('/api/v1/leads/send-email', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
 };
 
 // ==================== Lead Sources ====================
@@ -826,6 +1091,23 @@ export const auditLogsApi = {
 
     remove: (id: string) =>
         request<any>(`/api/v1/audit-logs/${id}`, { method: 'DELETE' }),
+};
+
+// ==================== AI ====================
+export type FormSuggestionForm = 'brand-brain' | 'content' | 'campaign';
+
+export const aiApi = {
+    getFormSuggestions: (data: {
+        tenantId: string;
+        form: FormSuggestionForm;
+        fields?: string[];
+    }) =>
+        request<{ suggestions: Record<string, string[]> }>('/api/v1/ai/form-suggestions', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    health: () => request<{ status: string; model?: string }>('/api/v1/ai/health'),
 };
 
 // ==================== Ai Usage ====================

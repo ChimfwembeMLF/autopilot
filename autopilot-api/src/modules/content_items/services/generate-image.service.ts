@@ -1,0 +1,104 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { MistralAgentsService } from '../../ai/services/mistral-agents.service';
+import { PromptBuilderService } from '../../ai/services/prompt-builder.service';
+import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
+import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
+import { MediaAssets } from '../entities/media_assets.entity';
+
+@Injectable()
+export class GenerateImageService {
+  constructor(
+    private readonly agents: MistralAgentsService,
+    private readonly prompts: PromptBuilderService,
+    private readonly usage: AiUsageTrackerService,
+    private readonly config: ConfigService,
+    @InjectRepository(BrandProfiles)
+    private readonly brandRepo: Repository<BrandProfiles>,
+    @InjectRepository(MediaAssets)
+    private readonly mediaRepo: Repository<MediaAssets>,
+  ) {}
+
+  async generateImage(params: {
+    tenantId: string;
+    userId: string;
+    prompt: string;
+    contentId?: string;
+    contentType?: string;
+  }) {
+    await this.usage.assertWithinLimit(params.tenantId, params.userId);
+
+    const brand = await this.brandRepo.findOne({
+      where: { tenantId: params.tenantId, userId: params.userId },
+    });
+    const brandCtx = this.prompts.brandFromEntity(brand);
+    const fullPrompt = [
+      `Create a professional marketing image.`,
+      params.prompt,
+      brandCtx.companyName ? `Brand: ${brandCtx.companyName}` : '',
+      brandCtx.toneOfVoice ? `Tone: ${brandCtx.toneOfVoice}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const { publicUrl } = await this.agents.generateImage(fullPrompt, {
+      tenantId: params.tenantId,
+    });
+    const apiBase = (this.config.get<string>('API_PUBLIC_URL') || '').replace(/\/$/, '');
+    const mediaUrl =
+      publicUrl.startsWith('http') ? publicUrl : apiBase ? `${apiBase}${publicUrl}` : publicUrl;
+
+    const asset = await this.mediaRepo.save(
+      this.mediaRepo.create({
+        tenantId: params.tenantId,
+        contentId: params.contentId,
+        mediaUrl,
+        mediaType: 'image',
+        name: params.prompt.slice(0, 120),
+        uploadedBy: params.userId,
+      }),
+    );
+
+    await this.usage.record({
+      tenantId: params.tenantId,
+      userId: params.userId,
+      functionName: 'generate-image',
+      tokensUsed: 100,
+    });
+
+    return { media_url: mediaUrl, media_type: 'image', mediaAssetId: asset.id };
+  }
+
+  async generateSlideshow(params: {
+    tenantId: string;
+    userId: string;
+    theme: string;
+    slideCount?: number;
+    contentId?: string;
+  }) {
+    await this.usage.assertWithinLimit(params.tenantId, params.userId);
+    const count = Math.min(Math.max(params.slideCount ?? 4, 2), 8);
+    const slides: string[] = [];
+
+    for (let i = 1; i <= count; i++) {
+      const { media_url } = await this.generateImage({
+        tenantId: params.tenantId,
+        userId: params.userId,
+        prompt: `${params.theme} — slide ${i} of ${count}, cohesive brand slideshow`,
+        contentId: params.contentId,
+      });
+      slides.push(media_url);
+    }
+
+    await this.usage.record({
+      tenantId: params.tenantId,
+      userId: params.userId,
+      functionName: 'generate-slideshow',
+      tokensUsed: count * 100,
+    });
+
+    return { slides };
+  }
+}
