@@ -17,11 +17,13 @@ import { TenantsModule } from '../tenants/tenants.module';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { RefreshTokenService } from './refresh-token.service';
 import { MailModule } from '../mail/mail.module';
+import { TenantMembersModule } from '../tenant_members/tenant_members.module';
 
 @Module({
   imports: [
     UserModule,
     TenantsModule,
+    TenantMembersModule,
     MailModule,
     TypeOrmModule.forFeature([RefreshTokenEntity]),
     PassportModule.register({ defaultStrategy: 'jwt' }),

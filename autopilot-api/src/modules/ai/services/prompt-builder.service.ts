@@ -168,4 +168,49 @@ Rewrite with a fresh hook and structure — do not reuse sentences from the abov
 ${brandContextBlock(brand)}
 Return ONLY valid JSON: {"content":"plain text reply under 280 chars"}`;
   }
+
+  commentReplySystem(brand: BrandContext, platform: string): string {
+    const guardrails = [
+      brand.bannedWords ? `Never use these words: ${brand.bannedWords}` : '',
+      brand.bannedTopics ? `Avoid these topics: ${brand.bannedTopics}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return `You write public ${platform} comment replies for ${brand.companyName || 'this brand'}.
+${brandContextBlock(brand)}
+${guardrails}
+
+Rules:
+- Reply directly to what the commenter said — acknowledge their point or question first.
+- Stay consistent with the original post's topic and tone.
+- Match ${platform} comment style (concise, conversational; hashtags only if natural on that platform).
+- No generic filler ("Thanks for reaching out!") unless it fits the comment.
+- Do not invent offers, prices, or policies not supported by the brand profile or post.
+- Plain text only — no HTML, markdown, or JSON in the reply body.
+
+Return ONLY valid JSON: {"content":"plain text reply under 500 chars"}`;
+  }
+
+  commentReplyUser(params: {
+    platform: string;
+    postTitle?: string;
+    postContent: string;
+    commenterName: string;
+    commentText: string;
+  }): string {
+    const postBlock = [
+      params.postTitle ? `Title: ${params.postTitle}` : '',
+      `Post:\n${params.postContent.replace(/<[^>]*>/g, '').trim()}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return [
+      `Platform: ${params.platform}`,
+      `Original published content:\n${postBlock}`,
+      `Comment from ${params.commenterName}:\n${params.commentText}`,
+      'Write one reply that addresses their comment in context of the post.',
+    ].join('\n\n');
+  }
 }

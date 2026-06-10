@@ -99,6 +99,25 @@ const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
     '#GrowOnline #BrandVoice #ContentThatConverts\n#SmallBusinessTips #MarketingMadeEasy',
     'Primary: “automated social media for SMEs”\nSecondary: brand brain, multi-platform publishing',
   ],
+  serviceName: ['Tekrem Solutions', 'City Clinic', 'Kangwa Digital Studio'],
+  welcomeMessage: [
+    'Welcome to {serviceName}! How can we help you today?',
+    'Hi there 👋 You\'re chatting with {serviceName}. Pick an option from the menu.',
+    '{serviceName} here — reply menu anytime to see what we offer.',
+  ],
+  menuTitle: ['Pricing', 'Book a call', 'Store hours', 'Talk to support', 'Track my order'],
+  menuDescription: [
+    'See packages & rates',
+    'Schedule with our team',
+    'Opening times & location',
+    'Chat with a person',
+    'Order status updates',
+  ],
+  menuResponse: [
+    'Our starter plan is ZMW 99/month. Pro includes priority support at ZMW 299/month. Reply menu for more options.',
+    'Send your preferred date and time — we\'ll confirm on WhatsApp within 24 hours.',
+    'Mon–Fri 8am–6pm, Sat 9am–1pm. Plot 3, Lusaka. Reply menu for other options.',
+  ],
 };
 
 @Injectable()

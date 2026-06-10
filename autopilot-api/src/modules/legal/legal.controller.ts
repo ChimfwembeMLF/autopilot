@@ -7,6 +7,7 @@ import { join } from 'path';
 import { IsEmail } from 'class-validator';
 import { DataDeletionService } from './data-deletion.service';
 import { WhatsappInboundService } from '../whatsapp/whatsapp-inbound.service';
+import { QueueDispatchService } from '../queues/queue-dispatch.service';
 
 class DataDeletionRequestDto {
   @IsEmail()
@@ -20,6 +21,7 @@ export class LegalController {
     private readonly deletion: DataDeletionService,
     private readonly config: ConfigService,
     private readonly whatsappInbound: WhatsappInboundService,
+    private readonly queueDispatch: QueueDispatchService,
   ) {}
 
   @Get(['privacy', 'privacy.html'])
@@ -72,6 +74,10 @@ export class LegalController {
   /** Meta webhook events (WhatsApp inbound messages, etc.) */
   @Post('api/v1/webhooks/meta')
   async metaEvents(@Body() body: unknown) {
+    if (this.queueDispatch.isEnabled()) {
+      await this.queueDispatch.enqueueWhatsappInbound({ body });
+      return { received: true };
+    }
     return this.whatsappInbound.handleMetaWebhook(body);
   }
 

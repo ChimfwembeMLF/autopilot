@@ -7,6 +7,20 @@ import { WhatsappMessages } from './entities/whatsapp_messages.entity';
 import { WhatsappMessagingService } from './whatsapp-messaging.service';
 import { WhatsappLeadService } from './whatsapp-lead.service';
 import { WhatsappAutoReplyService } from './whatsapp-auto-reply.service';
+import { WhatsappFlowEngineService } from './whatsapp-flow-engine.service';
+
+type InboundWaMessage = {
+  id?: string;
+  from?: string;
+  timestamp?: string;
+  type?: string;
+  text?: { body?: string };
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
+};
 
 @Injectable()
 export class WhatsappInboundService {
@@ -22,6 +36,7 @@ export class WhatsappInboundService {
     private readonly messaging: WhatsappMessagingService,
     private readonly leads: WhatsappLeadService,
     private readonly autoReply: WhatsappAutoReplyService,
+    private readonly flowEngine: WhatsappFlowEngineService,
   ) {}
 
   async handleMetaWebhook(body: unknown): Promise<{ received: boolean }> {
@@ -31,13 +46,7 @@ export class WhatsappInboundService {
         changes?: Array<{
           value?: {
             metadata?: { phone_number_id?: string; display_phone_number?: string };
-            messages?: Array<{
-              id?: string;
-              from?: string;
-              timestamp?: string;
-              type?: string;
-              text?: { body?: string };
-            }>;
+            messages?: InboundWaMessage[];
             statuses?: Array<{ id?: string; status?: string; recipient_id?: string }>;
           };
         }>;
@@ -64,13 +73,14 @@ export class WhatsappInboundService {
           );
           if (!tenantId) continue;
 
-          const text = msg.text?.body ?? (msg.type === 'text' ? '' : `[${msg.type} message]`);
-          if (!text && msg.type !== 'text') continue;
+          const parsed = this.parseInboundMessage(msg);
+          if (!parsed) continue;
 
           await this.processInbound({
             tenantId,
             fromPhone: msg.from,
-            body: text,
+            body: parsed.text,
+            interactiveId: parsed.interactiveId,
             waMessageId: msg.id,
             account,
           });
@@ -81,10 +91,38 @@ export class WhatsappInboundService {
     return { received: true };
   }
 
+  private parseInboundMessage(msg: InboundWaMessage): { text: string; interactiveId?: string } | null {
+    if (msg.type === 'text' && msg.text?.body) {
+      return { text: msg.text.body };
+    }
+
+    if (msg.type === 'interactive' && msg.interactive) {
+      const buttonId = msg.interactive.button_reply?.id;
+      const listId = msg.interactive.list_reply?.id;
+      const interactiveId = buttonId || listId;
+      const label =
+        msg.interactive.button_reply?.title ||
+        msg.interactive.list_reply?.title ||
+        interactiveId ||
+        '';
+      if (interactiveId) {
+        return { text: label, interactiveId };
+      }
+    }
+
+    if (msg.type === 'button' && (msg as { button?: { text?: string; payload?: string } }).button) {
+      const button = (msg as { button?: { text?: string; payload?: string } }).button;
+      return { text: button?.text ?? '', interactiveId: button?.payload };
+    }
+
+    return null;
+  }
+
   private async processInbound(params: {
     tenantId: string;
     fromPhone: string;
     body: string;
+    interactiveId?: string;
     waMessageId?: string;
     account?: SocialAccounts | null;
   }) {
@@ -136,6 +174,17 @@ export class WhatsappInboundService {
       ? this.messaging.credentialsFromAccount(params.account)
       : null;
     if (creds) {
+      const handledByFlow = await this.flowEngine.tryHandleInbound({
+        tenantId: params.tenantId,
+        phone,
+        text: params.body,
+        interactiveId: params.interactiveId,
+        creds,
+        contactId: contact.id,
+        leadId,
+      });
+      if (handledByFlow) return;
+
       await this.autoReply.tryReply({
         tenantId: params.tenantId,
         phone,

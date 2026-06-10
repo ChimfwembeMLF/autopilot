@@ -83,6 +83,13 @@ export class TenantMembersController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Delete('invitations/:id')
+  revokeInvitation(@Param('id') id: string, @Query('tenantId') tenantId: string) {
+    return this.service.revokeInvitation(id, tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);

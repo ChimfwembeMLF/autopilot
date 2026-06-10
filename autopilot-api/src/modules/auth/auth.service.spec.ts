@@ -5,6 +5,8 @@ import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
 import { RefreshTokenService } from './refresh-token.service';
 import { MailService } from '../mail/mail.service';
+import { TenantBootstrapService } from '../tenants/tenant-bootstrap.service';
+import { TenantMembersService } from '../tenant_members/tenant_members.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -19,6 +21,7 @@ describe('AuthService', () => {
         { provide: MailService, useValue: { sendPasswordResetEmail: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: TenantBootstrapService, useValue: { bootstrapForUser: jest.fn() } },
+        { provide: TenantMembersService, useValue: { acceptPendingInvitations: jest.fn() } },
       ],
     }).compile();
 

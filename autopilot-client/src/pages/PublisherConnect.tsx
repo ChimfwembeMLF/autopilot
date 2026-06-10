@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Link2, Facebook, Linkedin, Instagram, Twitter, MessageCircle, CheckCircle2, XCircle, Loader2, Phone } from "lucide-react";
+import { Link2, Facebook, Linkedin, Instagram, Twitter, MessageCircle, CheckCircle2, XCircle, Loader2, Phone, Youtube } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { capabilityOf } from "@/lib/platform-capabilities";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "google" | "whatsapp";
+type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "youtube" | "whatsapp";
 type ManualPlatform = "twitter" | "tiktok";
 type PlatformId = OAuthPlatform | ManualPlatform;
 
@@ -31,7 +31,7 @@ type FacebookPageOption = {
   category?: string;
 };
 
-const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "google", "whatsapp"];
+const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "youtube", "whatsapp"];
 
 const platforms: {
   id: PlatformId;
@@ -69,6 +69,15 @@ const platforms: {
     color: "text-pink-600",
     bgColor: "bg-pink-50",
     description: "Publish via Facebook — IG Business account linked to a Page required",
+    oauth: true,
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    icon: Youtube,
+    color: "text-red-600",
+    bgColor: "bg-red-50",
+    description: "Upload videos to your YouTube channel (YouTube Data API v3)",
     oauth: true,
   },
   {
@@ -137,6 +146,13 @@ const PublisherConnect = () => {
   const [loadingFacebookSetup, setLoadingFacebookSetup] = useState(false);
   const [finalizingFacebook, setFinalizingFacebook] = useState(false);
 
+  const [youtubeSetupToken, setYoutubeSetupToken] = useState<string | null>(null);
+  const [youtubeChannels, setYoutubeChannels] = useState<Array<{ id: string; title: string; customUrl?: string; thumbnailUrl?: string }>>([]);
+  const [youtubeProfileName, setYoutubeProfileName] = useState<string | null>(null);
+  const [selectedYoutubeChannel, setSelectedYoutubeChannel] = useState<string>("");
+  const [loadingYoutubeSetup, setLoadingYoutubeSetup] = useState(false);
+  const [finalizingYoutube, setFinalizingYoutube] = useState(false);
+
   const [whatsappPlatformMode, setWhatsappPlatformMode] = useState(false);
   const [whatsappPlatformLabel, setWhatsappPlatformLabel] = useState<string | null>(null);
 
@@ -181,6 +197,7 @@ const PublisherConnect = () => {
     const error = searchParams.get("error");
     const whatsappSetup = searchParams.get("whatsapp_setup");
     const facebookSetup = searchParams.get("facebook_setup");
+    const youtubeSetup = searchParams.get("youtube_setup");
 
     if (connected) {
       toast({ title: "Connected!", description: `${connected} account linked to this workspace.` });
@@ -203,6 +220,12 @@ const PublisherConnect = () => {
       setFacebookPages([]);
       setFacebookSetupToken(facebookSetup);
       searchParams.delete("facebook_setup");
+      setSearchParams(searchParams, { replace: true });
+    }
+    if (youtubeSetup) {
+      setYoutubeChannels([]);
+      setYoutubeSetupToken(youtubeSetup);
+      searchParams.delete("youtube_setup");
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams]);
@@ -243,6 +266,43 @@ const PublisherConnect = () => {
       cancelled = true;
     };
   }, [facebookSetupToken]);
+
+  useEffect(() => {
+    if (!youtubeSetupToken) return;
+    if (youtubeChannels.length > 0) {
+      setLoadingYoutubeSetup(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingYoutubeSetup(true);
+    setSelectedYoutubeChannel("");
+
+    socialAccountsApi
+      .getYoutubeSetup(youtubeSetupToken)
+      .then((data) => {
+        if (cancelled) return;
+        const channels = data.channels ?? [];
+        setYoutubeChannels(channels);
+        setYoutubeProfileName(data.profileName ?? null);
+        if (channels.length === 1) {
+          setSelectedYoutubeChannel(channels[0].id);
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Failed to load YouTube channels";
+        toast({ title: "YouTube setup failed", description: message, variant: "destructive" });
+        setYoutubeSetupToken(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingYoutubeSetup(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [youtubeSetupToken]);
 
   useEffect(() => {
     if (!whatsappSetupToken) return;
@@ -419,6 +479,32 @@ const PublisherConnect = () => {
       toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setFinalizingFacebook(false);
+    }
+  };
+
+  const handleFinalizeYoutube = async () => {
+    if (!youtubeSetupToken || !selectedYoutubeChannel) {
+      toast({ title: "Select a channel", description: "Choose a YouTube channel to connect.", variant: "destructive" });
+      return;
+    }
+
+    setFinalizingYoutube(true);
+    try {
+      await socialAccountsApi.finalizeYoutube({
+        setupToken: youtubeSetupToken,
+        channelId: selectedYoutubeChannel,
+      });
+      toast({ title: "Connected!", description: "YouTube channel linked to this workspace." });
+      setYoutubeSetupToken(null);
+      setYoutubeChannels([]);
+      setYoutubeProfileName(null);
+      setSelectedYoutubeChannel("");
+      loadAccounts();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to connect YouTube channel";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setFinalizingYoutube(false);
     }
   };
 
@@ -713,6 +799,75 @@ const PublisherConnect = () => {
             >
               {finalizingFacebook ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
               {finalizingFacebook ? "Connecting..." : "Connect Page"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={!!youtubeSetupToken}
+        onOpenChange={(open) => {
+          if (!open) {
+            setYoutubeSetupToken(null);
+            setYoutubeChannels([]);
+            setYoutubeProfileName(null);
+            setSelectedYoutubeChannel("");
+          }
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-display">Choose YouTube channel</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Select the channel to publish videos from
+              {youtubeProfileName ? ` for ${youtubeProfileName}` : ""}.
+            </p>
+
+            {loadingYoutubeSetup ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Loading channels…
+              </div>
+            ) : youtubeChannels.length === 0 ? (
+              <p className="text-sm text-destructive">
+                No channels found. Create a YouTube channel with this Google account, then connect again.
+              </p>
+            ) : (
+              <RadioGroup value={selectedYoutubeChannel} onValueChange={setSelectedYoutubeChannel}>
+                {youtubeChannels.map((channel) => (
+                  <label
+                    key={channel.id}
+                    htmlFor={`yt-${channel.id}`}
+                    className="flex items-start gap-3 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-muted/40"
+                  >
+                    <RadioGroupItem value={channel.id} id={`yt-${channel.id}`} className="mt-0.5" />
+                    <div className="min-w-0 flex items-center gap-3">
+                      {channel.thumbnailUrl ? (
+                        <img src={channel.thumbnailUrl} alt="" className="h-8 w-8 rounded-full shrink-0" />
+                      ) : (
+                        <Youtube className="h-4 w-4 text-red-600 shrink-0" />
+                      )}
+                      <div>
+                        <span className="font-medium text-sm">{channel.title}</span>
+                        {channel.customUrl && (
+                          <p className="text-xs text-muted-foreground mt-0.5">@{channel.customUrl}</p>
+                        )}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </RadioGroup>
+            )}
+
+            <Button
+              onClick={handleFinalizeYoutube}
+              disabled={finalizingYoutube || loadingYoutubeSetup || !selectedYoutubeChannel}
+              className="w-full gradient-primary text-primary-foreground border-0"
+            >
+              {finalizingYoutube ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
+              {finalizingYoutube ? "Connecting..." : "Connect channel"}
             </Button>
           </div>
         </SheetContent>

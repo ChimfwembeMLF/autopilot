@@ -70,6 +70,17 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     notes: 'Connect via Meta to pick a WhatsApp Business phone number.',
   },
   {
+    id: 'youtube',
+    label: 'YouTube',
+    connect: true,
+    publish: true,
+    comments: true,
+    messaging: false,
+    oauth: true,
+    status: 'available',
+    notes: 'Upload videos via YouTube Data API v3. Requires a Google Cloud project with YouTube API enabled.',
+  },
+  {
     id: 'tiktok',
     label: 'TikTok',
     connect: true,

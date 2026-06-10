@@ -44,6 +44,7 @@ import { SystemSettingsModule } from './modules/system_settings/system_settings.
 import { AuditModule } from './common/audit/audit.module';
 import { PlatformsModule } from './modules/platforms/platforms.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { QueuesModule } from './modules/queues/queues.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
     AuditModule,
     PlatformsModule,
     WhatsappModule,
+    QueuesModule,
   ],
   providers: [
     {

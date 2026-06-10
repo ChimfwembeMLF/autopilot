@@ -54,26 +54,35 @@ export class GenerateContentService {
       contentType: params.contentType,
     });
 
+    const isReply = params.contentType === 'reply';
+    const systemPrompt = isReply
+      ? this.prompts.commentReplySystem(brandCtx, params.platform ?? 'social')
+      : this.prompts.contentGenerationSystem(brandCtx, params.platform, template);
+
+    const userPrompt = isReply
+      ? this.prompts.commentReplyUser({
+          platform: params.platform ?? 'social',
+          postTitle: undefined,
+          postContent: params.draft?.trim() || 'No post context provided.',
+          commenterName: 'Commenter',
+          commentText: params.theme || '',
+        })
+      : this.prompts.contentGenerationUser(
+          brandCtx,
+          params.theme || '',
+          params.draft,
+          params.contentType,
+        );
+
     const { data, tokensUsed } = await this.mistral.completeJson<{
       title?: string;
       content?: string;
     }>(
       [
-        {
-          role: 'system',
-          content: this.prompts.contentGenerationSystem(brandCtx, params.platform, template),
-        },
-        {
-          role: 'user',
-          content: this.prompts.contentGenerationUser(
-            brandCtx,
-            params.theme || '',
-            params.draft,
-            params.contentType,
-          ),
-        },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
-      { model: params.contentType === 'reply' ? this.mistral.defaultModel : this.mistral.premiumModel },
+      { model: isReply ? this.mistral.defaultModel : this.mistral.premiumModel },
     );
 
     await this.usage.record({

@@ -13,10 +13,18 @@ import {
   INSTAGRAM_PUBLISHER_SCOPES,
   LINKEDIN_PUBLISHER_SCOPES,
   WHATSAPP_PUBLISHER_SCOPES,
+  YOUTUBE_PUBLISHER_SCOPES,
   scopesToParam,
+  googleScopesToParam,
 } from './social_accounts-oauth.scopes';
 
-export type SocialOAuthPlatform = 'facebook' | 'linkedin' | 'instagram' | 'google' | 'whatsapp';
+export type SocialOAuthPlatform =
+  | 'facebook'
+  | 'linkedin'
+  | 'instagram'
+  | 'google'
+  | 'youtube'
+  | 'whatsapp';
 
 export interface WhatsAppPhoneOption {
   id: string;
@@ -62,6 +70,32 @@ export interface FacebookOAuthPrepareResult {
   expiresAt?: Date;
   profile: { id?: string; name?: string };
   pages: FacebookPageOption[];
+}
+
+export interface YoutubeChannelOption {
+  id: string;
+  title: string;
+  customUrl?: string;
+  thumbnailUrl?: string;
+}
+
+export interface YoutubeSetupPayload {
+  type: 'youtube_setup';
+  userId: string;
+  tenantId: string;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  profile?: { id?: string; name?: string; email?: string };
+  channels: YoutubeChannelOption[];
+}
+
+export interface YoutubeOAuthPrepareResult {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: Date;
+  profile?: { id?: string; name?: string; email?: string };
+  channels: YoutubeChannelOption[];
 }
 
 export interface OAuthConnectState {
@@ -142,6 +176,8 @@ export class SocialAccountsOAuthService {
         return this.instagramAuthorizeUrl(state, redirectUri);
       case 'google':
         return this.googleAuthorizeUrl(state, redirectUri);
+      case 'youtube':
+        return this.youtubeAuthorizeUrl(state, redirectUri);
       case 'whatsapp':
         return this.whatsappAuthorizeUrl(state, redirectUri);
       default:
@@ -163,6 +199,8 @@ export class SocialAccountsOAuthService {
         return this.handleInstagramCallback(code, redirectUri);
       case 'google':
         return this.handleGoogleCallback(code, redirectUri);
+      case 'youtube':
+        throw new BadRequestException('YouTube uses a separate finalize flow after channel selection');
       case 'whatsapp':
         throw new BadRequestException('WhatsApp uses a separate finalize flow after phone selection');
       default:
@@ -248,6 +286,96 @@ export class SocialAccountsOAuthService {
     return {
       pages: payload.pages.map((p) => ({ id: p.id, name: p.name, category: p.category })),
       profileName: payload.profile?.name,
+    };
+  }
+
+  async prepareYoutubeConnect(
+    code: string,
+    redirectUri: string,
+  ): Promise<YoutubeOAuthPrepareResult> {
+    const client = this.createGoogleOAuthClient(redirectUri);
+    const { tokens } = await client.getToken(code);
+    if (!tokens.access_token) {
+      throw new BadRequestException('YouTube token exchange failed');
+    }
+
+    client.setCredentials(tokens);
+    const profile = await this.fetchGoogleProfile(client);
+    const channels = await this.listYoutubeChannels(client);
+
+    if (!channels.length) {
+      throw new BadRequestException(
+        'No YouTube channel found. Create a YouTube channel with this Google account, then connect again.',
+      );
+    }
+
+    return {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token ?? undefined,
+      expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+      profile,
+      channels,
+    };
+  }
+
+  createYoutubeSetupToken(payload: Omit<YoutubeSetupPayload, 'type'>): string {
+    return this.jwtService.sign(
+      { type: 'youtube_setup', ...payload },
+      { expiresIn: '15m' },
+    );
+  }
+
+  verifyYoutubeSetupToken(token: string): YoutubeSetupPayload {
+    try {
+      const decoded = this.jwtService.verify<YoutubeSetupPayload>(token);
+      if (decoded.type !== 'youtube_setup') {
+        throw new BadRequestException('Invalid YouTube setup token');
+      }
+      if (!decoded.channels?.length || !decoded.accessToken || !decoded.userId || !decoded.tenantId) {
+        throw new BadRequestException('Invalid YouTube setup token');
+      }
+      return decoded;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('YouTube setup expired — please connect again from Publisher');
+    }
+  }
+
+  getYoutubeSetupPreview(token: string): {
+    channels: YoutubeChannelOption[];
+    profileName?: string;
+  } {
+    const payload = this.verifyYoutubeSetupToken(token);
+    return {
+      channels: payload.channels,
+      profileName: payload.profile?.name ?? payload.profile?.email,
+    };
+  }
+
+  buildYoutubeConnectResult(
+    payload: YoutubeSetupPayload,
+    channelId: string,
+  ): OAuthConnectResult {
+    const channel = payload.channels.find((c) => c.id === channelId);
+    if (!channel) {
+      throw new BadRequestException('Selected channel is not available for this setup session');
+    }
+
+    return {
+      platform: 'youtube',
+      accountName: channel.title || 'YouTube Channel',
+      externalId: channel.id,
+      username: channel.customUrl ?? channel.title,
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken,
+      expiresAt: payload.expiresAt ? new Date(payload.expiresAt) : undefined,
+      metadata: {
+        profile: payload.profile,
+        channel_id: channel.id,
+        channel_title: channel.title,
+        custom_url: channel.customUrl,
+        thumbnail_url: channel.thumbnailUrl,
+      },
     };
   }
 
@@ -520,7 +648,20 @@ export class SocialAccountsOAuthService {
       client_id: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: scopesToParam(GOOGLE_PUBLISHER_SCOPES),
+      scope: googleScopesToParam(GOOGLE_PUBLISHER_SCOPES),
+      access_type: 'offline',
+      prompt: 'consent',
+      state,
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  private youtubeAuthorizeUrl(state: string, redirectUri: string): string {
+    const params = new URLSearchParams({
+      client_id: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: googleScopesToParam(YOUTUBE_PUBLISHER_SCOPES),
       access_type: 'offline',
       prompt: 'consent',
       state,
@@ -654,11 +795,7 @@ export class SocialAccountsOAuthService {
   }
 
   private async handleGoogleCallback(code: string, redirectUri: string): Promise<OAuthConnectResult> {
-    const client = new google.auth.OAuth2(
-      this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
-      this.config.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
-      redirectUri,
-    );
+    const client = this.createGoogleOAuthClient(redirectUri);
 
     const { tokens } = await client.getToken(code);
     if (!tokens.access_token) {
@@ -666,8 +803,7 @@ export class SocialAccountsOAuthService {
     }
 
     client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: client });
-    const { data: profile } = await oauth2.userinfo.get();
+    const profile = await this.fetchGoogleProfile(client);
 
     return {
       platform: 'google',
@@ -679,6 +815,44 @@ export class SocialAccountsOAuthService {
       expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
       metadata: { profile },
     };
+  }
+
+  private createGoogleOAuthClient(redirectUri: string) {
+    return new google.auth.OAuth2(
+      this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+      this.config.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
+      redirectUri,
+    );
+  }
+
+  private async fetchGoogleProfile(client: InstanceType<typeof google.auth.OAuth2>) {
+    const oauth2 = google.oauth2({ version: 'v2', auth: client });
+    const { data: profile } = await oauth2.userinfo.get();
+    return {
+      id: profile.id ?? undefined,
+      name: profile.name ?? undefined,
+      email: profile.email ?? undefined,
+    };
+  }
+
+  private async listYoutubeChannels(
+    client: InstanceType<typeof google.auth.OAuth2>,
+  ): Promise<YoutubeChannelOption[]> {
+    const youtube = google.youtube({ version: 'v3', auth: client });
+    const { data } = await youtube.channels.list({
+      part: ['snippet'],
+      mine: true,
+      maxResults: 25,
+    });
+
+    return (data.items ?? [])
+      .filter((item) => item.id)
+      .map((item) => ({
+        id: item.id!,
+        title: item.snippet?.title ?? 'YouTube Channel',
+        customUrl: item.snippet?.customUrl ?? undefined,
+        thumbnailUrl: item.snippet?.thumbnails?.default?.url ?? undefined,
+      }));
   }
 
   private async exchangeFacebookCode(code: string, redirectUri: string): Promise<string> {

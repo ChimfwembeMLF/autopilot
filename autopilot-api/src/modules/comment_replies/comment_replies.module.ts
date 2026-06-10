@@ -1,14 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommentReplies } from './entities/comment_replies.entity';
 import { CommentRepliesService } from './comment_replies.service';
 import { CommentRepliesController } from './comment_replies.controller';
 import { ContentPublishingModule } from '../content-publishing/content-publishing.module';
+import { QueuesModule } from '../queues/queues.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([CommentReplies]),
     ContentPublishingModule,
+    forwardRef(() => QueuesModule),
   ],
   providers: [CommentRepliesService],
   controllers: [CommentRepliesController],

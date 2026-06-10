@@ -32,11 +32,21 @@ export const LINKEDIN_PUBLISHER_SCOPES = [
   'r_member_social',
 ] as const;
 
-/** Identity only — no Google posting target in API yet */
+/** Identity only — login / legacy Google connect */
 export const GOOGLE_PUBLISHER_SCOPES = [
   'openid',
   'email',
   'profile',
+] as const;
+
+/** YouTube Data API v3 — channel, upload, comments */
+export const YOUTUBE_PUBLISHER_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/youtube.readonly',
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/youtube.force-ssl',
 ] as const;
 
 /** WhatsApp Business — list WABAs / phone numbers and send messages */
@@ -48,4 +58,9 @@ export const WHATSAPP_PUBLISHER_SCOPES = [
 
 export function scopesToParam(scopes: readonly string[]): string {
   return scopes.join(',');
+}
+
+/** Google OAuth requires space-delimited scopes (commas cause invalid_scope). */
+export function googleScopesToParam(scopes: readonly string[]): string {
+  return scopes.join(' ');
 }

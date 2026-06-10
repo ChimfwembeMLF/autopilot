@@ -9,6 +9,7 @@ import { InstagramPublishingService } from '../../content-publishing/instagram-p
 import { LinkedInPublishingService } from '../../content-publishing/linkedin-publishing.service';
 import { TwitterPublishingService } from '../../content-publishing/twitter-publishing.service';
 import { WhatsappPublishingService } from '../../whatsapp/whatsapp-publishing.service';
+import { YoutubePublishingService } from '../../content-publishing/youtube-publishing.service';
 import { ContentToPublish, MediaAttachment } from '../../content-publishing/interfaces/publish-result.interface';
 import { SupabaseStorageService } from '../../media/supabase-storage.service';
 import { ContentPublicationsService } from '../../content_publications/content-publications.service';
@@ -38,6 +39,7 @@ export class PublishContentService {
     private readonly linkedin: LinkedInPublishingService,
     private readonly twitter: TwitterPublishingService,
     private readonly whatsapp: WhatsappPublishingService,
+    private readonly youtube: YoutubePublishingService,
   ) {}
 
   async publish(params: {
@@ -230,6 +232,8 @@ export class PublishContentService {
           templateLanguage: platformPayload?.whatsappTemplateLanguage,
           useTemplate: platformPayload?.whatsappUseTemplate,
         });
+      case 'youtube':
+        return this.youtube.publishPost(content, media);
       default:
         return { published: false, message: `Unsupported platform: ${platform}` };
     }

@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { MessageSquare, UserCheck, AlertTriangle, Star, Clock, Send, ArrowUpRight, Globe, Copy, Check, Zap, ExternalLink, Mail, MailX, Phone, UserPlus, Trash2, PhoneOff } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { MessageSquare, UserCheck, AlertTriangle, Star, Clock, Send, ArrowUpRight, Globe, Copy, Check, Zap, ExternalLink, Mail, MailX, Phone, UserPlus, Trash2, PhoneOff, Bot, Plus, Sparkles } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,15 @@ import { API_BASE_URL, leadsApi, leadSourcesApi, whatsappContactsApi, whatsappAp
 import { invokeEdgeFunction } from "@/lib/edgeFunctions";
 import BulkEmailSheet from "@/components/BulkEmailDialog";
 import EmailTemplates from "@/components/EmailTemplates";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useFormSuggestions } from "@/hooks/useFormSuggestions";
+import { SuggestedField } from "@/components/form/SuggestedField";
+import { FORM_SUGGESTION_FIELDS } from "@/lib/formSuggestionForms";
+import { whatsappPhoneFromLead, isWhatsappLead, formatWhatsappPhoneDisplay } from "@/lib/whatsappLead";
 
 interface Lead {
   id: string;
@@ -49,6 +58,16 @@ interface WhatsAppContact {
   opted_in_at: string | null; tags: string[]; created_at: string; lead_id?: string | null;
 }
 
+type WaMenuItem = {
+  id?: string;
+  title: string;
+  description?: string;
+  response: string;
+  aiGenerate?: boolean;
+};
+
+const emptyMenuItem = (): WaMenuItem => ({ title: "", description: "", response: "" });
+
 const LeadAgent = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -68,13 +87,48 @@ const LeadAgent = () => {
   const [waLoading, setWaLoading] = useState(false);
   const [waConversations, setWaConversations] = useState<Array<{ phone: string; lastMessage: string; lastAt: string; inboundCount: number }>>([]);
   const [waReplyPhone, setWaReplyPhone] = useState("");
+  const [waReplyLeadId, setWaReplyLeadId] = useState<string | null>(null);
   const [waReplyText, setWaReplyText] = useState("");
   const [waReplying, setWaReplying] = useState(false);
+  const [waFlowEnabled, setWaFlowEnabled] = useState(false);
+  const [waFlowServiceName, setWaFlowServiceName] = useState("MyService");
+  const [waFlowWelcomeMessage, setWaFlowWelcomeMessage] = useState("");
+  const [waFlowMenuItems, setWaFlowMenuItems] = useState<WaMenuItem[]>([emptyMenuItem()]);
+  const [waFlowAiFallback, setWaFlowAiFallback] = useState(true);
+  const [activeMenuItemIndex, setActiveMenuItemIndex] = useState(0);
+  const [waFlowSaving, setWaFlowSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('leads');
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const { tenant } = useTenant();
+
+  const waMenuSuggestionValues = useMemo(
+    () => ({
+      serviceName: waFlowServiceName,
+      welcomeMessage: waFlowWelcomeMessage,
+      menuTitle: waFlowMenuItems[activeMenuItemIndex]?.title ?? "",
+      menuDescription: waFlowMenuItems[activeMenuItemIndex]?.description ?? "",
+      menuResponse: waFlowMenuItems[activeMenuItemIndex]?.response ?? "",
+    }),
+    [waFlowServiceName, waFlowWelcomeMessage, waFlowMenuItems, activeMenuItemIndex],
+  );
+
+  const {
+    getPlaceholder: getWaMenuPlaceholder,
+    getSuggestionsForField: getWaMenuSuggestions,
+    getSelectedIndex: getWaMenuSelectedIndex,
+    setFieldIndex: setWaMenuFieldIndex,
+    pauseField: pauseWaMenuField,
+    isFieldActive: isWaMenuFieldActive,
+    loading: waMenuSuggestionsLoading,
+  } = useFormSuggestions({
+    form: "whatsapp-menu",
+    tenantId: tenant?.id,
+    fieldKeys: FORM_SUGGESTION_FIELDS["whatsapp-menu"],
+    values: waMenuSuggestionValues,
+    enabled: activeTab === "whatsapp",
+  });
 
   useEffect(() => {
     if (!user || !tenant) return;
@@ -85,8 +139,80 @@ const LeadAgent = () => {
     if (tenant) {
       loadWaContacts();
       loadWaConversations();
+      loadWaFlowConfig();
     }
   }, [tenant]);
+
+  const loadWaFlowConfig = async () => {
+    if (!tenant) return;
+    try {
+      const cfg = await whatsappApi.getFlowConfig(tenant.id);
+      setWaFlowEnabled(Boolean(cfg.enabled));
+      setWaFlowServiceName(cfg.serviceName || "MyService");
+      setWaFlowWelcomeMessage(cfg.welcomeMessage || "");
+      setWaFlowAiFallback(cfg.aiFallbackEnabled !== false);
+      const items = Array.isArray(cfg.menuItems) ? cfg.menuItems : [];
+      setWaFlowMenuItems(items.length ? items : [emptyMenuItem()]);
+    } catch {
+      setWaFlowEnabled(false);
+      setWaFlowMenuItems([emptyMenuItem()]);
+    }
+  };
+
+  const saveWaFlowConfig = async () => {
+    if (!tenant) return;
+
+    const menuItems = waFlowMenuItems
+      .map((item) => ({
+        title: item.title.trim(),
+        description: item.description?.trim() || undefined,
+        response: item.aiGenerate ? item.response.trim() : item.response.trim(),
+        aiGenerate: Boolean(item.aiGenerate),
+      }))
+      .filter((item) => item.title && (item.response || item.aiGenerate));
+
+    if (waFlowEnabled && menuItems.length === 0) {
+      toast({
+        title: "Add at least one menu option",
+        description: "Each option needs a label and either reply text or AI-generated reply enabled.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setWaFlowSaving(true);
+    try {
+      await whatsappApi.updateFlowConfig(tenant.id, {
+        enabled: waFlowEnabled,
+        serviceName: waFlowServiceName.trim() || "MyService",
+        welcomeMessage: waFlowWelcomeMessage.trim() || undefined,
+        aiFallbackEnabled: waFlowAiFallback,
+        menuItems,
+      });
+      toast({
+        title: waFlowEnabled ? "Menu bot enabled" : "Menu bot disabled",
+        description: waFlowEnabled
+          ? `Customers message Hi to see ${menuItems.length} option(s).`
+          : "WhatsApp menu bot turned off for this workspace.",
+      });
+      loadWaFlowConfig();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to save";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setWaFlowSaving(false);
+    }
+  };
+
+  const updateWaMenuItem = (index: number, patch: Partial<WaMenuItem>) => {
+    setWaFlowMenuItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  };
+
+  const removeWaMenuItem = (index: number) => {
+    setWaFlowMenuItems((prev) => (prev.length <= 1 ? [emptyMenuItem()] : prev.filter((_, i) => i !== index)));
+  };
 
   const loadWaConversations = async () => {
     if (!tenant) return;
@@ -106,6 +232,7 @@ const LeadAgent = () => {
         tenantId: tenant.id,
         phone: waReplyPhone.trim(),
         message: waReplyText.trim(),
+        leadId: waReplyLeadId ?? undefined,
       });
       if (!res.sent) throw new Error(res.message ?? "Send failed");
       toast({ title: "WhatsApp reply sent" });
@@ -120,6 +247,26 @@ const LeadAgent = () => {
     } finally {
       setWaReplying(false);
     }
+  };
+
+  const messageWhatsAppLead = (lead: Lead) => {
+    const phone = whatsappPhoneFromLead(lead);
+    if (!phone) {
+      toast({
+        title: "No WhatsApp number",
+        description: "This lead was not created from WhatsApp.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setActiveTab("whatsapp");
+    setWaReplyPhone(phone);
+    setWaReplyLeadId(lead.id);
+    setWaReplyText(lead.ai_reply || "");
+    toast({
+      title: "Ready to message lead",
+      description: `Reply will go to ${formatWhatsappPhoneDisplay(phone)} from your connected WhatsApp Business number.`,
+    });
   };
 
   const loadLeadSource = async () => {
@@ -478,6 +625,16 @@ const LeadAgent = () => {
                   >
                     <Mail className="h-3 w-3 mr-1" /> Email
                   </Button>
+                  {isWhatsappLead(lead) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs text-green-700 border-green-200"
+                      onClick={() => messageWhatsAppLead(lead)}
+                    >
+                      <Phone className="h-3 w-3 mr-1" /> WhatsApp
+                    </Button>
+                  )}
                   {lead.status !== "meeting_booked" && (
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleStatusChange(lead.id, "meeting_booked")}>
                       <Clock className="h-3 w-3 mr-1" /> Book
@@ -502,6 +659,217 @@ const LeadAgent = () => {
         </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-4 mt-4">
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 space-y-2">
+              <p className="font-medium text-sm flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                How messaging works
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>
+                  When a customer messages your <strong>connected WhatsApp Business number</strong>, they become a lead
+                  (email like <code className="text-[10px]">wa+260…@inbox.autopilot</code>).
+                </li>
+                <li>
+                  You do <strong>not</strong> send messages as the lead — you reply <strong>to their phone</strong> from
+                  your business number (Lead Agent → WhatsApp tab, or the WhatsApp button on a lead).
+                </li>
+                <li>
+                  Replies must be within Meta&apos;s 24-hour session window after their last message (unless using approved templates).
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 border-green-200/50 bg-green-50/30 dark:bg-green-950/10">
+            <CardContent className="p-4 space-y-4">
+              <div>
+                <p className="font-medium text-sm flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-green-600" />
+                  WhatsApp menu bot
+                  {waMenuSuggestionsLoading && (
+                    <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Build your own menu — customers tap an option or reply with a number (1, 2, 3…).
+                  They must message <strong>Hi</strong>, <strong>Hello</strong>, or <strong>menu</strong> to start.
+                  Enable AI per option or for unmatched free-text messages.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-background/80 p-3">
+                <div>
+                  <Label htmlFor="wa-flow-enabled" className="text-sm font-medium">Enable for this workspace</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Turn on only after WhatsApp is connected and you have added menu options below.
+                  </p>
+                </div>
+                <Switch id="wa-flow-enabled" checked={waFlowEnabled} onCheckedChange={setWaFlowEnabled} />
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-background/80 p-3">
+                <div>
+                  <Label htmlFor="wa-flow-ai-fallback" className="text-sm font-medium flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    AI for free-text messages
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    When a customer sends text that doesn&apos;t match the menu, AI replies using your Brand Brain context.
+                  </p>
+                </div>
+                <Switch id="wa-flow-ai-fallback" checked={waFlowAiFallback} onCheckedChange={setWaFlowAiFallback} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Business / service name</Label>
+                <SuggestedField
+                  type="input"
+                  value={waFlowServiceName}
+                  onChange={setWaFlowServiceName}
+                  fallbackPlaceholder="e.g. Tekrem Solutions"
+                  placeholder={getWaMenuPlaceholder("serviceName", "e.g. Tekrem Solutions")}
+                  suggestions={getWaMenuSuggestions("serviceName")}
+                  selectedIndex={getWaMenuSelectedIndex("serviceName")}
+                  onSelectIndex={(index) => setWaMenuFieldIndex("serviceName", index)}
+                  onPauseRotation={() => pauseWaMenuField("serviceName")}
+                  isLive={isWaMenuFieldActive("serviceName")}
+                  className="h-9"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Shown in the welcome line: &quot;Welcome to <strong>{waFlowServiceName || "Your Business"}</strong>&quot;
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Custom welcome message (optional)</Label>
+                <SuggestedField
+                  type="input"
+                  value={waFlowWelcomeMessage}
+                  onChange={setWaFlowWelcomeMessage}
+                  fallbackPlaceholder="Welcome to {serviceName}! How can we help?"
+                  placeholder={getWaMenuPlaceholder("welcomeMessage", "Welcome to {serviceName}! How can we help?")}
+                  suggestions={getWaMenuSuggestions("welcomeMessage")}
+                  selectedIndex={getWaMenuSelectedIndex("welcomeMessage")}
+                  onSelectIndex={(index) => setWaMenuFieldIndex("welcomeMessage", index)}
+                  onPauseRotation={() => pauseWaMenuField("welcomeMessage")}
+                  isLive={isWaMenuFieldActive("welcomeMessage")}
+                  className="h-9"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Leave blank for the default welcome. Use <code className="text-[10px]">{'{serviceName}'}</code> as a placeholder.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Menu options (what customers can choose)</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={waFlowMenuItems.length >= 10}
+                    onClick={() => setWaFlowMenuItems((prev) => [...prev, emptyMenuItem()])}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Add option
+                  </Button>
+                </div>
+
+                {waFlowMenuItems.map((item, index) => (
+                  <div key={index} className="rounded-lg border border-border/60 p-3 space-y-2 bg-background/80">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Option {index + 1}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-destructive"
+                        onClick={() => removeWaMenuItem(index)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <SuggestedField
+                      type="input"
+                      value={item.title}
+                      onChange={(value) => updateWaMenuItem(index, { title: value })}
+                      fallbackPlaceholder="Menu label — e.g. Pricing, Book a demo, Support"
+                      placeholder={getWaMenuPlaceholder("menuTitle", "Menu label — e.g. Pricing, Book a demo, Support")}
+                      suggestions={activeMenuItemIndex === index ? getWaMenuSuggestions("menuTitle") : []}
+                      selectedIndex={getWaMenuSelectedIndex("menuTitle")}
+                      onSelectIndex={(i) => setWaMenuFieldIndex("menuTitle", i)}
+                      onPauseRotation={() => {
+                        setActiveMenuItemIndex(index);
+                        pauseWaMenuField("menuTitle");
+                      }}
+                      isLive={activeMenuItemIndex === index && isWaMenuFieldActive("menuTitle")}
+                      className="h-9"
+                    />
+                    <SuggestedField
+                      type="input"
+                      value={item.description ?? ""}
+                      onChange={(value) => updateWaMenuItem(index, { description: value })}
+                      fallbackPlaceholder="Short hint (optional) — shown under the label in the list"
+                      placeholder={getWaMenuPlaceholder("menuDescription", "Short hint (optional) — shown under the label in the list")}
+                      suggestions={activeMenuItemIndex === index ? getWaMenuSuggestions("menuDescription") : []}
+                      selectedIndex={getWaMenuSelectedIndex("menuDescription")}
+                      onSelectIndex={(i) => setWaMenuFieldIndex("menuDescription", i)}
+                      onPauseRotation={() => {
+                        setActiveMenuItemIndex(index);
+                        pauseWaMenuField("menuDescription");
+                      }}
+                      isLive={activeMenuItemIndex === index && isWaMenuFieldActive("menuDescription")}
+                      className="h-9"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`wa-menu-ai-${index}`}
+                        checked={Boolean(item.aiGenerate)}
+                        onCheckedChange={(checked) =>
+                          updateWaMenuItem(index, { aiGenerate: checked === true })
+                        }
+                      />
+                      <Label htmlFor={`wa-menu-ai-${index}`} className="text-xs font-normal cursor-pointer flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-primary" />
+                        AI writes the reply (use guidance below)
+                      </Label>
+                    </div>
+                    <SuggestedField
+                      type="textarea"
+                      value={item.response}
+                      onChange={(value) => updateWaMenuItem(index, { response: value })}
+                      fallbackPlaceholder={
+                        item.aiGenerate
+                          ? "Guidance for AI — e.g. share pricing tiers and link to book a call"
+                          : "Reply when selected — what the customer receives on WhatsApp"
+                      }
+                      placeholder={getWaMenuPlaceholder(
+                        "menuResponse",
+                        item.aiGenerate
+                          ? "Guidance for AI — e.g. share pricing tiers and link to book a call"
+                          : "Reply when selected — what the customer receives on WhatsApp",
+                      )}
+                      suggestions={activeMenuItemIndex === index ? getWaMenuSuggestions("menuResponse") : []}
+                      selectedIndex={getWaMenuSelectedIndex("menuResponse")}
+                      onSelectIndex={(i) => setWaMenuFieldIndex("menuResponse", i)}
+                      onPauseRotation={() => {
+                        setActiveMenuItemIndex(index);
+                        pauseWaMenuField("menuResponse");
+                      }}
+                      isLive={activeMenuItemIndex === index && isWaMenuFieldActive("menuResponse")}
+                      rows={3}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <Button size="sm" onClick={saveWaFlowConfig} disabled={waFlowSaving} className="w-full sm:w-auto">
+                {waFlowSaving ? "Saving…" : "Save menu bot"}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Add contact */}
           <Card className="border-border/50">
             <CardContent className="p-4 space-y-3">
@@ -519,44 +887,57 @@ const LeadAgent = () => {
             </CardContent>
           </Card>
 
-          {/* Inbound conversations */}
-          {waConversations.length > 0 && (
-            <Card className="border-border/50">
-              <CardContent className="p-4 space-y-3">
-                <p className="font-medium text-sm">Recent conversations</p>
+          {/* Reply to leads / conversations */}
+          <Card className="border-border/50 border-green-200/50">
+            <CardContent className="p-4 space-y-3">
+              <p className="font-medium text-sm flex items-center gap-2">
+                <Send className="h-4 w-4 text-green-600" />
+                Send message to a lead
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Messages go <strong>from your WhatsApp Business number</strong> to the customer&apos;s phone — not from the lead.
+                Pick a recent conversation or enter their number (from a WhatsApp lead card, use the WhatsApp button).
+              </p>
+              {waConversations.length > 0 && (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs font-medium text-muted-foreground">Recent conversations</p>
                   {waConversations.slice(0, 8).map((c) => (
                     <button
                       key={c.phone}
                       type="button"
-                      className={`w-full text-left rounded-md border p-2 text-sm hover:bg-muted/50 ${waReplyPhone === c.phone ? 'border-primary' : ''}`}
-                      onClick={() => setWaReplyPhone(c.phone)}
+                      className={`w-full text-left rounded-md border p-2 text-sm hover:bg-muted/50 ${waReplyPhone === c.phone ? "border-primary" : ""}`}
+                      onClick={() => {
+                        setWaReplyPhone(c.phone);
+                        setWaReplyLeadId(null);
+                      }}
                     >
-                      <span className="font-medium">{c.phone}</span>
+                      <span className="font-medium">{formatWhatsappPhoneDisplay(c.phone)}</span>
                       <p className="text-xs text-muted-foreground truncate">{c.lastMessage}</p>
                     </button>
                   ))}
                 </div>
-                <div className="grid gap-2">
-                  <input
-                    className="w-full h-9 rounded-md border bg-background px-3 text-sm"
-                    placeholder="Reply to phone (E.164)"
-                    value={waReplyPhone}
-                    onChange={(e) => setWaReplyPhone(e.target.value)}
-                  />
-                  <textarea
-                    className="w-full min-h-[72px] rounded-md border bg-background px-3 py-2 text-sm"
-                    placeholder="Reply within 24h of their last message (session message)…"
-                    value={waReplyText}
-                    onChange={(e) => setWaReplyText(e.target.value)}
-                  />
-                  <Button size="sm" onClick={sendWaReply} disabled={waReplying || !waReplyPhone.trim() || !waReplyText.trim()}>
-                    {waReplying ? "Sending…" : "Send reply"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+              <div className="grid gap-2">
+                <Input
+                  placeholder="Customer phone (digits only, e.g. 260971234567)"
+                  value={waReplyPhone}
+                  onChange={(e) => {
+                    setWaReplyPhone(e.target.value.replace(/\D/g, ""));
+                    setWaReplyLeadId(null);
+                  }}
+                />
+                <Textarea
+                  placeholder="Your reply (within 24h of their last message)…"
+                  value={waReplyText}
+                  onChange={(e) => setWaReplyText(e.target.value)}
+                  rows={3}
+                />
+                <Button size="sm" onClick={sendWaReply} disabled={waReplying || !waReplyPhone.trim() || !waReplyText.trim()}>
+                  {waReplying ? "Sending…" : "Send to customer"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">

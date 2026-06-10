@@ -4,11 +4,13 @@ import { useTenant } from '@/hooks/useTenant';
 import { usePermissions } from '@/hooks/usePermissions';
 import { applyTheme, ThemeConfig } from '@/hooks/useTheme';
 import { PermissionGate } from '@/components/PermissionGate';
+import { ThemePalettePicker } from '@/components/admin/ThemePalettePicker';
+import { paletteSwatchHsl } from '@/lib/themePalettes';
 import { Field, FormSection, FormRow, FormInput } from '@/components/forms';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Palette, ShieldCheck, Plus, Trash2, Save } from 'lucide-react';
+import { Palette, ShieldCheck, Plus, Trash2, Save, ChevronDown, ChevronUp } from 'lucide-react';
 
 const THEME_FIELDS: { key: keyof ThemeConfig; label: string; placeholder: string }[] = [
   { key: 'primary', label: 'Primary', placeholder: '15 90% 55%' },
@@ -28,6 +30,35 @@ export default function SystemSettingsPage() {
 
   const [permissions, setPermissions] = useState<any[]>([]);
   const [newPerm, setNewPerm] = useState({ key: '', label: '', module: '' });
+  const [showGlobalAdvanced, setShowGlobalAdvanced] = useState(false);
+  const [showTenantAdvanced, setShowTenantAdvanced] = useState(false);
+
+  function ThemePreviewStrip({ theme }: { theme: ThemeConfig }) {
+    const swatches = [
+      { label: 'Primary', hsl: theme.primary },
+      { label: 'Secondary', hsl: theme.secondary },
+      { label: 'Accent', hsl: theme.accent },
+    ].filter((s): s is { label: string; hsl: string } => Boolean(s.hsl?.trim()));
+
+    if (swatches.length === 0) return null;
+
+    return (
+      <div className="flex flex-wrap gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+        {swatches.map(({ label, hsl }) => (
+          <div key={label} className="flex items-center gap-2 text-xs">
+            <div
+              className="h-7 w-7 rounded-md border border-black/10 shadow-sm"
+              style={{ backgroundColor: paletteSwatchHsl(hsl) }}
+            />
+            <span className="text-muted-foreground">{label}</span>
+          </div>
+        ))}
+        {theme.radius && (
+          <span className="text-xs text-muted-foreground self-center ml-auto">Radius {theme.radius}</span>
+        )}
+      </div>
+    );
+  }
 
   useEffect(() => {
     systemSettingsApi.getTheme().then(setGlobalTheme).catch(() => {});
@@ -107,47 +138,95 @@ export default function SystemSettingsPage() {
           </TabsList>
 
           <TabsContent value="theme" className="space-y-6 mt-4">
-            <FormSection title="Global theme" description="HSL values without hsl(), e.g. 15 90% 55%">
-              <FormRow>
-                {THEME_FIELDS.map(({ key, label, placeholder }) => (
-                  <Field key={key} label={label}>
-                    <FormInput
-                      value={globalTheme[key] ?? ''}
-                      onChange={(e) => setGlobalTheme((t) => ({ ...t, [key]: e.target.value }))}
-                      placeholder={placeholder}
-                    />
-                  </Field>
-                ))}
-              </FormRow>
+            <FormSection title="Global theme" description="Choose a color palette for the whole platform. Workspace overrides can differ per customer.">
+              <ThemePalettePicker
+                value={globalTheme}
+                onChange={setGlobalTheme}
+                onPreview={applyTheme}
+              />
+              <ThemePreviewStrip theme={globalTheme} />
               <Field label="Color mode">
                 <select
                   className="flex h-11 w-full rounded-lg border border-border/60 bg-muted/30 px-3.5 text-sm shadow-sm"
                   value={globalTheme.mode ?? 'light'}
-                  onChange={(e) => setGlobalTheme((t) => ({ ...t, mode: e.target.value as ThemeConfig['mode'] }))}
+                  onChange={(e) => {
+                    const next = { ...globalTheme, mode: e.target.value as ThemeConfig['mode'] };
+                    setGlobalTheme(next);
+                    applyTheme(next);
+                  }}
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
                   <option value="system">System</option>
                 </select>
               </Field>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-muted-foreground"
+                onClick={() => setShowGlobalAdvanced((v) => !v)}
+              >
+                {showGlobalAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Advanced — custom HSL values
+              </Button>
+              {showGlobalAdvanced && (
+                <FormRow>
+                  {THEME_FIELDS.map(({ key, label, placeholder }) => (
+                    <Field key={key} label={label}>
+                      <FormInput
+                        value={globalTheme[key] ?? ''}
+                        onChange={(e) => {
+                          const next = { ...globalTheme, [key]: e.target.value };
+                          setGlobalTheme(next);
+                          applyTheme(next);
+                        }}
+                        placeholder={placeholder}
+                      />
+                    </Field>
+                  ))}
+                </FormRow>
+              )}
               <Button onClick={saveGlobalTheme} disabled={savingTheme} className="gap-1.5 h-10 rounded-lg">
                 <Save className="h-4 w-4" /> Save global theme
               </Button>
             </FormSection>
 
             {tenant && (
-              <FormSection title={`Workspace override — ${tenant.name}`} description="Overrides global theme for this workspace.">
-                <FormRow>
-                  {THEME_FIELDS.map(({ key, label, placeholder }) => (
-                    <Field key={key} label={label}>
-                      <FormInput
-                        value={tenantTheme[key] ?? ''}
-                        onChange={(e) => setTenantTheme((t) => ({ ...t, [key]: e.target.value }))}
-                        placeholder={placeholder}
-                      />
-                    </Field>
-                  ))}
-                </FormRow>
+              <FormSection title={`Workspace override — ${tenant.name}`} description="Optional palette for this workspace only.">
+                <ThemePalettePicker
+                  value={tenantTheme}
+                  onChange={setTenantTheme}
+                  onPreview={(t) => applyTheme({ ...globalTheme, ...t })}
+                />
+                <ThemePreviewStrip theme={tenantTheme} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-muted-foreground"
+                  onClick={() => setShowTenantAdvanced((v) => !v)}
+                >
+                  {showTenantAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  Advanced — custom HSL values
+                </Button>
+                {showTenantAdvanced && (
+                  <FormRow>
+                    {THEME_FIELDS.map(({ key, label, placeholder }) => (
+                      <Field key={key} label={label}>
+                        <FormInput
+                          value={tenantTheme[key] ?? ''}
+                          onChange={(e) => {
+                            const next = { ...tenantTheme, [key]: e.target.value };
+                            setTenantTheme(next);
+                            applyTheme({ ...globalTheme, ...next });
+                          }}
+                          placeholder={placeholder}
+                        />
+                      </Field>
+                    ))}
+                  </FormRow>
+                )}
                 <Button variant="outline" onClick={saveTenantTheme} disabled={savingTheme} className="gap-1.5 h-10 rounded-lg">
                   <Save className="h-4 w-4" /> Save workspace theme
                 </Button>

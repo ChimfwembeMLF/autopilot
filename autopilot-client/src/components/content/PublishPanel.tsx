@@ -12,6 +12,7 @@ import {
   contentAiApi,
   whatsappApi,
   SocialAccount,
+  resolveQueued,
 } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { invokeEdgeFunction } from '@/lib/edgeFunctions';
@@ -228,12 +229,15 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
     }
     setGenerating(true);
     try {
-      const { payloads } = await contentAiApi.adaptPlatforms({
-        tenantId: tenant.id,
-        platforms: selectedPlatforms,
-        title: item.title,
-        content: item.content ?? '',
-      });
+      const adapted = (await resolveQueued(
+        await contentAiApi.adaptPlatforms({
+          tenantId: tenant.id,
+          platforms: selectedPlatforms,
+          title: item.title,
+          content: item.content ?? '',
+        }),
+      )) as { payloads: Record<string, { title: string; content: string }> };
+      const { payloads } = adapted;
       setPlatformPayloads((prev) => {
         const next = { ...prev };
         for (const p of selectedPlatforms) {

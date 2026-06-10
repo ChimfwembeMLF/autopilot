@@ -423,6 +423,18 @@ export const socialAccountsApi = {
             body: JSON.stringify(data),
         }),
 
+    getYoutubeSetup: (token: string) =>
+        request<{
+            channels: Array<{ id: string; title: string; customUrl?: string; thumbnailUrl?: string }>;
+            profileName?: string;
+        }>(`/api/v1/social-accounts/youtube/setup?token=${encodeURIComponent(token)}`),
+
+    finalizeYoutube: (data: { setupToken: string; channelId: string }) =>
+        request<SocialAccount>('/api/v1/social-accounts/youtube/finalize', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
     getWhatsappSetup: (token: string) =>
         request<{ phones: Array<{ id: string; displayPhoneNumber?: string; verifiedName?: string; wabaId: string; wabaName?: string }> }>(
             `/api/v1/social-accounts/whatsapp/setup?token=${encodeURIComponent(token)}`,
@@ -716,6 +728,10 @@ export const tenantMembersApi = {
         request<any>('/api/v1/tenant-members', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, unknown>) =>
         request<any>(`/api/v1/tenant-members/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    revokeInvitation: (id: string, tenantId: string) =>
+        request<any>(`/api/v1/tenant-members/invitations/${id}?tenantId=${encodeURIComponent(tenantId)}`, {
+            method: 'DELETE',
+        }),
     remove: (id: string) => request<any>(`/api/v1/tenant-members/${id}`, { method: 'DELETE' }),
 };
 
@@ -804,6 +820,62 @@ export const brandProfilesApi = {
         });
     },
 };
+
+// ==================== Queue Jobs ====================
+export type QueueJobStatus = {
+    id: string;
+    queue: string;
+    name: string;
+    state: string;
+    progress?: number;
+    returnvalue?: unknown;
+    failedReason?: string;
+    attemptsMade?: number;
+    timestamp?: number;
+    finishedOn?: number;
+};
+
+export type QueuedJobResponse = {
+    queued?: boolean;
+    jobId?: string | number;
+    queue?: string;
+};
+
+export const queueJobsApi = {
+    getStatus: (queue: string, jobId: string | number) =>
+        request<QueueJobStatus | null>(`/api/v1/queues/${encodeURIComponent(queue)}/jobs/${encodeURIComponent(String(jobId))}`),
+
+    listQueues: () =>
+        request<{ queues: string[]; enabled: boolean }>('/api/v1/queues/queues'),
+};
+
+export async function waitForQueueJob(
+    queue: string,
+    jobId: string | number,
+    opts?: { intervalMs?: number; timeoutMs?: number },
+): Promise<unknown> {
+    const intervalMs = opts?.intervalMs ?? 1500;
+    const timeoutMs = opts?.timeoutMs ?? 180000;
+    const start = Date.now();
+
+    while (Date.now() - start < timeoutMs) {
+        const status = await queueJobsApi.getStatus(queue, jobId);
+        if (!status) throw new Error('Background job not found');
+        if (status.state === 'completed') return status.returnvalue;
+        if (status.state === 'failed') {
+            throw new Error(status.failedReason || 'Background job failed');
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error('Background job timed out');
+}
+
+export async function resolveQueued<T>(response: T & QueuedJobResponse): Promise<unknown> {
+    if (response?.queued && response.jobId != null && response.queue) {
+        return waitForQueueJob(response.queue, response.jobId);
+    }
+    return response;
+}
 
 // ==================== Content AI (Mistral) ====================
 export const contentAiApi = {
@@ -1252,7 +1324,7 @@ export const whatsappApi = {
             `/api/v1/whatsapp/conversations?tenantId=${tenantId}`,
         ),
 
-    reply: (data: { tenantId: string; phone: string; message: string }) =>
+    reply: (data: { tenantId: string; phone: string; message: string; leadId?: string; contactId?: string }) =>
         request<{ sent: boolean; message?: string }>('/api/v1/whatsapp/messages/reply', {
             method: 'POST',
             body: JSON.stringify(data),
@@ -1263,14 +1335,47 @@ export const whatsappApi = {
             templates: Array<{ name: string; language: string; status: string; category?: string }>;
             defaultTemplate?: string;
         }>(`/api/v1/whatsapp/templates?tenantId=${tenantId}`),
+
+    getFlowConfig: (tenantId: string) =>
+        request<{
+            enabled: boolean;
+            serviceName: string;
+            welcomeMessage?: string;
+            flowType: string;
+            welcomeTriggers: string[];
+            aiFallbackEnabled: boolean;
+            menuItems: Array<{ id: string; title: string; description?: string; response: string; aiGenerate?: boolean }>;
+        }>(`/api/v1/whatsapp/flows/config?tenantId=${encodeURIComponent(tenantId)}`),
+
+    updateFlowConfig: (
+        tenantId: string,
+        data: Partial<{
+            enabled: boolean;
+            serviceName: string;
+            welcomeMessage: string;
+            aiFallbackEnabled: boolean;
+            welcomeTriggers: string[];
+            menuItems: Array<{ id?: string; title: string; description?: string; response?: string; aiGenerate?: boolean }>;
+        }>,
+    ) =>
+        request<any>(`/api/v1/whatsapp/flows/config?tenantId=${encodeURIComponent(tenantId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
 };
 
 // ==================== Comment Replies ====================
 export const commentRepliesApi = {
     fetch: (tenantId: string) =>
-        request<{ fetched: number }>('/api/v1/comment-replies/fetch', {
+        request<{ fetched: number; autoReplied?: number }>('/api/v1/comment-replies/fetch', {
             method: 'POST',
             body: JSON.stringify({ tenantId }),
+        }),
+
+    suggest: (id: string) =>
+        request<{ content: string }>(`/api/v1/comment-replies/${id}/suggest`, {
+            method: 'POST',
+            body: JSON.stringify({}),
         }),
 
     send: (id: string, message: string) =>
@@ -1347,7 +1452,7 @@ export const auditLogsApi = {
 };
 
 // ==================== AI ====================
-export type FormSuggestionForm = 'brand-brain' | 'content' | 'campaign';
+export type FormSuggestionForm = 'brand-brain' | 'content' | 'campaign' | 'whatsapp-menu';
 
 export const aiApi = {
     getFormSuggestions: (data: {

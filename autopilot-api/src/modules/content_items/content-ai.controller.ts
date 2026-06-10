@@ -24,6 +24,7 @@ import { GenerateImageService } from './services/generate-image.service';
 import { PublishContentService } from './services/publish-content.service';
 import { AutoPublishService } from './services/auto-publish.service';
 import { DailyContentWorkflowService } from './services/daily-content-workflow.service';
+import { QueueDispatchService } from '../queues/queue-dispatch.service';
 
 interface JwtUser {
   sub: string;
@@ -42,13 +43,13 @@ export class ContentAiController {
     private readonly publishContent: PublishContentService,
     private readonly autoPublishService: AutoPublishService,
     private readonly dailyWorkflowService: DailyContentWorkflowService,
+    private readonly queueDispatch: QueueDispatchService,
   ) {}
 
   @Post('generate')
   generate(@Req() req: { user: JwtUser }, @Body() dto: GenerateContentDto) {
     const workspaceId = dto.workspaceId ?? dto.workspace_id;
-    return this.generateContent.generate({
-      userId: String(req.user.sub),
+    const payload = {
       tenantId: dto.tenantId,
       workspaceId,
       theme: dto.theme,
@@ -57,11 +58,29 @@ export class ContentAiController {
       platform: dto.platform,
       templateId: dto.templateId,
       save: dto.save,
+    };
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAiTask({
+        type: 'generate-content',
+        userId: String(req.user.sub),
+        payload,
+      }).then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
+    }
+    return this.generateContent.generate({
+      userId: String(req.user.sub),
+      ...payload,
     });
   }
 
   @Post('repurpose')
   repurpose(@Req() req: { user: JwtUser }, @Body() dto: RepurposeContentDto) {
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAiTask({
+        type: 'repurpose-content',
+        userId: String(req.user.sub),
+        payload: { contentId: dto.contentId },
+      }).then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
+    }
     return this.repurposeContent.repurpose({
       contentId: dto.contentId,
       userId: String(req.user.sub),
@@ -70,44 +89,89 @@ export class ContentAiController {
 
   @Post('adapt-platforms')
   adapt(@Req() req: { user: JwtUser }, @Body() dto: AdaptPlatformsDto) {
-    return this.adaptPlatforms.adapt({
+    const payload = {
       tenantId: dto.tenantId,
-      userId: String(req.user.sub),
       platforms: dto.platforms,
       title: dto.title,
       content: dto.content,
+    };
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAiTask({
+        type: 'adapt-platforms',
+        userId: String(req.user.sub),
+        payload,
+      }).then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
+    }
+    return this.adaptPlatforms.adapt({
+      userId: String(req.user.sub),
+      ...payload,
     });
   }
 
   @Post('generate-image')
   image(@Req() req: { user: JwtUser }, @Body() dto: GenerateImageDto) {
-    return this.generateImage.generateImage({
+    const payload = {
       tenantId: dto.tenantId,
-      userId: String(req.user.sub),
       prompt: dto.prompt,
       contentId: dto.contentId,
       contentType: dto.contentType,
+    };
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAiTask({
+        type: 'generate-image',
+        userId: String(req.user.sub),
+        payload,
+      }).then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
+    }
+    return this.generateImage.generateImage({
+      userId: String(req.user.sub),
+      ...payload,
     });
   }
 
   @Post('generate-slideshow')
   slideshow(@Req() req: { user: JwtUser }, @Body() dto: GenerateSlideshowDto) {
-    return this.generateImage.generateSlideshow({
+    const payload = {
       tenantId: dto.tenantId,
-      userId: String(req.user.sub),
       theme: dto.theme,
       slideCount: dto.slideCount,
       contentId: dto.contentId,
+    };
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAiTask({
+        type: 'generate-slideshow',
+        userId: String(req.user.sub),
+        payload,
+      }).then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
+    }
+    return this.generateImage.generateSlideshow({
+      userId: String(req.user.sub),
+      ...payload,
     });
   }
 
   @Post('auto-publish')
   runAutoPublish() {
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAutoPublishScan().then(({ jobId, queue }) => ({
+        queued: true,
+        jobId,
+        queue,
+      }));
+    }
     return this.autoPublishService.publishDueItems();
   }
 
   @Post('daily-workflow')
   runDailyWorkflow(@Req() req: { user: JwtUser }, @Body() dto: DailyWorkflowDto) {
+    const payload = { tenantId: dto.tenantId };
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueueAiTask({
+        type: 'daily-workflow',
+        userId: String(req.user.sub),
+        payload,
+      }).then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
+    }
     return this.dailyWorkflowService.run({
       tenantId: dto.tenantId,
       userId: String(req.user.sub),
@@ -120,13 +184,21 @@ export class ContentAiController {
     @Param('contentId') contentId: string,
     @Body() dto: PublishContentDto,
   ) {
-    return this.publishContent.publish({
+    const data = {
       contentId,
       userId: String(req.user.sub),
       platforms: dto.platforms,
       platformPayloads: dto.platformPayloads as
         | Record<string, { content?: string; title?: string; media?: Array<{ url: string; type?: string; name?: string }> }>
         | undefined,
-    });
+    };
+    if (this.queueDispatch.isEnabled()) {
+      return this.queueDispatch.enqueuePublish(data).then(({ jobId, queue }) => ({
+        queued: true,
+        jobId,
+        queue,
+      }));
+    }
+    return this.publishContent.publish(data);
   }
 }

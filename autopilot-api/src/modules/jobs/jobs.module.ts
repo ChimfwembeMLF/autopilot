@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ContentItemsModule } from '../content_items/content_items.module';
 import { ContentPublishingModule } from '../content-publishing/content-publishing.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { QueuesModule } from '../queues/queues.module';
 import {
   AutoPublishCron,
   CommentSyncCron,
@@ -16,6 +17,7 @@ import {
     ContentItemsModule,
     ContentPublishingModule,
     PaymentsModule,
+    QueuesModule,
   ],
   providers: [AutoPublishCron, CommentSyncCron, DailyContentWorkflowCron, PaymentsCron],
 })

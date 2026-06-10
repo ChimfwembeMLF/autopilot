@@ -173,6 +173,7 @@ export class SocialAccountsService {
           ? this.refreshLinkedInToken(account.refreshToken)
           : undefined;
       case 'google':
+      case 'youtube':
         return account.refreshToken
           ? this.refreshGoogleToken(account.refreshToken)
           : undefined;

@@ -4,29 +4,33 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AutoPublishService } from '../content_items/services/auto-publish.service';
 import { DailyContentWorkflowService } from '../content_items/services/daily-content-workflow.service';
 import { PaymentsService } from '../payments/payments.service';
+import { QueueDispatchService } from '../queues/queue-dispatch.service';
 import { FetchCommentsService } from '../content-publishing/social-comments.service';
 
 @Injectable()
 export class CommentSyncCron {
   private readonly logger = new Logger(CommentSyncCron.name);
-  private readonly lastRunByTenant = new Map<string, number>();
 
   constructor(
+    private readonly queueDispatch: QueueDispatchService,
     private readonly fetchComments: FetchCommentsService,
     private readonly config: ConfigService,
   ) {}
 
-  @Cron('0 */15 * * * *')
+  /** Every 10 minutes — enqueue comment sync for all tenants. */
+  @Cron('0 */10 * * * *')
   async syncComments(): Promise<void> {
     if (this.config.get<string>('COMMENT_SYNC_CRON_ENABLED') === 'false') return;
     try {
-      const result = await this.fetchComments.fetchAllWithRateLimit(
-        this.lastRunByTenant,
-        15 * 60 * 1000,
-      );
-      if (result.fetched > 0) {
+      if (this.queueDispatch.isEnabled()) {
+        const { jobId } = await this.queueDispatch.enqueueSyncAllComments();
+        this.logger.log(`Comment sync enqueued (job ${jobId})`);
+        return;
+      }
+      const result = await this.fetchComments.fetchAllTenants();
+      if (result.fetched > 0 || result.autoReplied > 0) {
         this.logger.log(
-          `Comment sync: ${result.fetched} new comment(s) across ${result.tenants} tenant(s)`,
+          `Comment sync: ${result.fetched} new, ${result.autoReplied} auto-replied across ${result.tenants} tenant(s)`,
         );
       }
     } catch (err) {
@@ -41,6 +45,7 @@ export class AutoPublishCron {
 
   constructor(
     private readonly autoPublish: AutoPublishService,
+    private readonly queueDispatch: QueueDispatchService,
     private readonly config: ConfigService,
   ) {}
 
@@ -48,6 +53,11 @@ export class AutoPublishCron {
   async handleAutoPublish(): Promise<void> {
     if (this.config.get<string>('AUTO_PUBLISH_CRON_ENABLED') === 'false') return;
     try {
+      if (this.queueDispatch.isEnabled()) {
+        const { jobId } = await this.queueDispatch.enqueueAutoPublishScan();
+        this.logger.log(`Auto-publish scan enqueued (job ${jobId})`);
+        return;
+      }
       const result = await this.autoPublish.publishDueItems();
       if (result.attempted > 0) {
         this.logger.log(
@@ -66,6 +76,7 @@ export class DailyContentWorkflowCron {
 
   constructor(
     private readonly dailyWorkflow: DailyContentWorkflowService,
+    private readonly queueDispatch: QueueDispatchService,
     private readonly config: ConfigService,
   ) {}
 
@@ -73,6 +84,15 @@ export class DailyContentWorkflowCron {
   async handleDailyWorkflow(): Promise<void> {
     if (this.config.get<string>('DAILY_WORKFLOW_CRON_ENABLED') === 'false') return;
     try {
+      if (this.queueDispatch.isEnabled()) {
+        const { jobId } = await this.queueDispatch.enqueueAiTask({
+          type: 'daily-workflow',
+          userId: 'system',
+          payload: {},
+        });
+        this.logger.log(`Daily workflow enqueued (job ${jobId})`);
+        return;
+      }
       const result = await this.dailyWorkflow.run({});
       this.logger.log(
         `Daily content workflow: ${result.generated} generated, ${result.skipped} skipped, ${result.errors.length} messages`,

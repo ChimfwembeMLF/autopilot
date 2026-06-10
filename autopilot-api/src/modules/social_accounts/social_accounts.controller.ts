@@ -23,9 +23,17 @@ import { SocialAccountsOAuthService, SocialOAuthPlatform } from './social_accoun
 import { SocialAccountsCreateDto } from './dto/create-social_accounts.dto';
 import { WhatsappFinalizeDto } from './dto/whatsapp-finalize.dto';
 import { FacebookFinalizeDto } from './dto/facebook-finalize.dto';
+import { YoutubeFinalizeDto } from './dto/youtube-finalize.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-const OAUTH_PLATFORMS: SocialOAuthPlatform[] = ['facebook', 'linkedin', 'instagram', 'google', 'whatsapp'];
+const OAUTH_PLATFORMS: SocialOAuthPlatform[] = [
+  'facebook',
+  'linkedin',
+  'instagram',
+  'google',
+  'youtube',
+  'whatsapp',
+];
 
 @ApiTags('Social Accounts')
 @Controller('api/v1/social-accounts')
@@ -184,6 +192,20 @@ export class SocialAccountsController {
         return res.redirect(`${returnUrl}${separator}facebook_setup=${encodeURIComponent(setupToken)}`);
       }
 
+      if (platform === 'youtube') {
+        const prepared = await this.oauth.prepareYoutubeConnect(code, decoded.redirectUri);
+        const setupToken = this.oauth.createYoutubeSetupToken({
+          userId: decoded.userId,
+          tenantId: decoded.tenantId,
+          accessToken: prepared.accessToken,
+          refreshToken: prepared.refreshToken,
+          expiresAt: prepared.expiresAt?.toISOString(),
+          profile: prepared.profile,
+          channels: prepared.channels,
+        });
+        return res.redirect(`${returnUrl}${separator}youtube_setup=${encodeURIComponent(setupToken)}`);
+      }
+
       const result = await this.oauth.handleCallback(
         platform as SocialOAuthPlatform,
         code,
@@ -253,6 +275,46 @@ export class SocialAccountsController {
     }
 
     const result = await this.oauth.buildFacebookConnectResult(payload, dto.pageId);
+
+    return this.service.connectAccount({
+      tenantId: payload.tenantId,
+      userId: payload.userId,
+      platform: result.platform,
+      accountName: result.accountName,
+      externalId: result.externalId,
+      username: result.username,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresAt: result.expiresAt,
+      metadata: result.metadata,
+      connected: true,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Preview YouTube channels from OAuth setup token' })
+  @Get('youtube/setup')
+  getYoutubeSetup(@Query('token') token?: string) {
+    if (!token?.trim()) {
+      throw new BadRequestException('token query parameter is required');
+    }
+    return this.oauth.getYoutubeSetupPreview(token.trim());
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Finalize YouTube connect after selecting a channel' })
+  @Post('youtube/finalize')
+  async finalizeYoutube(@Req() req: Request, @Body() dto: YoutubeFinalizeDto) {
+    const userId = this.getUserId(req);
+    const payload = this.oauth.verifyYoutubeSetupToken(dto.setupToken);
+
+    if (payload.userId !== userId) {
+      throw new UnauthorizedException('YouTube setup token does not belong to this user');
+    }
+
+    const result = this.oauth.buildYoutubeConnectResult(payload, dto.channelId);
 
     return this.service.connectAccount({
       tenantId: payload.tenantId,

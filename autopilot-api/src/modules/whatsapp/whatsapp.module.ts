@@ -13,6 +13,12 @@ import { WhatsappPublishingService } from './whatsapp-publishing.service';
 import { WhatsappInboundService } from './whatsapp-inbound.service';
 import { WhatsappLeadService } from './whatsapp-lead.service';
 import { WhatsappAutoReplyService } from './whatsapp-auto-reply.service';
+import { WhatsappFlowConfig } from './entities/whatsapp_flow_config.entity';
+import { WhatsappFlowSession } from './entities/whatsapp_flow_session.entity';
+import { WhatsappFlowSessionService } from './whatsapp-flow-session.service';
+import { WhatsappFlowEngineService } from './whatsapp-flow-engine.service';
+import { ConfigurableMenuFlow } from './flows/configurable-menu.flow';
+import { WhatsappFlowAiService } from './whatsapp-flow-ai.service';
 import { WhatsappController } from './whatsapp.controller';
 
 @Module({
@@ -23,6 +29,8 @@ import { WhatsappController } from './whatsapp.controller';
       SocialAccounts,
       Tenants,
       BrandProfiles,
+      WhatsappFlowConfig,
+      WhatsappFlowSession,
     ]),
     LeadsModule,
     AutoReplyRulesModule,
@@ -34,6 +42,10 @@ import { WhatsappController } from './whatsapp.controller';
     WhatsappInboundService,
     WhatsappLeadService,
     WhatsappAutoReplyService,
+    WhatsappFlowSessionService,
+    WhatsappFlowEngineService,
+    ConfigurableMenuFlow,
+    WhatsappFlowAiService,
   ],
   controllers: [WhatsappController],
   exports: [

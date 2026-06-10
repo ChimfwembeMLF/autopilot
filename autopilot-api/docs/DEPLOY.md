@@ -149,9 +149,19 @@ Facebook/Instagram fetch media from **public HTTPS URLs**.
 |------|----------|------------|
 | Auto-publish scheduled content | 5 min | `AUTO_PUBLISH_CRON_ENABLED` |
 | Daily AI workflow | 8:00 daily | `DAILY_WORKFLOW_CRON_ENABLED` |
-| Comment sync | 15 min | `COMMENT_SYNC_CRON_ENABLED` |
+| Comment sync + auto-reply | 10 min | `COMMENT_SYNC_CRON_ENABLED` (enqueues BullMQ job when `QUEUES_ENABLED=true`) |
 
-For multiple API instances, run crons on one instance only or migrate to Redis/BullMQ later.
+For multiple API instances, run crons on one instance only or use Redis/BullMQ (`QUEUES_ENABLED=true`, `REDIS_HOST`).
+
+### Redis / BullMQ
+
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+QUEUES_ENABLED=true
+```
+
+Queues: `content-publish`, `comments`, `webhooks`, `ai`, `email`. Job status: `GET /api/v1/queues/:queue/jobs/:jobId`.
 
 ---
 

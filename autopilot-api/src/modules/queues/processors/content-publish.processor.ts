@@ -1,0 +1,52 @@
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { Job } from 'bullmq';
+import {
+  QUEUE_CONTENT_PUBLISH,
+  JOB_PUBLISH_CONTENT,
+  JOB_AUTO_PUBLISH_SCAN,
+  PublishContentJobData,
+} from '../queue.constants';
+import { PublishContentService } from '../../content_items/services/publish-content.service';
+import { AutoPublishService } from '../../content_items/services/auto-publish.service';
+
+@Processor(QUEUE_CONTENT_PUBLISH)
+export class ContentPublishProcessor extends WorkerHost {
+  private readonly logger = new Logger(ContentPublishProcessor.name);
+
+  constructor(
+    private readonly publishContent: PublishContentService,
+    private readonly autoPublish: AutoPublishService,
+  ) {
+    super();
+  }
+
+  async process(job: Job): Promise<unknown> {
+    switch (job.name) {
+      case JOB_PUBLISH_CONTENT:
+        return this.handlePublish(job as Job<PublishContentJobData>);
+      case JOB_AUTO_PUBLISH_SCAN:
+        return this.handleAutoPublishScan();
+      default:
+        this.logger.warn(`Unknown job: ${job.name}`);
+        return null;
+    }
+  }
+
+  private async handlePublish(job: Job<PublishContentJobData>) {
+    const data = job.data;
+    this.logger.log(`Publishing content ${data.contentId} (job ${job.id})`);
+    const result = await this.publishContent.publish({
+      contentId: data.contentId,
+      userId: data.userId,
+      platforms: data.platforms,
+      platformPayloads: data.platformPayloads,
+    });
+    return result;
+  }
+
+  private async handleAutoPublishScan() {
+    this.logger.log('Running auto-publish scan');
+    return this.autoPublish.queueDueItems();
+  }
+}

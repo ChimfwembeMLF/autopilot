@@ -15,10 +15,11 @@ import { Users, Mail, UserCog, Trash2 } from 'lucide-react';
 
 interface Member {
   id: string;
-  userId: string;
+  userId: string | null;
   isActive: boolean;
   roleId: string | null;
   joinedAt: string;
+  status?: 'active' | 'pending';
   profile: { fullName: string | null; email: string | null; avatarUrl: string | null } | null;
 }
 
@@ -58,9 +59,16 @@ export default function TeamPage() {
     if (!inviteEmail.trim() || !inviteRole || !tenant) return;
     setInviting(true);
     try {
-      await tenantMembersApi.invite({ email: inviteEmail, tenantId: tenant.id, roleId: inviteRole });
+      const res = await tenantMembersApi.invite({ email: inviteEmail, tenantId: tenant.id, roleId: inviteRole });
       await logAudit({ tenantId: tenant.id, action: 'team.invite', metadata: { email: inviteEmail } });
-      toast({ title: 'Member added', description: `${inviteEmail} was added to the team.` });
+      if (res?.pending) {
+        toast({
+          title: 'Invitation sent',
+          description: `${inviteEmail} will join when they register or sign in with that email.`,
+        });
+      } else {
+        toast({ title: 'Member added', description: `${inviteEmail} was added to the team.` });
+      }
       setInviteEmail('');
       setInviteRole('');
       load();
@@ -81,6 +89,13 @@ export default function TeamPage() {
 
   async function removeMember(member: Member) {
     if (!tenant) return;
+    if (member.status === 'pending') {
+      await tenantMembersApi.revokeInvitation(member.id, tenant.id);
+      await logAudit({ tenantId: tenant.id, action: 'team.invite_revoked', metadata: { email: member.profile?.email } });
+      load();
+      toast({ title: 'Invitation cancelled' });
+      return;
+    }
     await tenantMembersApi.update(member.id, { isActive: false });
     await logAudit({ tenantId: tenant.id, action: 'team.member_removed', metadata: { user_id: member.userId } });
     load();
@@ -105,7 +120,7 @@ export default function TeamPage() {
         <PermissionGate require={P.team.invite}>
           <FormSection
             title="Invite member"
-            description="User must already have a BrandPilot account."
+            description="They'll receive an email invite. If they don't have an account yet, they can register with the same email to join."
           >
             <FormRow cols={1}>
               <Field label="Email" htmlFor="invite-email" required>
@@ -129,7 +144,7 @@ export default function TeamPage() {
             </FormRow>
             <FormActions className="justify-start sm:justify-end">
               <Button onClick={handleInvite} disabled={inviting || !inviteEmail || !inviteRole} className="gap-1.5 h-10 rounded-lg">
-                <Mail className="h-4 w-4" /> {inviting ? 'Adding…' : 'Add member'}
+                <Mail className="h-4 w-4" /> {inviting ? 'Sending…' : 'Send invite'}
               </Button>
             </FormActions>
           </FormSection>
@@ -147,12 +162,25 @@ export default function TeamPage() {
                   {(member.profile?.fullName ?? member.profile?.email ?? '?')[0]?.toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{member.profile?.fullName ?? 'Unnamed'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{member.profile?.email}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm truncate">
+                      {member.status === 'pending'
+                        ? member.profile?.email
+                        : (member.profile?.fullName ?? 'Unnamed')}
+                    </p>
+                    {member.status === 'pending' && (
+                      <Badge variant="outline" className="text-[10px] shrink-0">Invited</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {member.status === 'pending' ? 'Awaiting signup' : member.profile?.email}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {can(P.team.assignRoles) ? (
+                {member.status === 'pending' ? (
+                  <Badge variant="secondary">{roleName(member.roleId)}</Badge>
+                ) : can(P.team.assignRoles) ? (
                   <Select value={member.roleId ?? ''} onValueChange={(v) => changeRole(member.id, v)}>
                     <SelectTrigger {...formSelectProps('w-32 h-9 text-xs')}><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -162,7 +190,7 @@ export default function TeamPage() {
                 ) : (
                   <Badge variant="secondary">{roleName(member.roleId)}</Badge>
                 )}
-                {can(P.team.assignPermissions) && (
+                {member.status !== 'pending' && can(P.team.assignPermissions) && member.userId && (
                   <Button size="icon" variant="ghost" className="h-9 w-9 rounded-lg" asChild>
                     <Link to={`/team/${member.userId}/permissions`}><UserCog className="h-4 w-4" /></Link>
                   </Button>

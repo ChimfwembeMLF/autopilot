@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContentItems } from '../entities/content_items.entity';
 import { PublishContentService } from './publish-content.service';
 import { isContentDue } from '../utils/schedule.util';
+import { QueueDispatchService } from '../../queues/queue-dispatch.service';
 
 @Injectable()
 export class AutoPublishService {
@@ -13,16 +14,59 @@ export class AutoPublishService {
     @InjectRepository(ContentItems)
     private readonly contentRepo: Repository<ContentItems>,
     private readonly publishContent: PublishContentService,
+    @Optional() private readonly queueDispatch?: QueueDispatchService,
   ) {}
+
+  /** Enqueue publish jobs for all due approved content (used by queue worker). */
+  async queueDueItems(): Promise<{
+    queued: number;
+    jobs: Array<{ jobId: string | number | undefined; queue: string; contentId: string }>;
+  }> {
+    const due = await this.findDueItems();
+    const jobs: Array<{ jobId: string | number | undefined; queue: string; contentId: string }> = [];
+
+    for (const item of due) {
+      if (!this.queueDispatch?.isEnabled()) {
+        await this.publishContent.publish({
+          contentId: item.id,
+          userId: item.userId,
+          platforms: item.platforms,
+        });
+        jobs.push({ jobId: undefined, queue: 'sync', contentId: item.id });
+        continue;
+      }
+
+      const { jobId, queue } = await this.queueDispatch.enqueuePublish({
+        contentId: item.id,
+        userId: item.userId,
+        platforms: item.platforms,
+      });
+      jobs.push({ jobId, queue, contentId: item.id });
+      this.logger.log(`Queued auto-publish for ${item.id} → job ${jobId}`);
+    }
+
+    return { queued: jobs.length, jobs };
+  }
 
   async publishDueItems(): Promise<{
     attempted: number;
     published: number;
     failed: number;
     errors: string[];
+    queued?: number;
   }> {
-    const items = await this.contentRepo.find({ where: { status: 'approved' } });
-    const due = items.filter((item) => isContentDue(item));
+    if (this.queueDispatch?.isEnabled()) {
+      const result = await this.queueDueItems();
+      return {
+        attempted: result.queued,
+        published: 0,
+        failed: 0,
+        errors: [],
+        queued: result.queued,
+      };
+    }
+
+    const due = await this.findDueItems();
     let published = 0;
     let failed = 0;
     const errors: string[] = [];
@@ -53,5 +97,10 @@ export class AutoPublishService {
     }
 
     return { attempted: due.length, published, failed, errors };
+  }
+
+  private async findDueItems(): Promise<ContentItems[]> {
+    const items = await this.contentRepo.find({ where: { status: 'approved' } });
+    return items.filter((item) => isContentDue(item));
   }
 }

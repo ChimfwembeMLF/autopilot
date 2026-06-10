@@ -1,4 +1,4 @@
-export type FormSuggestionForm = 'brand-brain' | 'content' | 'campaign';
+export type FormSuggestionForm = 'brand-brain' | 'content' | 'campaign' | 'whatsapp-menu';
 
 export const FORM_SUGGESTION_FIELDS: Record<FormSuggestionForm, string[]> = {
   'brand-brain': [
@@ -19,6 +19,13 @@ export const FORM_SUGGESTION_FIELDS: Record<FormSuggestionForm, string[]> = {
   ],
   content: ['theme', 'title'],
   campaign: ['name', 'theme', 'goal'],
+  'whatsapp-menu': [
+    'serviceName',
+    'welcomeMessage',
+    'menuTitle',
+    'menuDescription',
+    'menuResponse',
+  ],
 };
 
 export const CACHE_TTL_MS = 30 * 60 * 1000;

@@ -55,6 +55,94 @@ export class WhatsappMessagingService {
     }
   }
 
+  /** Reply buttons (max 3) — within 24h session window. */
+  async sendInteractiveButtons(
+    creds: WhatsappCredentials,
+    toPhone: string,
+    body: string,
+    buttons: Array<{ id: string; title: string }>,
+  ): Promise<SendMessageResult> {
+    const to = this.normalizePhone(toPhone);
+    const trimmed = buttons.slice(0, 3).map((b) => ({
+      type: 'reply' as const,
+      reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+    }));
+
+    if (!trimmed.length) {
+      return this.sendSessionText(creds, toPhone, body);
+    }
+
+    try {
+      const { data } = await axios.post<{ messages?: Array<{ id: string }> }>(
+        `https://graph.facebook.com/${this.graphVersion}/${creds.phoneNumberId}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to,
+          type: 'interactive',
+          interactive: {
+            type: 'button',
+            body: { text: body.trim().slice(0, 1024) },
+            action: { buttons: trimmed },
+          },
+        },
+        { headers: { Authorization: `Bearer ${creds.accessToken}` } },
+      );
+      return { success: true, waMessageId: data.messages?.[0]?.id };
+    } catch (err: unknown) {
+      const message = this.formatGraphError(err);
+      this.logger.warn(`WhatsApp buttons send failed → ${to}: ${message}`);
+      return { success: false, error: message };
+    }
+  }
+
+  /** List message — within 24h session window. */
+  async sendInteractiveList(
+    creds: WhatsappCredentials,
+    toPhone: string,
+    body: string,
+    buttonLabel: string,
+    sections: Array<{
+      title?: string;
+      rows: Array<{ id: string; title: string; description?: string }>;
+    }>,
+  ): Promise<SendMessageResult> {
+    const to = this.normalizePhone(toPhone);
+
+    try {
+      const { data } = await axios.post<{ messages?: Array<{ id: string }> }>(
+        `https://graph.facebook.com/${this.graphVersion}/${creds.phoneNumberId}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to,
+          type: 'interactive',
+          interactive: {
+            type: 'list',
+            body: { text: body.trim().slice(0, 1024) },
+            action: {
+              button: buttonLabel.slice(0, 20),
+              sections: sections.slice(0, 10).map((section) => ({
+                title: section.title?.slice(0, 24),
+                rows: section.rows.slice(0, 10).map((row) => ({
+                  id: row.id.slice(0, 200),
+                  title: row.title.slice(0, 24),
+                  description: row.description?.slice(0, 72),
+                })),
+              })),
+            },
+          },
+        },
+        { headers: { Authorization: `Bearer ${creds.accessToken}` } },
+      );
+      return { success: true, waMessageId: data.messages?.[0]?.id };
+    } catch (err: unknown) {
+      const message = this.formatGraphError(err);
+      this.logger.warn(`WhatsApp list send failed → ${to}: ${message}`);
+      return { success: false, error: message };
+    }
+  }
+
   /** Proactive broadcast outside 24h window — requires Meta-approved template. */
   async sendTemplateText(
     creds: WhatsappCredentials,

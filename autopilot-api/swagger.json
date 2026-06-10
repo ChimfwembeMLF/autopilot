@@ -1032,6 +1032,42 @@
         ]
       }
     },
+    "/api/v1/tenant-members/invitations/{id}": {
+      "delete": {
+        "operationId": "TenantMembersController_revokeInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Tenant Members"
+        ]
+      }
+    },
     "/api/v1/profiles": {
       "post": {
         "operationId": "ProfilesController_create",
@@ -2981,6 +3017,65 @@
         ]
       }
     },
+    "/api/v1/social-accounts/youtube/setup": {
+      "get": {
+        "operationId": "SocialAccountsController_getYoutubeSetup",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preview YouTube channels from OAuth setup token",
+        "tags": [
+          "Social Accounts"
+        ]
+      }
+    },
+    "/api/v1/social-accounts/youtube/finalize": {
+      "post": {
+        "operationId": "SocialAccountsController_finalizeYoutube",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YoutubeFinalizeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Finalize YouTube connect after selecting a channel",
+        "tags": [
+          "Social Accounts"
+        ]
+      }
+    },
     "/api/v1/social-accounts/whatsapp/enable-platform": {
       "post": {
         "operationId": "SocialAccountsController_enablePlatformWhatsapp",
@@ -3169,6 +3264,183 @@
         "summary": "Remove a social account",
         "tags": [
           "Social Accounts"
+        ]
+      }
+    },
+    "/api/v1/auto-reply-rules": {
+      "post": {
+        "operationId": "AutoReplyRulesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoReplyRulesCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      },
+      "get": {
+        "operationId": "AutoReplyRulesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      }
+    },
+    "/api/v1/auto-reply-rules/{id}": {
+      "get": {
+        "operationId": "AutoReplyRulesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      },
+      "patch": {
+        "operationId": "AutoReplyRulesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoReplyRulesUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      },
+      "delete": {
+        "operationId": "AutoReplyRulesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      }
+    },
+    "/api/v1/whatsapp/flows/config": {
+      "get": {
+        "operationId": "WhatsappController_getFlowConfig",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get WhatsApp USSD-style menu flow config for a workspace",
+        "tags": [
+          "WhatsApp"
+        ]
+      },
+      "patch": {
+        "operationId": "WhatsappController_updateFlowConfig",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWhatsappFlowConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enable/configure WhatsApp menu flow (USSD-style bot)",
+        "tags": [
+          "WhatsApp"
         ]
       }
     },
@@ -3478,48 +3750,39 @@
         ]
       }
     },
-    "/api/v1/auto-reply-rules": {
-      "post": {
-        "operationId": "AutoReplyRulesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AutoReplyRulesCreateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      },
+    "/api/v1/queues/queues": {
       "get": {
-        "operationId": "AutoReplyRulesController_findAll",
+        "operationId": "QueueJobsController_listQueues",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
-          "Auto Reply Rules"
+          "Queue Jobs"
         ]
       }
     },
-    "/api/v1/auto-reply-rules/{id}": {
+    "/api/v1/queues/{queue}/jobs/{jobId}": {
       "get": {
-        "operationId": "AutoReplyRulesController_findOne",
+        "operationId": "QueueJobsController_getJob",
         "parameters": [
           {
-            "name": "id",
+            "name": "queue",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
             "required": true,
             "in": "path",
             "schema": {
@@ -3532,60 +3795,13 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      },
-      "patch": {
-        "operationId": "AutoReplyRulesController_update",
-        "parameters": [
+        "security": [
           {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
+            "bearer": []
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AutoReplyRulesUpdateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
         "tags": [
-          "Auto Reply Rules"
-        ]
-      },
-      "delete": {
-        "operationId": "AutoReplyRulesController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
+          "Queue Jobs"
         ]
       }
     },
@@ -3742,6 +3958,117 @@
         ],
         "tags": [
           "Media"
+        ]
+      }
+    },
+    "/api/v1/lead-source": {
+      "post": {
+        "operationId": "LeadSourcesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadSourcesCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lead Source"
+        ]
+      },
+      "get": {
+        "operationId": "LeadSourcesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lead Source"
+        ]
+      }
+    },
+    "/api/v1/lead-source/{id}": {
+      "get": {
+        "operationId": "LeadSourcesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lead Source"
+        ]
+      },
+      "patch": {
+        "operationId": "LeadSourcesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadSourcesUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lead Source"
+        ]
+      },
+      "delete": {
+        "operationId": "LeadSourcesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lead Source"
         ]
       }
     },
@@ -3971,117 +4298,6 @@
         ],
         "tags": [
           "Payments"
-        ]
-      }
-    },
-    "/api/v1/lead-source": {
-      "post": {
-        "operationId": "LeadSourcesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LeadSourcesCreateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Lead Source"
-        ]
-      },
-      "get": {
-        "operationId": "LeadSourcesController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Lead Source"
-        ]
-      }
-    },
-    "/api/v1/lead-source/{id}": {
-      "get": {
-        "operationId": "LeadSourcesController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Lead Source"
-        ]
-      },
-      "patch": {
-        "operationId": "LeadSourcesController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LeadSourcesUpdateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Lead Source"
-        ]
-      },
-      "delete": {
-        "operationId": "LeadSourcesController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Lead Source"
         ]
       }
     },
@@ -4771,6 +4987,34 @@
             }
           }
         },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Comment Replies"
+        ]
+      }
+    },
+    "/api/v1/comment-replies/{id}/suggest": {
+      "post": {
+        "operationId": "CommentRepliesController_suggest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "201": {
             "description": ""
@@ -5749,6 +5993,23 @@
           "pageId"
         ]
       },
+      "YoutubeFinalizeDto": {
+        "type": "object",
+        "properties": {
+          "setupToken": {
+            "type": "string",
+            "description": "Short-lived setup token from OAuth callback"
+          },
+          "channelId": {
+            "type": "string",
+            "description": "Selected YouTube channel ID"
+          }
+        },
+        "required": [
+          "setupToken",
+          "channelId"
+        ]
+      },
       "WhatsappFinalizeDto": {
         "type": "object",
         "properties": {
@@ -5766,14 +6027,6 @@
           "phoneNumberId"
         ]
       },
-      "LeadsCreateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "LeadsUpdateDto": {
-        "type": "object",
-        "properties": {}
-      },
       "AutoReplyRulesCreateDto": {
         "type": "object",
         "properties": {}
@@ -5782,7 +6035,73 @@
         "type": "object",
         "properties": {}
       },
-      "GenerateCampaignDto": {
+      "WhatsappMenuItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "pricing"
+          },
+          "title": {
+            "type": "string",
+            "example": "Pricing & plans"
+          },
+          "description": {
+            "type": "string",
+            "example": "See our packages"
+          },
+          "aiGenerate": {
+            "type": "boolean",
+            "description": "When true, AI writes the reply using title + response as guidance"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "UpdateWhatsappFlowConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "serviceName": {
+            "type": "string",
+            "example": "Acme Shop",
+            "description": "Your business name — shown in the WhatsApp welcome line"
+          },
+          "welcomeMessage": {
+            "type": "string",
+            "example": "Welcome to {serviceName}! How can we help?",
+            "description": "Optional custom welcome text. Use {serviceName} as a placeholder."
+          },
+          "welcomeTriggers": {
+            "example": [
+              "hi",
+              "hello",
+              "menu"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "aiFallbackEnabled": {
+            "type": "boolean"
+          },
+          "menuItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsappMenuItemDto"
+            }
+          }
+        }
+      },
+      "LeadsCreateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LeadsUpdateDto": {
         "type": "object",
         "properties": {}
       },
@@ -5791,6 +6110,10 @@
         "properties": {}
       },
       "LeadSourcesUpdateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GenerateCampaignDto": {
         "type": "object",
         "properties": {}
       },

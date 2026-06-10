@@ -21,6 +21,7 @@ import { RefreshTokenService } from './refresh-token.service';
 import { MailService } from '../mail/mail.service';
 import { TenantBootstrapService } from '../tenants/tenant-bootstrap.service';
 import { TenantSummaryDto } from '../tenants/dto/tenant-summary.dto';
+import { TenantMembersService } from '../tenant_members/tenant_members.service';
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -33,10 +34,14 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly config: ConfigService,
     private readonly tenantBootstrap: TenantBootstrapService,
+    private readonly tenantMembers: TenantMembersService,
   ) {}
 
   async completeAuthentication(user: UserEntity): Promise<LoginPayloadDto> {
     const tenant = await this.tenantBootstrap.bootstrapForUser(user);
+    if (user.email) {
+      await this.tenantMembers.acceptPendingInvitations(user.id, user.email);
+    }
     const tokens = await this.issueTokensForUser(user);
     return {
       ...tokens,

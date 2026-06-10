@@ -1,4 +1,11 @@
-import { brandProfilesApi, contentAiApi, paymentsApi, leadsApi, commentRepliesApi } from '@/lib/api';
+import {
+  brandProfilesApi,
+  contentAiApi,
+  paymentsApi,
+  leadsApi,
+  commentRepliesApi,
+  resolveQueued,
+} from '@/lib/api';
 
 type EdgeBody = Record<string, unknown> | undefined;
 
@@ -20,6 +27,13 @@ async function runHandler<T>(
   }
 }
 
+async function runQueued<T extends { queued?: boolean }>(
+  fn: () => Promise<T>,
+): Promise<unknown> {
+  const response = await fn();
+  return resolveQueued(response);
+}
+
 /** Routes legacy edge function names to Nest API endpoints. */
 export async function invokeEdgeFunction(
   name: string,
@@ -31,51 +45,61 @@ export async function invokeEdgeFunction(
   switch (name) {
     case 'generate-content':
       return runHandler(() =>
-        contentAiApi.generate({
-          theme: body.theme as string | undefined,
-          draft: body.draft as string | undefined,
-          workspaceId: (body.workspaceId ?? body.workspace_id) as string | undefined,
-          tenantId,
-          contentType: body.contentType as string | undefined,
-          platform: body.platform as string | undefined,
-          templateId: body.templateId as string | undefined,
-          save: body.contentType === 'reply' ? false : (body.save as boolean | undefined) ?? false,
-        }),
+        runQueued(() =>
+          contentAiApi.generate({
+            theme: body.theme as string | undefined,
+            draft: body.draft as string | undefined,
+            workspaceId: (body.workspaceId ?? body.workspace_id) as string | undefined,
+            tenantId,
+            contentType: body.contentType as string | undefined,
+            platform: body.platform as string | undefined,
+            templateId: body.templateId as string | undefined,
+            save: body.contentType === 'reply' ? false : (body.save as boolean | undefined) ?? false,
+          }),
+        ),
       );
 
     case 'generate-image':
       if (!tenantId) return { data: null, error: { message: 'tenantId is required for image generation' } };
       return runHandler(() =>
-        contentAiApi.generateImage({
-          prompt: String(body.prompt ?? ''),
-          tenantId,
-          contentId: body.contentId as string | undefined,
-          contentType: body.contentType as string | undefined,
-        }),
+        runQueued(() =>
+          contentAiApi.generateImage({
+            prompt: String(body.prompt ?? ''),
+            tenantId,
+            contentId: body.contentId as string | undefined,
+            contentType: body.contentType as string | undefined,
+          }),
+        ),
       );
 
     case 'generate-slideshow':
       if (!tenantId) return { data: null, error: { message: 'tenantId is required for slideshow generation' } };
       return runHandler(() =>
-        contentAiApi.generateSlideshow({
-          theme: String(body.theme ?? body.prompt ?? 'brand showcase'),
-          tenantId,
-          slideCount: body.slideCount as number | undefined,
-          contentId: body.contentId as string | undefined,
-        }),
+        runQueued(() =>
+          contentAiApi.generateSlideshow({
+            theme: String(body.theme ?? body.prompt ?? 'brand showcase'),
+            tenantId,
+            slideCount: body.slideCount as number | undefined,
+            contentId: body.contentId as string | undefined,
+          }),
+        ),
       );
 
     case 'repurpose-content':
-      return runHandler(() => contentAiApi.repurpose(String(body.contentId ?? '')));
+      return runHandler(() =>
+        runQueued(() => contentAiApi.repurpose(String(body.contentId ?? ''))),
+      );
 
     case 'publish-content': {
       const contentId = String(body.contentId ?? '');
       const platforms = body.platforms as string[] | undefined;
       const platformPayloads = body.platformPayloads as Record<string, unknown> | undefined;
       return runHandler(async () => {
-        const result = await contentAiApi.publish(contentId, platforms, platformPayloads);
-        if (!result.published) {
-          const details = Object.entries(result.results ?? {})
+        const result = (await runQueued(() =>
+          contentAiApi.publish(contentId, platforms, platformPayloads),
+        )) as { published?: boolean; results?: Record<string, { published: boolean; message: string }> };
+        if (!result?.published) {
+          const details = Object.entries(result?.results ?? {})
             .map(([p, r]) => `${p}: ${r.message}`)
             .join('\n');
           throw new Error(details || 'Publish failed');
@@ -85,10 +109,10 @@ export async function invokeEdgeFunction(
     }
 
     case 'daily-content-workflow':
-      return runHandler(() => contentAiApi.dailyWorkflow(tenantId));
+      return runHandler(() => runQueued(() => contentAiApi.dailyWorkflow(tenantId)));
 
     case 'auto-publish':
-      return runHandler(() => contentAiApi.autoPublish());
+      return runHandler(() => runQueued(() => contentAiApi.autoPublish()));
 
     case 'scrape-brand':
       if (!tenantId) return { data: null, error: { message: 'tenantId is required for scraping' } };
@@ -125,11 +149,13 @@ export async function invokeEdgeFunction(
 
     case 'send-lead-email':
       return runHandler(() =>
-        leadsApi.sendEmail({
-          to: String(body.to ?? ''),
-          subject: String(body.subject ?? 'Lead follow-up'),
-          body: String(body.body ?? body.message ?? ''),
-        }),
+        runQueued(() =>
+          leadsApi.sendEmail({
+            to: String(body.to ?? ''),
+            subject: String(body.subject ?? 'Lead follow-up'),
+            body: String(body.body ?? body.message ?? ''),
+          }),
+        ),
       );
 
     case 'lead-webhook':
@@ -141,12 +167,18 @@ export async function invokeEdgeFunction(
       };
 
     case 'fetch-comments': {
-      const tenantId =
+      const tid =
         (body.tenantId as string | undefined) ??
         (body.tenant_id as string | undefined) ??
         activeTenantId();
-      if (!tenantId) return { data: null, error: { message: 'tenantId is required' } };
-      return runHandler(() => commentRepliesApi.fetch(tenantId));
+      if (!tid) return { data: null, error: { message: 'tenantId is required' } };
+      return runHandler(() => runQueued(() => commentRepliesApi.fetch(tid)));
+    }
+
+    case 'suggest-comment-reply': {
+      const commentId = String(body.commentReplyId ?? body.commentId ?? '');
+      if (!commentId) return { data: null, error: { message: 'commentReplyId is required' } };
+      return runHandler(() => runQueued(() => commentRepliesApi.suggest(commentId)));
     }
 
     case 'parse-brand-document':

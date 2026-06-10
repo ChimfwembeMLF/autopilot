@@ -1,10 +1,14 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios from 'axios';
+import { google } from 'googleapis';
 import { ContentPublications } from '../content_publications/entities/content_publications.entity';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { CommentReplies } from '../comment_replies/entities/comment_replies.entity';
+import { YoutubePublishingService } from './youtube-publishing.service';
+import { SocialCommentAutoReplyService } from './social-comment-auto-reply.service';
 
 type FetchedComment = {
   externalCommentId: string;
@@ -26,9 +30,16 @@ export class FetchCommentsService {
     private readonly socialRepo: Repository<SocialAccounts>,
     @InjectRepository(CommentReplies)
     private readonly commentsRepo: Repository<CommentReplies>,
+    private readonly youtubePublish: YoutubePublishingService,
+    private readonly autoReply: SocialCommentAutoReplyService,
+    private readonly config: ConfigService,
   ) {}
 
-  async fetchForTenant(params: { tenantId: string; userId: string }): Promise<{ fetched: number }> {
+  async fetchForTenant(params: {
+    tenantId: string;
+    userId: string;
+    runAutoReply?: boolean;
+  }): Promise<{ fetched: number; autoReplied: number }> {
     const publications = await this.publicationsRepo.find({
       where: { tenantId: params.tenantId, status: 'published' },
       order: { publishedAt: 'DESC' },
@@ -42,6 +53,7 @@ export class FetchCommentsService {
     }
 
     let fetched = 0;
+    const newCommentIds: string[] = [];
     for (const pub of latestByPlatform.values()) {
       try {
         const comments = await this.pullComments(pub, params.userId);
@@ -51,7 +63,7 @@ export class FetchCommentsService {
           });
           if (exists) continue;
 
-          await this.commentsRepo.save(
+          const saved = await this.commentsRepo.save(
             this.commentsRepo.create({
               tenantId: params.tenantId,
               contentId: pub.contentId,
@@ -66,20 +78,28 @@ export class FetchCommentsService {
             }),
           );
           fetched++;
+          newCommentIds.push(saved.id);
         }
       } catch (err) {
         this.logger.warn(`Comment fetch failed for ${pub.platform} post ${pub.externalPostId}`, err);
       }
     }
 
-    return { fetched };
+    let autoReplied = 0;
+    if (params.runAutoReply !== false && newCommentIds.length) {
+      const result = await this.autoReply.processNewComments(newCommentIds, params.userId);
+      autoReplied = result.sent;
+    }
+
+    return { fetched, autoReplied };
   }
 
-  /** Sync comments for all tenants with published posts (cron / background) */
-  async fetchAllWithRateLimit(
-    lastRunByTenant: Map<string, number>,
-    minIntervalMs: number,
-  ): Promise<{ fetched: number; tenants: number }> {
+  /** Sync comments for every tenant with published posts (cron). */
+  async fetchAllTenants(): Promise<{
+    fetched: number;
+    tenants: number;
+    autoReplied: number;
+  }> {
     const pubs = await this.publicationsRepo.find({
       where: { status: 'published' },
       order: { publishedAt: 'DESC' },
@@ -92,20 +112,36 @@ export class FetchCommentsService {
     }
 
     let fetched = 0;
+    let autoReplied = 0;
     let tenants = 0;
-    const now = Date.now();
+    const delayMs = Number(this.config.get('COMMENT_SYNC_TENANT_DELAY_MS') ?? 300);
 
     for (const [tenantId, userId] of tenantUsers) {
-      const last = lastRunByTenant.get(tenantId) ?? 0;
-      if (now - last < minIntervalMs) continue;
-
-      lastRunByTenant.set(tenantId, now);
-      const result = await this.fetchForTenant({ tenantId, userId });
+      const result = await this.fetchForTenant({ tenantId, userId, runAutoReply: true });
       fetched += result.fetched;
+      autoReplied += result.autoReplied;
       tenants++;
+      if (delayMs > 0) {
+        await this.sleep(delayMs);
+      }
     }
 
-    return { fetched, tenants };
+    return { fetched, tenants, autoReplied };
+  }
+
+  /** @deprecated Use fetchAllTenants — kept for compatibility */
+  async fetchAllWithRateLimit(
+    lastRunByTenant: Map<string, number>,
+    minIntervalMs: number,
+  ): Promise<{ fetched: number; tenants: number }> {
+    void lastRunByTenant;
+    void minIntervalMs;
+    const result = await this.fetchAllTenants();
+    return { fetched: result.fetched, tenants: result.tenants };
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async pullComments(
@@ -127,6 +163,8 @@ export class FetchCommentsService {
         return this.fetchInstagramComments(pub.externalPostId!, account);
       case 'linkedin':
         return this.fetchLinkedInComments(pub.externalPostId!, account);
+      case 'youtube':
+        return this.fetchYoutubeComments(pub.externalPostId!, account);
       default:
         return [];
     }
@@ -211,115 +249,35 @@ export class FetchCommentsService {
       return [];
     }
   }
-}
 
-@Injectable()
-export class SendCommentReplyService {
-  private readonly logger = new Logger(SendCommentReplyService.name);
-
-  constructor(
-    @InjectRepository(CommentReplies)
-    private readonly commentsRepo: Repository<CommentReplies>,
-    @InjectRepository(SocialAccounts)
-    private readonly socialRepo: Repository<SocialAccounts>,
-    @InjectRepository(ContentPublications)
-    private readonly publicationsRepo: Repository<ContentPublications>,
-  ) {}
-
-  async sendReply(params: { commentReplyId: string; userId: string; message: string }) {
-    const reply = await this.commentsRepo.findOne({ where: { id: params.commentReplyId } });
-    if (!reply) throw new NotFoundException('Comment reply not found');
-
-    const account = await this.socialRepo.findOne({
-      where: { userId: params.userId, platform: reply.platform, connected: true },
-    });
-    if (!account) {
-      throw new NotFoundException(`No connected ${reply.platform} account`);
-    }
-
-    const pub = await this.publicationsRepo.findOne({
-      where: {
-        contentId: reply.contentId,
-        platform: reply.platform,
-        externalPostId: reply.externalPostId,
-        status: 'published',
-      },
-    });
-
-    try {
-      switch (reply.platform.toLowerCase()) {
-        case 'facebook':
-          await this.replyFacebook(reply.externalCommentId, params.message, account);
-          break;
-        case 'instagram':
-          await this.replyInstagram(reply.externalCommentId, params.message, account);
-          break;
-        case 'linkedin':
-          await this.replyLinkedIn(reply, params.message, account, pub?.externalPostId);
-          break;
-        default:
-          throw new NotFoundException(`Replies not supported for ${reply.platform}`);
-      }
-
-      await this.commentsRepo.update(reply.id, {
-        replyText: params.message,
-        replyType: 'manual',
-        status: 'sent',
-        sentAt: new Date(),
-      } as Partial<CommentReplies>);
-
-      return { sent: true };
-    } catch (err) {
-      this.logger.error(`Failed to send reply on ${reply.platform}`, err);
-      await this.commentsRepo.update(reply.id, { status: 'failed' } as Partial<CommentReplies>);
-      throw err;
-    }
-  }
-
-  private async replyFacebook(commentId: string, message: string, account: SocialAccounts) {
-    const token = account.metadata?.page_token ?? account.accessToken;
-    await axios.post(`https://graph.facebook.com/v19.0/${commentId}/comments`, {
-      message,
-      access_token: token,
-    });
-  }
-
-  private async replyInstagram(commentId: string, message: string, account: SocialAccounts) {
-    await axios.post(`https://graph.facebook.com/v19.0/${commentId}/replies`, {
-      message,
-      access_token: account.accessToken,
-    });
-  }
-
-  private async replyLinkedIn(
-    reply: CommentReplies,
-    message: string,
+  private async fetchYoutubeComments(
+    videoId: string,
     account: SocialAccounts,
-    postUrn?: string,
-  ) {
-    const token = account.accessToken;
-    const actor = account.metadata?.person_urn ?? account.externalId;
-    if (!postUrn || !actor) {
-      throw new NotFoundException('LinkedIn reply requires post URN and person URN');
-    }
+  ): Promise<FetchedComment[]> {
+    try {
+      const auth = this.youtubePublish.oauthClient(account);
+      const youtube = google.youtube({ version: 'v3', auth });
+      const { data } = await youtube.commentThreads.list({
+        part: ['snippet'],
+        videoId,
+        maxResults: 50,
+        order: 'time',
+      });
 
-    await axios.post(
-      `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(postUrn)}/comments`,
-      {
-        actor,
-        message: { text: message },
-        object: postUrn,
-        parentComment: reply.parentCommentId
-          ? `urn:li:comment:(${postUrn},${reply.parentCommentId})`
-          : undefined,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'X-Restli-Protocol-Version': '2.0.0',
-        },
-      },
-    );
+      return (data.items ?? []).map((thread) => {
+        const top = thread.snippet?.topLevelComment?.snippet;
+        const commentId = thread.snippet?.topLevelComment?.id ?? thread.id;
+        return {
+          externalCommentId: String(commentId ?? ''),
+          externalPostId: videoId,
+          commenterName: top?.authorDisplayName ?? 'YouTube user',
+          commenterAvatarUrl: top?.authorProfileImageUrl,
+          commentText: String(top?.textDisplay ?? top?.textOriginal ?? ''),
+        };
+      });
+    } catch (err) {
+      this.logger.warn('YouTube comment fetch failed', err);
+      return [];
+    }
   }
 }

@@ -12,7 +12,12 @@ export interface ThemeConfig {
 
 export function applyTheme(theme: ThemeConfig) {
   const root = document.documentElement;
-  if (theme.primary) root.style.setProperty('--primary', theme.primary);
+  if (theme.primary) {
+    root.style.setProperty('--primary', theme.primary);
+    root.style.setProperty('--ring', theme.primary);
+    root.style.setProperty('--sidebar-primary', theme.primary);
+    root.style.setProperty('--sidebar-ring', theme.primary);
+  }
   if (theme.secondary) root.style.setProperty('--secondary', theme.secondary);
   if (theme.accent) root.style.setProperty('--accent', theme.accent);
   if (theme.radius) root.style.setProperty('--radius', theme.radius);

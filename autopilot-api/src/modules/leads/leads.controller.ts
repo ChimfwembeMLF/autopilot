@@ -23,6 +23,7 @@ import { LeadEmailService } from './services/lead-email.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LeadSources } from '../lead_sources/entities/lead_sources.entity';
+import { QueueDispatchService } from '../queues/queue-dispatch.service';
 
 interface JwtUser {
   sub: string;
@@ -37,6 +38,7 @@ export class LeadsController {
     private readonly leadEmail: LeadEmailService,
     @InjectRepository(LeadSources)
     private readonly sourcesRepo: Repository<LeadSources>,
+    private readonly queueDispatch: QueueDispatchService,
   ) {}
 
   @Post('webhook')
@@ -58,6 +60,15 @@ export class LeadsController {
     if (!source?.webhookSecret || source.webhookSecret !== secret) {
       throw new UnauthorizedException('Invalid webhook secret');
     }
+
+    if (this.queueDispatch.isEnabled()) {
+      const { jobId, queue } = await this.queueDispatch.enqueueLeadWebhook({
+        sourceId: body.sourceId,
+        payload: body as Record<string, unknown>,
+      });
+      return { ok: true, queued: true, jobId, queue };
+    }
+
     const classification = await this.classify.classify({
       tenantId: source.tenantId,
       userId: source.userId,
@@ -82,7 +93,11 @@ export class LeadsController {
   @Post('send-email')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  sendEmail(@Body() body: { to: string; subject: string; body: string }) {
+  async sendEmail(@Body() body: { to: string; subject: string; body: string }) {
+    if (this.queueDispatch.isEnabled()) {
+      const { jobId, queue } = await this.queueDispatch.enqueueEmail(body);
+      return { queued: true, jobId, queue };
+    }
     return this.leadEmail.sendLeadEmail(body);
   }
 

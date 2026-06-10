@@ -23,6 +23,11 @@ const Auth = () => {
 
   useEffect(() => {
     if (searchParams.get("mode") === "signup") setIsSignUp(true);
+    const invitedEmail = searchParams.get("email");
+    if (invitedEmail) {
+      setEmail(invitedEmail);
+      setIsSignUp(true);
+    }
   }, [searchParams]);
 
   const handleSocialLogin = (provider: "google" | "facebook" | "linkedin" | "instagram") => {

@@ -5,7 +5,7 @@ export class FormSuggestionsDto {
   @IsUUID()
   tenantId: string;
 
-  @IsIn(['brand-brain', 'content', 'campaign'])
+  @IsIn(['brand-brain', 'content', 'campaign', 'whatsapp-menu'])
   form: FormSuggestionType;
 
   @IsOptional()

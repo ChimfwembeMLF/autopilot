@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ContentItems } from './entities/content_items.entity';
 import { MediaAssets } from './entities/media_assets.entity';
@@ -24,6 +24,7 @@ import { MediaModule } from '../media/media.module';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { TemplatesModule } from '../templates/templates.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { QueuesModule } from '../queues/queues.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
     MediaModule,
     TemplatesModule,
     WhatsappModule,
+    forwardRef(() => QueuesModule),
   ],
   providers: [
     ContentItemsService,
@@ -52,6 +54,9 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
     ContentItemsService,
     PublishContentService,
     GenerateContentService,
+    RepurposeContentService,
+    AdaptPlatformsService,
+    GenerateImageService,
     AutoPublishService,
     DailyContentWorkflowService,
   ],

@@ -1,4 +1,4 @@
-export type FormSuggestionType = 'brand-brain' | 'content' | 'campaign';
+export type FormSuggestionType = 'brand-brain' | 'content' | 'campaign' | 'whatsapp-menu';
 
 export const FORM_SUGGESTION_FIELDS: Record<FormSuggestionType, string[]> = {
   'brand-brain': [
@@ -19,6 +19,13 @@ export const FORM_SUGGESTION_FIELDS: Record<FormSuggestionType, string[]> = {
   ],
   content: ['theme', 'title'],
   campaign: ['name', 'theme', 'goal'],
+  'whatsapp-menu': [
+    'serviceName',
+    'welcomeMessage',
+    'menuTitle',
+    'menuDescription',
+    'menuResponse',
+  ],
 };
 
 export const FORM_SUGGESTION_LABELS: Record<string, string> = {
@@ -42,6 +49,11 @@ export const FORM_SUGGESTION_LABELS: Record<string, string> = {
   title: 'Post title',
   name: 'Campaign name',
   goal: 'Campaign goal',
+  serviceName: 'Business / service name',
+  welcomeMessage: 'WhatsApp welcome message',
+  menuTitle: 'Menu option label',
+  menuDescription: 'Menu option short hint',
+  menuResponse: 'Reply when customer picks this option',
 };
 
 /** Hints so AI varies format and length per field */
@@ -80,6 +92,13 @@ export const FORM_SUGGESTION_FORMAT_HINTS: Record<string, string> = {
     'Mix: short campaign codename, descriptive series title, seasonal name',
   goal:
     'Mix: KPI one-liner, bullet objectives, outcome + metric note',
+  serviceName: 'Mix: short brand name, name + tagline, descriptive business name',
+  welcomeMessage:
+    'Mix: friendly one-liner with {serviceName}, question hook, brief “how can we help”',
+  menuTitle: 'Mix: action labels — Pricing, Book demo, Track order, Talk to support',
+  menuDescription: 'Mix: short subtitle under menu label, benefit hint, 3–6 words',
+  menuResponse:
+    'Mix: factual reply paragraph, bullet facts, hours + contact + next step',
 };
 
 export const SUGGESTIONS_PER_FIELD = 4;
@@ -94,4 +113,7 @@ export const INPUT_STYLE_FIELDS = new Set([
   'title',
   'name',
   'goal',
+  'serviceName',
+  'menuTitle',
+  'menuDescription',
 ]);

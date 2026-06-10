@@ -130,9 +130,15 @@ export default function RepliesPage() {
     const { data, error } = await invokeEdgeFunction('fetch-comments', { body: { tenantId: tenant.id } });
     setFetching(false);
     if (error) { toast({ title: 'Fetch failed', description: error.message, variant: 'destructive' }); return; }
-    const count = (data as { fetched?: number } | null)?.fetched ?? 0;
-    toast({ title: 'Comments synced', description: count > 0 ? `${count} new comment${count !== 1 ? 's' : ''} pulled.` : 'No new comments found.' });
-    if (count > 0) loadReplies();
+    const result = data as { fetched?: number; autoReplied?: number } | null;
+    const count = result?.fetched ?? 0;
+    const autoReplied = result?.autoReplied ?? 0;
+    const parts = [
+      count > 0 ? `${count} new comment${count !== 1 ? 's' : ''} pulled` : 'No new comments found',
+      autoReplied > 0 ? `${autoReplied} auto-replied` : null,
+    ].filter(Boolean);
+    toast({ title: 'Comments synced', description: parts.join(' · ') });
+    if (count > 0 || autoReplied > 0) loadReplies();
   }
 
   async function saveRule() {
@@ -189,12 +195,23 @@ export default function RepliesPage() {
     if (!tenant) return;
     setSending(reply.id);
     try {
-      const { data } = await invokeEdgeFunction('generate-content', {
-        body: { contentType: 'reply', theme: reply.comment_text, platform: reply.platform, tenant_id: tenant.id },
+      const { data, error } = await invokeEdgeFunction('suggest-comment-reply', {
+        body: { commentReplyId: reply.id },
       });
+      if (error) throw error;
       const text = (data as { content?: string } | null)?.content ?? '';
-      setManualText(prev => ({ ...prev, [reply.id]: text }));
-    } catch {}
+      if (!text.trim()) {
+        toast({ title: 'No suggestion', description: 'AI returned an empty reply.', variant: 'destructive' });
+      } else {
+        setManualText(prev => ({ ...prev, [reply.id]: text }));
+      }
+    } catch (err: unknown) {
+      toast({
+        title: 'AI draft failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    }
     setSending(null);
   }
 
@@ -219,7 +236,7 @@ export default function RepliesPage() {
             <MessageSquareReply className="h-6 w-6 text-primary"/>
             <div>
               <h1 className="text-2xl font-semibold">Replies</h1>
-              <p className="text-sm text-muted-foreground">Manage AI auto-reply rules and manual replies to social comments.</p>
+              <p className="text-sm text-muted-foreground">Manage AI auto-reply rules and manual replies to social comments. Comments sync automatically every 10 minutes.</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={fetchComments} disabled={fetching}>
@@ -253,8 +270,8 @@ export default function RepliesPage() {
                   </p>
                 </div>
                 {reply.status === 'sent' && reply.reply_text && (
-                  <div className="bg-green-50 dark:bg-green-950/20 rounded p-2 text-xs">
-                    <strong>Replied:</strong> {reply.reply_text}
+                  <div className={`rounded p-2 text-xs ${reply.reply_type === 'auto_reply' ? 'bg-primary/5 border border-primary/20' : 'bg-green-50 dark:bg-green-950/20'}`}>
+                    <strong>{reply.reply_type === 'auto_reply' ? 'Auto-replied:' : 'Replied:'}</strong> {reply.reply_text}
                   </div>
                 )}
                 {reply.status === 'pending' && can(P.replies.create) && (

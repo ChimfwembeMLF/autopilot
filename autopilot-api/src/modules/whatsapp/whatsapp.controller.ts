@@ -2,19 +2,21 @@ import {
   Body,
   Controller,
   Get,
-  Param,
+  Patch,
   Post,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WhatsappMessages } from './entities/whatsapp_messages.entity';
 import { WhatsappMessagingService } from './whatsapp-messaging.service';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
+import { WhatsappFlowSessionService } from './whatsapp-flow-session.service';
+import { UpdateWhatsappFlowConfigDto } from './dto/update-whatsapp-flow-config.dto';
 
 interface JwtUser {
   sub: string;
@@ -31,7 +33,23 @@ export class WhatsappController {
     private readonly messaging: WhatsappMessagingService,
     @InjectRepository(SocialAccounts)
     private readonly socialRepo: Repository<SocialAccounts>,
+    private readonly flowSessions: WhatsappFlowSessionService,
   ) {}
+
+  @Get('flows/config')
+  @ApiOperation({ summary: 'Get WhatsApp USSD-style menu flow config for a workspace' })
+  getFlowConfig(@Query('tenantId') tenantId: string) {
+    return this.flowSessions.getConfig(tenantId);
+  }
+
+  @Patch('flows/config')
+  @ApiOperation({ summary: 'Enable/configure WhatsApp menu flow (USSD-style bot)' })
+  updateFlowConfig(
+    @Query('tenantId') tenantId: string,
+    @Body() dto: UpdateWhatsappFlowConfigDto,
+  ) {
+    return this.flowSessions.updateConfig(tenantId, dto);
+  }
 
   @Get('messages')
   async listMessages(
@@ -67,7 +85,7 @@ export class WhatsappController {
   @Post('messages/reply')
   async reply(
     @Req() req: { user: JwtUser },
-    @Body() body: { tenantId: string; phone: string; message: string },
+    @Body() body: { tenantId: string; phone: string; message: string; leadId?: string; contactId?: string },
   ) {
     const userId = String(req.user.sub);
     const account =
@@ -90,6 +108,8 @@ export class WhatsappController {
     await this.messagesRepo.save(
       this.messagesRepo.create({
         tenantId: body.tenantId,
+        contactId: body.contactId,
+        leadId: body.leadId,
         phone: this.messaging.normalizePhone(body.phone),
         direction: 'outbound',
         body: body.message.trim(),
