@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Canvas } from "@react-three/fiber";
 import { Loader2 } from "lucide-react";
+import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
+import { createAvatarController, type AvatarController } from "@/lib/avatar-controller";
 import {
-  createAvatarController,
   is3dAvatarMode,
-  loadAvatar3dScript,
-  mountAvatar3d,
   type AvatarControllerHandle,
   type AvatarState,
   type ChatAvatarTheme,
 } from "@/lib/chat-avatar";
 import { resolveWidgetColors } from "@/lib/widget-theme";
 import { cn } from "@/lib/utils";
+import { AvatarScene } from "./avatar/AvatarScene";
 
 type ChatAvatarStageProps = {
   theme: ChatAvatarTheme;
@@ -25,66 +26,63 @@ export function ChatAvatarStage({
   onControllerReady,
   className,
 }: ChatAvatarStageProps) {
-  const slotRef = useRef<HTMLDivElement>(null);
-  const controllerRef = useRef<AvatarControllerHandle | null>(null);
-  const onReadyRef = useRef(onControllerReady);
-  onReadyRef.current = onControllerReady;
+  const [controller, setController] = useState<AvatarController | null>(null);
   const [loading, setLoading] = useState(true);
   const { primary } = resolveWidgetColors(theme);
+  const modelUrl = theme.avatarModelUrl?.trim();
 
   useEffect(() => {
-    if (!is3dAvatarMode(theme.avatarMode) || !slotRef.current) {
-      controllerRef.current = null;
-      onReadyRef.current?.(null);
-      setLoading(false);
-      return;
-    }
-
-    let destroyed = false;
-    let cleanup: (() => void) | null = null;
-    setLoading(true);
-
-    void loadAvatar3dScript().then(() => {
-      if (destroyed || !slotRef.current) return;
-      const controller = createAvatarController();
-      if (!controller) {
-        setLoading(false);
-        return;
-      }
-      controllerRef.current = controller;
-      onReadyRef.current?.(controller);
-      cleanup = mountAvatar3d({
-        container: slotRef.current,
-        modelUrl: theme.avatarModelUrl?.trim() || undefined,
-        primaryColor: primary,
-        controller,
-      });
-      controller.setState(state);
-      setLoading(false);
-    });
-
+    const c = createAvatarController();
+    setController(c);
+    onControllerReady?.(c);
     return () => {
-      destroyed = true;
-      cleanup?.();
-      controllerRef.current = null;
-      onReadyRef.current?.(null);
-      setLoading(false);
+      c.destroy();
+      setController(null);
+      onControllerReady?.(null);
     };
-  }, [theme.avatarMode, theme.avatarModelUrl, primary]);
+  }, [onControllerReady]);
 
   useEffect(() => {
-    controllerRef.current?.setState(state);
-  }, [state]);
+    controller?.setState(state);
+  }, [controller, state]);
+
+  useEffect(() => {
+    setLoading(true);
+  }, [modelUrl]);
+
+  const handleLoaded = useCallback(() => {
+    setLoading(false);
+  }, []);
 
   if (!is3dAvatarMode(theme.avatarMode)) return null;
 
   return (
-    <div className={cn("flex justify-start", className)}>
-      <div className="relative h-14 w-14 shrink-0 rounded-full overflow-hidden bg-muted/50 ring-1 ring-border/60">
-        <div ref={slotRef} className="h-full w-full" />
+    <div className={cn("w-full", className)}>
+      <div className="relative w-full h-28 shrink-0 overflow-hidden rounded-lg bg-gradient-to-b from-muted/30 to-muted/10">
+        <Canvas
+          className="absolute inset-0"
+          dpr={[1, 2]}
+          gl={{
+            antialias: true,
+            alpha: true,
+            toneMapping: ACESFilmicToneMapping,
+            outputColorSpace: SRGBColorSpace,
+          }}
+          camera={{ fov: 32, near: 0.01, far: 1000, position: [0, 1.2, 3] }}
+        >
+          <Suspense fallback={null}>
+            <AvatarScene
+              modelUrl={modelUrl}
+              primaryColor={primary}
+              state={state}
+              controller={controller}
+              onLoaded={handleLoaded}
+            />
+          </Suspense>
+        </Canvas>
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-muted/70">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/30 pointer-events-none">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         )}
       </div>

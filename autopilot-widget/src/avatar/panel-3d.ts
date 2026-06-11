@@ -32,38 +32,26 @@ function getDracoLoader(): DRACOLoader {
 }
 
 export function mountPanelAvatar(opts: PanelAvatarOptions): { destroy: () => void } {
-  const width = Math.max(opts.container.clientWidth || 72, 72);
-  const height = Math.max(opts.container.clientHeight || 72, 72);
-  const compact = width <= 80 && height <= 80;
-
   const canvas = document.createElement('canvas');
-  canvas.width = width * 2;
-  canvas.height = height * 2;
   canvas.style.width = '100%';
   canvas.style.height = '100%';
   canvas.style.display = 'block';
-  canvas.style.borderRadius = compact ? '50%' : '0';
-  if (compact) {
-    canvas.style.background = 'rgba(255,255,255,0.15)';
-  }
   opts.container.appendChild(canvas);
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: true,
-    antialias: !compact,
-    powerPreference: compact ? 'low-power' : 'default',
+    antialias: true,
+    powerPreference: 'default',
   });
-  renderer.setPixelRatio(compact ? 1 : Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(width, height, false);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1;
 
   const scene = new THREE.Scene();
-  const aspect = width / height;
-  const camera = new THREE.PerspectiveCamera(compact ? 35 : 28, aspect, 0.1, 100);
-  camera.position.set(0, 1.45, compact ? 2.8 : 3.4);
-  camera.lookAt(0, compact ? 1.2 : 1.0, 0);
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 1000);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
   const key = new THREE.DirectionalLight(0xffffff, 1.1);
   key.position.set(2, 4, 3);
   scene.add(key);
@@ -76,37 +64,46 @@ export function mountPanelAvatar(opts: PanelAvatarOptions): { destroy: () => voi
 
   const morphMeshes: THREE.Mesh[] = [];
   let proceduralMouth: THREE.Mesh | null = null;
-  let loaded = false;
+  let modelReady = false;
 
-  function addProceduralAvatar(color: string): void {
-    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.65 });
+  function frameCameraOnRoot(padding = 1.4): void {
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root);
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const vFov = (camera.fov * Math.PI) / 180;
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+    const distV = (size.y / 2) / Math.tan(vFov / 2);
+    const distH = (size.x / 2) / Math.tan(hFov / 2);
+    const dist = Math.max(distV, distH) * padding;
+    camera.position.set(center.x, center.y, center.z + dist);
+    camera.near = Math.max(dist / 100, 0.01);
+    camera.far = dist * 100;
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+  }
 
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.7, 8, 16), bodyMat);
-    body.position.y = 0.85;
-    root.add(body);
+  function resize(w: number, h: number): void {
+    if (w < 1 || h < 1) return;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(w, h, false);
+    if (modelReady) frameCameraOnRoot();
+  }
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 24, 24), skinMat);
-    head.position.y = 1.55;
-    root.add(head);
+  const resizeObserver = new ResizeObserver((entries) => {
+    const rect = entries[0]?.contentRect;
+    if (!rect) return;
+    resize(Math.round(rect.width), Math.round(rect.height));
+  });
+  resizeObserver.observe(opts.container);
 
-    const mouth = new THREE.Mesh(
-      new THREE.SphereGeometry(0.06, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0x8b4545 }),
-    );
-    mouth.position.set(0, 1.42, 0.34);
-    mouth.scale.set(1.2, 0.35, 0.5);
-    root.add(mouth);
-    proceduralMouth = mouth;
-
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-    const eyeGeo = new THREE.SphereGeometry(0.045, 12, 12);
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeL.position.set(-0.12, 1.62, 0.3);
-    const eyeR = eyeL.clone();
-    eyeR.position.x = 0.12;
-    root.add(eyeL, eyeR);
-    loaded = true;
+  const initialW = opts.container.clientWidth;
+  const initialH = opts.container.clientHeight;
+  if (initialW > 0 && initialH > 0) {
+    resize(initialW, initialH);
   }
 
   function collectMorphs(obj: THREE.Object3D): void {
@@ -117,35 +114,77 @@ export function mountPanelAvatar(opts: PanelAvatarOptions): { destroy: () => voi
     });
   }
 
+  function placeModel(model: THREE.Object3D): void {
+    root.clear();
+    morphMeshes.length = 0;
+    proceduralMouth = null;
+
+    const wrapper = new THREE.Group();
+    wrapper.add(model);
+
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    model.position.sub(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    wrapper.scale.setScalar(1.75 / maxDim);
+    root.add(wrapper);
+    collectMorphs(model);
+    modelReady = true;
+    frameCameraOnRoot();
+  }
+
+  function addProceduralAvatar(color: string): void {
+    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.65 });
+
+    const avatar = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.7, 8, 16), bodyMat);
+    body.position.y = 0.85;
+    avatar.add(body);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 24, 24), skinMat);
+    head.position.y = 1.55;
+    avatar.add(head);
+
+    const mouth = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 12, 12),
+      new THREE.MeshStandardMaterial({ color: 0x8b4545 }),
+    );
+    mouth.position.set(0, 1.42, 0.34);
+    mouth.scale.set(1.2, 0.35, 0.5);
+    avatar.add(mouth);
+    proceduralMouth = mouth;
+
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+    const eyeGeo = new THREE.SphereGeometry(0.045, 12, 12);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeL.position.set(-0.12, 1.62, 0.3);
+    const eyeR = eyeL.clone();
+    eyeR.position.x = 0.12;
+    avatar.add(eyeL, eyeR);
+
+    placeModel(avatar);
+  }
+
   function loadModel(url: string): void {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(getDracoLoader());
     loader.load(
       url,
       (gltf) => {
-        root.clear();
-        morphMeshes.length = 0;
-        proceduralMouth = null;
         const model = gltf.scene;
         model.traverse((c) => {
           if (c instanceof THREE.Mesh) c.castShadow = true;
         });
-        const box = new THREE.Box3().setFromObject(model);
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        const scale = 1.6 / maxDim;
-        model.scale.setScalar(scale);
-        const center = box.getCenter(new THREE.Vector3());
-        model.position.sub(center.multiplyScalar(scale));
-        model.position.y += 0.1;
-        root.add(model);
-        collectMorphs(model);
-        loaded = true;
+        placeModel(model);
         opts.onModelLoaded?.();
       },
       undefined,
       () => {
-        if (!loaded) opts.onModelLoaded?.();
+        if (!modelReady) addProceduralAvatar(opts.primaryColor);
+        opts.onModelLoaded?.();
       },
     );
   }
@@ -227,6 +266,7 @@ export function mountPanelAvatar(opts: PanelAvatarOptions): { destroy: () => voi
   return {
     destroy: () => {
       cancelAnimationFrame(raf);
+      resizeObserver.disconnect();
       offState();
       offLip();
       renderer.dispose();

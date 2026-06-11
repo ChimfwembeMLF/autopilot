@@ -11,7 +11,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { P } from "@/lib/permissions";
 import { chatbotApi, knowledgeApi, type ChatMessage, type ChatbotConfig } from "@/lib/api";
 import { KNOWLEDGE_UPLOAD_ACCEPT, KNOWLEDGE_UPLOAD_HINT } from "@/lib/knowledge-upload";
-import { preloadAvatar3dScript, preloadAvatarModel } from "@/lib/chat-avatar";
+import { preloadAvatarModel } from "@/lib/chat-avatar";
+import { preloadGltfAvatar } from "@/components/chatbot/avatar/gltf-setup";
 import { ChatPanel } from "@/components/chatbot/ChatPanel";
 import { TtsVoiceSettings } from "@/components/chatbot/TtsVoiceSettings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,8 +82,9 @@ export default function ChatbotPage() {
 
   useEffect(() => {
     if (avatarMode === "3d" || avatarMode === "ar") {
-      preloadAvatar3dScript();
-      preloadAvatarModel(widgetTheme.avatarModelUrl);
+      const url = widgetTheme.avatarModelUrl?.trim();
+      preloadAvatarModel(url);
+      if (url) preloadGltfAvatar(url);
     }
   }, [avatarMode, widgetTheme.avatarModelUrl]);
 

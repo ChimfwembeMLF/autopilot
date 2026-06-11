@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { NodeIO } from '@gltf-transform/core';
+import { NodeIO, type GLTF } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, draco, prune, weld } from '@gltf-transform/functions';
 
@@ -28,7 +28,7 @@ function isGlbBuffer(buffer: Buffer): boolean {
 
 export type AvatarCompressResult = {
   buffer: Buffer;
-  contentType: 'model/gltf-binary';
+  contentType: 'model/gltf-binary' | 'model/gltf+json';
   originalBytes: number;
   compressedBytes: number;
   compressed: boolean;
@@ -45,7 +45,7 @@ export async function compressAvatarModel(
     const document = isGlbBuffer(input) || ext === '.glb'
       ? await io.readBinary(new Uint8Array(input))
       : await io.readJSON({
-          json: JSON.parse(input.toString('utf8')) as Record<string, unknown>,
+          json: JSON.parse(input.toString('utf8')) as GLTF.IGLTF,
           resources: {},
         });
 

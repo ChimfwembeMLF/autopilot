@@ -24,6 +24,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import Logo from "./Logo";
 
 type NavItem = {
   title: string;
@@ -329,15 +330,12 @@ export function AppNavbar() {
   const moreActive = visibleMore.some((item) => isActivePath(pathname, item.url));
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/40 bg-background/75 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 border-b border-border/40 bg-background/75 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 py-4 mb-4">
       <div className="flex h-14 items-center gap-3 px-4 md:px-6">
         <MobileNav />
 
-        <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0 mr-1">
-          <div className="h-8 w-8 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-            <Rocket className="h-4 w-4 text-primary-foreground" />
-          </div>
-          <span className="font-display font-bold text-base hidden sm:block tracking-tight">Mako</span>
+        <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0 mr-1 py-4">
+          <Logo />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center">

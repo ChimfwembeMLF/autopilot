@@ -47,11 +47,11 @@ const STYLES = `
 .ap-header img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: rgba(255,255,255,.2); flex-shrink: 0; }
 .ap-header img.ap-header-logo { width: 28px; height: 28px; margin-right: -4px; }
 .ap-avatar-inline {
-  display: flex; justify-content: flex-start; padding: 2px 0 6px; flex-shrink: 0;
+  display: flex; justify-content: stretch; padding: 0 0 8px; flex-shrink: 0; width: 100%;
 }
 .ap-avatar-inline-slot {
-  width: 56px; height: 56px; border-radius: 50%; overflow: hidden;
-  background: #f1f5f9; flex-shrink: 0;
+  width: 100%; height: 100px; border-radius: 8px; overflow: hidden;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); flex-shrink: 0;
 }
 .ap-avatar-3d-slot { flex-shrink: 0; }
 .ap-ar-btn {
