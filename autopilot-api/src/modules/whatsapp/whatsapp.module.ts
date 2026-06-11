@@ -7,6 +7,8 @@ import { BrandProfiles } from '../brand_profiles/entities/brand_profiles.entity'
 import { LeadsModule } from '../leads/leads.module';
 import { AutoReplyRulesModule } from '../auto_reply_rules/auto_reply_rules.module';
 import { AiModule } from '../ai/ai.module';
+import { SocialAccountsModule } from '../social_accounts/social_accounts.module';
+import { WhatsappAccountAuthService } from './whatsapp-account-auth.service';
 import { WhatsappMessages } from './entities/whatsapp_messages.entity';
 import { WhatsappMessagingService } from './whatsapp-messaging.service';
 import { WhatsappPublishingService } from './whatsapp-publishing.service';
@@ -35,8 +37,10 @@ import { WhatsappController } from './whatsapp.controller';
     LeadsModule,
     AutoReplyRulesModule,
     AiModule,
+    SocialAccountsModule,
   ],
   providers: [
+    WhatsappAccountAuthService,
     WhatsappMessagingService,
     WhatsappPublishingService,
     WhatsappInboundService,
@@ -49,6 +53,7 @@ import { WhatsappController } from './whatsapp.controller';
   ],
   controllers: [WhatsappController],
   exports: [
+    WhatsappAccountAuthService,
     WhatsappMessagingService,
     WhatsappPublishingService,
     WhatsappInboundService,

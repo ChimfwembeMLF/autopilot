@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
 import { LeadSources } from './entities/lead_sources.entity';
 import { LeadSourcesCreateDto } from './dto/create-lead_sources.dto';
@@ -13,7 +14,10 @@ export class LeadSourcesService {
   ) {}
 
   async create(dto: LeadSourcesCreateDto): Promise<LeadSources> {
-    const ent = this.repo.create(dto);
+    const ent = this.repo.create({
+      ...dto,
+      webhookSecret: dto.webhookSecret?.trim() || randomBytes(24).toString('hex'),
+    });
     return this.repo.save(ent as LeadSources);
   }
 

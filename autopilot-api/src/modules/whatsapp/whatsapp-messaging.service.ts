@@ -260,6 +260,45 @@ export class WhatsappMessagingService {
     return getWhatsappPlatformCredentials(this.config);
   }
 
+  async validateCredentials(
+    creds: WhatsappCredentials,
+  ): Promise<{ valid: boolean; displayPhoneNumber?: string; error?: string }> {
+    try {
+      const { data } = await axios.get<{
+        id?: string;
+        display_phone_number?: string;
+      }>(`https://graph.facebook.com/${this.graphVersion}/${creds.phoneNumberId}`, {
+        params: {
+          fields: 'id,display_phone_number',
+          access_token: creds.accessToken,
+        },
+      });
+      return { valid: true, displayPhoneNumber: data.display_phone_number };
+    } catch (err: unknown) {
+      return { valid: false, error: this.formatGraphError(err) };
+    }
+  }
+
+  platformTokenErrorMessage(graphError?: string): string {
+    const expired =
+      graphError &&
+      /#190\b|session has expired|error validating access token/i.test(graphError);
+    if (expired) {
+      return (
+        'Platform WhatsApp access token expired. Update WHATSAPP_PLATFORM_ACCESS_TOKEN in the ' +
+        'server environment with a new System User token from Meta Business Settings, then restart the API.'
+      );
+    }
+    return (
+      'Platform WhatsApp credentials are invalid. Verify WHATSAPP_PLATFORM_PHONE_NUMBER_ID and ' +
+      'WHATSAPP_PLATFORM_ACCESS_TOKEN on the server, then restart the API.'
+    );
+  }
+
+  oauthTokenErrorMessage(): string {
+    return 'WhatsApp session expired. Reconnect WhatsApp in Publisher Connect, then try again.';
+  }
+
   private formatGraphError(err: unknown): string {
     if (axios.isAxiosError(err)) {
       const data = err.response?.data as { error?: { message?: string; code?: number } };

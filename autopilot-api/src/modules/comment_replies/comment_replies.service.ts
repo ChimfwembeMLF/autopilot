@@ -17,8 +17,14 @@ export class CommentRepliesService {
     return this.repo.save(ent as CommentReplies);
   }
 
-  async findAll(): Promise<CommentReplies[]> {
-    return this.repo.find();
+  async findAll(tenantId?: string): Promise<CommentReplies[]> {
+    if (tenantId?.trim()) {
+      return this.repo.find({
+        where: { tenantId: tenantId.trim() },
+        order: { created_at: 'DESC' },
+      });
+    }
+    return this.repo.find({ order: { created_at: 'DESC' } });
   }
 
   async findOne(id: string): Promise<CommentReplies> {

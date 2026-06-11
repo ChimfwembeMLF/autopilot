@@ -1399,8 +1399,138 @@ export const whatsappApi = {
         }),
 };
 
+// ==================== Unified Inbox ====================
+export type UnifiedConversation = {
+    id: string;
+    channel: 'post_comment' | 'dm';
+    platform: string;
+    title: string;
+    preview: string;
+    lastAt: string;
+    unreadCount: number;
+    pendingCount: number;
+    participantName?: string | null;
+    participantAvatarUrl?: string | null;
+    contentId?: string;
+    threadId?: string;
+    phone?: string;
+    postKey?: string;
+};
+
+export type UnifiedMessage = {
+    id: string;
+    channel: 'post_comment' | 'dm' | 'whatsapp';
+    platform: string;
+    direction: 'inbound' | 'outbound';
+    body: string;
+    attachments?: Array<{ url?: string; type?: string; name?: string }>;
+    reactions?: Array<{ type: string; count?: number }>;
+    status: string;
+    authorName?: string;
+    created_at: string;
+};
+
+export const inboxApi = {
+    conversations: (tenantId: string, channel?: 'post_comment' | 'dm' | 'all') => {
+        const params = new URLSearchParams({ tenantId });
+        if (channel) params.set('channel', channel);
+        return request<UnifiedConversation[]>(`/api/v1/inbox/conversations?${params.toString()}`);
+    },
+
+    messages: (tenantId: string, conversationId: string) =>
+        request<UnifiedMessage[]>(
+            `/api/v1/inbox/messages?tenantId=${encodeURIComponent(tenantId)}&conversationId=${encodeURIComponent(conversationId)}`,
+        ),
+
+    sync: (tenantId: string) =>
+        request<{ synced: number }>('/api/v1/inbox/sync', {
+            method: 'POST',
+            body: JSON.stringify({ tenantId }),
+        }),
+
+    reply: (tenantId: string, conversationId: string, message: string) =>
+        request<{ sent: boolean; message?: string }>('/api/v1/inbox/messages/reply', {
+            method: 'POST',
+            body: JSON.stringify({ tenantId, conversationId, message }),
+        }),
+};
+
+// ==================== Content Publications / Engagement ====================
+export const contentPublicationsApi = {
+    topPerforming: (tenantId: string, limit = 5) =>
+        request<TopPerformingPost[]>(
+            `/api/v1/content-publications/top-performing?tenantId=${encodeURIComponent(tenantId)}&limit=${limit}`,
+        ),
+
+    syncEngagement: (tenantId: string) =>
+        request<{ updated: number }>('/api/v1/content-publications/sync-engagement', {
+            method: 'POST',
+            body: JSON.stringify({ tenantId }),
+        }),
+};
+
 // ==================== Comment Replies ====================
+export type CommentInboxNode = {
+    id: string;
+    externalCommentId: string;
+    parentCommentId: string | null;
+    commenterName: string;
+    commenterAvatarUrl: string | null;
+    commentText: string;
+    replyText: string | null;
+    replyType: string | null;
+    status: string;
+    likeCount: number;
+    isFromBrand: boolean;
+    attachments?: Array<{ url?: string; type?: string; name?: string }>;
+    reactions?: Array<{ type: string; count?: number }>;
+    created_at: string;
+    children: CommentInboxNode[];
+};
+
+export type PostInboxGroup = {
+    key: string;
+    contentId: string;
+    platform: string;
+    externalPostId: string;
+    postTitle: string;
+    postContent: string;
+    postMedia: Array<{ url: string; type?: string; name?: string }>;
+    publishedAt: string | null;
+    brandPageName: string | null;
+    likeCount: number;
+    commentCount: number;
+    shareCount: number;
+    viewCount: number;
+    engagementScore: number;
+    pendingCount: number;
+    totalComments: number;
+    comments: CommentInboxNode[];
+};
+
+export type TopPerformingPost = {
+    id: string;
+    contentId: string;
+    platform: string;
+    publishedTitle: string | null;
+    publishedContent: string;
+    likeCount: number;
+    commentCount: number;
+    shareCount: number;
+    viewCount: number;
+    engagementScore: number;
+    publishedAt: string | null;
+};
+
 export const commentRepliesApi = {
+    inbox: (tenantId: string, contentId?: string) => {
+        const params = new URLSearchParams({ tenantId });
+        if (contentId) params.set('contentId', contentId);
+        return request<{ posts: PostInboxGroup[] }>(
+            `/api/v1/comment-replies/inbox?${params.toString()}`,
+        );
+    },
+
     fetch: (tenantId: string) =>
         request<{ fetched: number; autoReplied?: number }>('/api/v1/comment-replies/fetch', {
             method: 'POST',
@@ -1425,7 +1555,12 @@ export const commentRepliesApi = {
             body: JSON.stringify(data),
         }),
 
-    findAll: () => request<any>('/api/v1/comment-replies'),
+    findAll: (tenantId?: string) =>
+        request<any>(
+            tenantId
+                ? `/api/v1/comment-replies?tenantId=${encodeURIComponent(tenantId)}`
+                : '/api/v1/comment-replies',
+        ),
 
     findOne: (id: string) => request<any>(`/api/v1/comment-replies/${id}`),
 

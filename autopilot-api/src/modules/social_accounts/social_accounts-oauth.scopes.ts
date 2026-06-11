@@ -23,13 +23,17 @@ export const INSTAGRAM_PUBLISHER_SCOPES = [
   'instagram_manage_comments',
 ] as const;
 
-/** Post to LinkedIn member profile + read comments (reply API is limited) */
+/**
+ * LinkedIn connect + member posting.
+ * Do NOT include r_member_social here — it requires LinkedIn Marketing API / partner approval
+ * and causes unauthorized_scope_error on standard developer apps.
+ * Comment read/reply needs separate partner access (see platform-capabilities notes).
+ */
 export const LINKEDIN_PUBLISHER_SCOPES = [
   'openid',
   'profile',
   'email',
   'w_member_social',
-  'r_member_social',
 ] as const;
 
 /** Identity only — login / legacy Google connect */

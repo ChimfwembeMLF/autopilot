@@ -1,74 +1,91 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import axios from 'axios';
 import { AutoReplyRulesService } from '../auto_reply_rules/auto_reply_rules.service';
 import { BrandProfiles } from '../brand_profiles/entities/brand_profiles.entity';
 import { Tenants } from '../tenants/entities/tenants.entity';
 import { MistralChatService } from '../ai/services/mistral-chat.service';
 import { PromptBuilderService } from '../ai/services/prompt-builder.service';
-import { WhatsappMessagingService } from './whatsapp-messaging.service';
-import { WhatsappAccountAuthService } from './whatsapp-account-auth.service';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
-import { WhatsappMessages } from './entities/whatsapp_messages.entity';
+import { SocialMessages } from './entities/social_messages.entity';
 
 @Injectable()
-export class WhatsappAutoReplyService {
-  private readonly logger = new Logger(WhatsappAutoReplyService.name);
+export class SocialDmAutoReplyService {
+  private readonly logger = new Logger(SocialDmAutoReplyService.name);
 
   constructor(
     private readonly rules: AutoReplyRulesService,
-    private readonly messaging: WhatsappMessagingService,
-    private readonly waAuth: WhatsappAccountAuthService,
     private readonly mistral: MistralChatService,
     private readonly prompts: PromptBuilderService,
     @InjectRepository(BrandProfiles)
     private readonly brandRepo: Repository<BrandProfiles>,
     @InjectRepository(Tenants)
     private readonly tenantsRepo: Repository<Tenants>,
-    @InjectRepository(WhatsappMessages)
-    private readonly messagesRepo: Repository<WhatsappMessages>,
+    @InjectRepository(SocialMessages)
+    private readonly messagesRepo: Repository<SocialMessages>,
   ) {}
 
   async tryReply(params: {
     tenantId: string;
-    phone: string;
+    platform: string;
+    threadId: string;
+    participantId: string;
+    participantName?: string;
     inboundText: string;
     account: SocialAccounts;
-    contactId?: string;
-    leadId?: string;
+    userId?: string;
   }): Promise<boolean> {
-    const activeRules = await this.rules.findActiveForPlatform(params.tenantId, 'whatsapp');
+    const activeRules = await this.rules.findActiveForPlatform(params.tenantId, params.platform);
     const rule = this.rules.matchKeywordRule(activeRules, params.inboundText);
     if (!rule) return false;
 
     const replyText = await this.buildReplyText(params.tenantId, rule, params.inboundText);
     if (!replyText?.trim()) return false;
 
-    const result = await this.waAuth.sendSessionText(
-      params.account,
-      params.phone,
-      replyText.trim(),
-    );
-    if (!result.success) {
-      this.logger.warn(`WhatsApp auto-reply failed: ${result.error}`);
-      return false;
-    }
+    const sent = await this.sendDm(params.account, params.participantId, replyText.trim());
+    if (!sent) return false;
 
     await this.messagesRepo.save(
       this.messagesRepo.create({
         tenantId: params.tenantId,
-        contactId: params.contactId,
-        leadId: params.leadId,
-        phone: this.messaging.normalizePhone(params.phone),
+        platform: params.platform,
+        threadId: params.threadId,
+        participantId: params.participantId,
+        participantName: params.participantName,
         direction: 'outbound',
         body: replyText.trim(),
-        waMessageId: result.waMessageId,
+        attachments: [],
+        reactions: [],
         status: 'auto_reply',
       }),
     );
 
-    this.logger.log(`WhatsApp auto-reply sent to ${params.phone} (rule: ${rule.name})`);
+    this.logger.log(`DM auto-reply sent on ${params.platform} (rule: ${rule.name})`);
     return true;
+  }
+
+  private async sendDm(
+    account: SocialAccounts,
+    recipientId: string,
+    message: string,
+  ): Promise<boolean> {
+    const token = account.metadata?.page_token ?? account.accessToken;
+    if (!token) return false;
+    try {
+      await axios.post(
+        'https://graph.facebook.com/v19.0/me/messages',
+        {
+          recipient: { id: recipientId },
+          message: { text: message },
+        },
+        { params: { access_token: token } },
+      );
+      return true;
+    } catch (err) {
+      this.logger.warn('DM send failed', err);
+      return false;
+    }
   }
 
   private async buildReplyText(
@@ -87,7 +104,7 @@ export class WhatsappAutoReplyService {
           { role: 'system', content: this.prompts.replySystem(brandCtx) },
           {
             role: 'user',
-            content: `Customer WhatsApp message:\n${inboundText}\n\nWrite a helpful reply.`,
+            content: `Customer direct message:\n${inboundText}\n\nWrite a helpful reply.`,
           },
         ],
         { model: this.mistral.defaultModel },

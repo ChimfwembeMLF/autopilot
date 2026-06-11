@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  ExternalLink,
   Loader2,
+  MessageSquareReply,
   Pencil,
   RotateCcw,
   Send,
@@ -14,11 +14,25 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import { useTenant } from '@/hooks/useTenant';
+import { usePermissions } from '@/hooks/usePermissions';
+import { P } from '@/lib/permissions';
 import { ContentEditor } from '@/components/content/ContentEditor';
 import { PublishPanel } from '@/components/content/PublishPanel';
 import { ContentItem } from '@/components/content/types';
-import { contentAiApi, contentItemsApi, resolveQueued } from '@/lib/api';
+import {
+  commentRepliesApi,
+  contentAiApi,
+  contentItemsApi,
+  contentPublicationsApi,
+  resolveQueued,
+  type CommentInboxNode,
+  type PostInboxGroup,
+} from '@/lib/api';
 import { platformOf, type PlatformPayload } from '@/lib/platforms';
+import { PostCommentCard } from '@/components/replies/PostCommentCard';
+import { PostMediaGallery } from '@/components/replies/PostMediaGallery';
+import { mergePublicationWithInbox, plainText } from '@/components/replies/postInboxUtils';
 
 type Publication = {
   id: string;
@@ -31,6 +45,11 @@ type Publication = {
   errorMessage?: string;
   publishedAt?: string;
   created_at?: string;
+  likeCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  viewCount?: number;
+  engagementScore?: number;
 };
 
 type MediaAsset = {
@@ -71,166 +90,87 @@ function toContentItem(item: ContentDetails['item']): ContentItem {
   };
 }
 
-function plainText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>\s*<p>/gi, '\n\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .trim();
-}
+function DraftPlatformSection({
+  platform,
+  draft,
+}: {
+  platform: string;
+  draft?: PlatformPayload;
+}) {
+  const plat = platformOf(platform);
+  const Icon = plat.icon;
 
-function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'published') return 'default';
-  if (status === 'failed') return 'destructive';
-  return 'secondary';
-}
+  if (!draft) {
+    return (
+      <div className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
+        No draft prepared for {plat.label}.
+      </div>
+    );
+  }
 
-function MediaGrid({ items }: { items: Array<{ url: string; type?: string; name?: string }> }) {
-  if (!items.length) return null;
   return (
-    <div className="flex flex-wrap gap-2 mt-3">
-      {items.map((m, i) => (
-        <a
-          key={`${m.url}-${i}`}
-          href={m.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block rounded-lg overflow-hidden border bg-muted/30 hover:ring-2 hover:ring-primary/30 transition-all"
+    <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `${plat.color}18` }}
         >
-          {m.type?.startsWith('video') || m.url.match(/\.(mp4|webm|mov)(\?|$)/i) ? (
-            <video src={m.url} className="h-24 w-24 object-cover" muted />
-          ) : (
-            <img src={m.url} alt={m.name ?? 'media'} className="h-24 w-24 object-cover" />
-          )}
-        </a>
-      ))}
+          <Icon size={16} style={{ color: plat.color }} />
+        </span>
+        <div>
+          <p className="text-sm font-semibold">{plat.label}</p>
+          <p className="text-xs text-muted-foreground">Draft — not published yet</p>
+        </div>
+        <Badge variant="secondary" className="ml-auto capitalize text-[10px]">
+          draft
+        </Badge>
+      </div>
+      {draft.title && <p className="text-sm font-medium">{draft.title}</p>}
+      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+        {plainText(draft.content ?? '')}
+      </p>
+      <PostMediaGallery items={draft.media ?? []} variant="full" />
     </div>
   );
 }
 
-function PlatformSection({
+function FailedPublicationBanner({
   platform,
   publications,
-  draft,
   onRetry,
   retrying,
 }: {
   platform: string;
   publications: Publication[];
-  draft?: PlatformPayload;
-  onRetry?: (platform: string) => void;
-  retrying?: boolean;
+  onRetry: (platform: string) => void;
+  retrying: boolean;
 }) {
-  const plat = platformOf(platform);
-  const Icon = plat.icon;
   const latest = publications[0];
+  if (!latest || latest.status !== 'failed') return null;
+  const plat = platformOf(platform);
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-3">
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg"
-            style={{ backgroundColor: `${plat.color}18` }}
-          >
-            <Icon size={16} style={{ color: plat.color }} />
-          </span>
-          <div>
-            <p className="text-sm font-semibold">{plat.label}</p>
-            <p className="text-xs text-muted-foreground">
-              {publications.length
-                ? `${publications.length} publication attempt${publications.length > 1 ? 's' : ''}`
-                : 'Not published yet'}
-            </p>
-          </div>
-        </div>
-        {latest && (
-          <Badge variant={statusVariant(latest.status)} className="capitalize">
-            {latest.status}
-          </Badge>
-        )}
-        {latest?.status === 'failed' && onRetry && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs text-amber-700 border-amber-500/40"
-            onClick={() => onRetry(platform)}
-            disabled={retrying}
-          >
-            {retrying ? (
-              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-            ) : (
-              <RotateCcw className="h-3 w-3 mr-1" />
-            )}
-            Retry
-          </Button>
-        )}
+        <p className="text-sm font-medium text-destructive">{plat.label} publish failed</p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs text-amber-700 border-amber-500/40"
+          onClick={() => onRetry(platform)}
+          disabled={retrying}
+        >
+          {retrying ? (
+            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+          ) : (
+            <RotateCcw className="h-3 w-3 mr-1" />
+          )}
+          Retry
+        </Button>
       </div>
-
-      {latest ? (
-        <div className="space-y-2">
-          {latest.publishedTitle && (
-            <p className="text-sm font-medium">{latest.publishedTitle}</p>
-          )}
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-            {plainText(latest.publishedContent)}
-          </p>
-          <MediaGrid items={latest.publishedMedia ?? []} />
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
-            {latest.publishedAt && (
-              <span>Published {new Date(latest.publishedAt).toLocaleString()}</span>
-            )}
-            {latest.externalPostId && (
-              <span className="inline-flex items-center gap-1">
-                Post ID: <code className="text-[11px] bg-muted px-1 rounded">{latest.externalPostId}</code>
-              </span>
-            )}
-          </div>
-          {latest.status === 'failed' && latest.errorMessage && (
-            <p className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">
-              {latest.errorMessage}
-            </p>
-          )}
-        </div>
-      ) : draft ? (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Draft (not posted)</p>
-          {draft.title && <p className="text-sm font-medium">{draft.title}</p>}
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-            {plainText(draft.content ?? '')}
-          </p>
-          <MediaGrid items={draft.media ?? []} />
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No content prepared for this platform.</p>
-      )}
-
-      {publications.length > 1 && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-primary hover:underline">
-            View {publications.length - 1} earlier attempt{publications.length > 2 ? 's' : ''}
-          </summary>
-          <div className="mt-3 space-y-3 border-t pt-3">
-            {publications.slice(1).map((pub) => (
-              <div key={pub.id} className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge variant={statusVariant(pub.status)} className="capitalize text-[10px]">
-                    {pub.status}
-                  </Badge>
-                  <span className="text-muted-foreground">
-                    {new Date(pub.publishedAt ?? pub.created_at ?? '').toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-muted-foreground line-clamp-3">{plainText(pub.publishedContent)}</p>
-                {pub.errorMessage && (
-                  <p className="text-destructive">{pub.errorMessage}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </details>
+      {latest.errorMessage && (
+        <p className="text-xs text-destructive whitespace-pre-wrap">{latest.errorMessage}</p>
       )}
     </div>
   );
@@ -240,15 +180,34 @@ export default function ContentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeWorkspace } = useWorkspace();
+  const { tenant } = useTenant();
+  const { can } = usePermissions();
   const { toast } = useToast();
 
   const [data, setData] = useState<ContentDetails | null>(null);
+  const [inboxPosts, setInboxPosts] = useState<PostInboxGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingComments, setLoadingComments] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [retryingPlatform, setRetryingPlatform] = useState<string | null>(null);
   const [retryingAll, setRetryingAll] = useState(false);
+  const [fetchingComments, setFetchingComments] = useState(false);
+  const [manualText, setManualText] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState<string | null>(null);
+
+  const loadComments = useCallback(async (contentId: string, tenantId: string) => {
+    setLoadingComments(true);
+    try {
+      const { posts } = await commentRepliesApi.inbox(tenantId, contentId);
+      setInboxPosts(posts);
+    } catch {
+      setInboxPosts([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  }, []);
 
   const loadDetails = useCallback(async () => {
     if (!id) return;
@@ -257,13 +216,16 @@ export default function ContentDetailPage() {
       const res = await contentItemsApi.getDetails(id);
       setData(res as ContentDetails);
       setError(null);
+      if (tenant?.id) {
+        void loadComments(id, tenant.id);
+      }
     } catch {
       setError('Content not found');
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, tenant?.id, loadComments]);
 
   useEffect(() => {
     void loadDetails();
@@ -301,8 +263,31 @@ export default function ContentDetailPage() {
     return map;
   }, [data]);
 
+  const publishedPostGroups = useMemo(() => {
+    if (!data) return [];
+    const title = data.item.title || 'Published post';
+    const groups: PostInboxGroup[] = [];
+
+    for (const platform of platforms) {
+      const pubs = pubsByPlatform[platform] ?? [];
+      const latestPublished = pubs.find((p) => p.status === 'published');
+      if (!latestPublished) continue;
+      groups.push(
+        mergePublicationWithInbox(latestPublished, data.item.id, title, inboxPosts),
+      );
+    }
+    return groups;
+  }, [data, platforms, pubsByPlatform, inboxPosts]);
+
   const failedPlatforms = useMemo(() => {
     return platforms.filter((p) => pubsByPlatform[p]?.[0]?.status === 'failed');
+  }, [platforms, pubsByPlatform]);
+
+  const draftPlatforms = useMemo(() => {
+    return platforms.filter((p) => {
+      const latest = pubsByPlatform[p]?.[0];
+      return !latest || latest.status !== 'published';
+    });
   }, [platforms, pubsByPlatform]);
 
   const contentItem = useMemo(
@@ -310,8 +295,7 @@ export default function ContentDetailPage() {
     [data],
   );
 
-  const editorWorkspaceId =
-    data?.item.workspaceId ?? activeWorkspace ?? null;
+  const editorWorkspaceId = data?.item.workspaceId ?? activeWorkspace ?? null;
 
   const publishResultsToast = (
     results: Record<string, { published: boolean; message: string }>,
@@ -357,6 +341,91 @@ export default function ContentDetailPage() {
     }
   };
 
+  const fetchComments = async () => {
+    if (!tenant?.id || !data?.item.id) return;
+    setFetchingComments(true);
+    try {
+      const raw = await commentRepliesApi.fetch(tenant.id);
+      const result = (await resolveQueued(raw)) as { fetched?: number; autoReplied?: number };
+      try {
+        await contentPublicationsApi.syncEngagement(tenant.id);
+      } catch {
+        /* best-effort */
+      }
+      const parts = [
+        (result?.fetched ?? 0) > 0
+          ? `${result.fetched} new comment${result.fetched !== 1 ? 's' : ''}`
+          : 'Comments up to date',
+        (result?.autoReplied ?? 0) > 0 ? `${result.autoReplied} auto-replied` : null,
+      ].filter(Boolean);
+      toast({ title: 'Comments synced', description: parts.join(' · ') });
+      await loadComments(data.item.id, tenant.id);
+    } catch (err: unknown) {
+      toast({
+        title: 'Sync failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setFetchingComments(false);
+    }
+  };
+
+  const sendReply = async (node: CommentInboxNode) => {
+    const text = manualText[node.id];
+    if (!text?.trim()) return;
+    setSending(node.id);
+    try {
+      await commentRepliesApi.send(node.id, text);
+      toast({ title: 'Reply sent to platform' });
+      setManualText((prev) => {
+        const next = { ...prev };
+        delete next[node.id];
+        return next;
+      });
+      if (tenant?.id && data?.item.id) {
+        await loadComments(data.item.id, tenant.id);
+      }
+    } catch (err: unknown) {
+      toast({
+        title: 'Send failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setSending(null);
+    }
+  };
+
+  const generateAiReply = async (node: CommentInboxNode) => {
+    setSending(node.id);
+    try {
+      const raw = await commentRepliesApi.suggest(node.id);
+      const result = (await resolveQueued(raw)) as { content?: string };
+      const text = result?.content ?? '';
+      if (!text.trim()) {
+        toast({ title: 'No suggestion', variant: 'destructive' });
+      } else {
+        setManualText((prev) => ({ ...prev, [node.id]: text }));
+      }
+    } catch (err: unknown) {
+      toast({
+        title: 'AI draft failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setSending(null);
+    }
+  };
+
+  const dismissComment = async (node: CommentInboxNode) => {
+    await commentRepliesApi.update(node.id, { status: 'dismissed' } as never);
+    if (tenant?.id && data?.item.id) {
+      await loadComments(data.item.id, tenant.id);
+    }
+  };
+
   const handleRetryPlatform = (platform: string) => {
     void retryPlatforms([platform]);
   };
@@ -399,6 +468,8 @@ export default function ContentDetailPage() {
   }
 
   const { item, media } = data;
+  const canReply = can(P.replies.create);
+  const pendingTotal = publishedPostGroups.reduce((s, p) => s + p.pendingCount, 0);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -417,9 +488,7 @@ export default function ContentDetailPage() {
                 {item.status}
               </Badge>
             )}
-            {item.created_at && (
-              <span>Created {new Date(item.created_at).toLocaleString()}</span>
-            )}
+            {item.created_at && <span>Created {new Date(item.created_at).toLocaleString()}</span>}
             {item.publishedAt && (
               <span>· Last published {new Date(item.publishedAt).toLocaleString()}</span>
             )}
@@ -468,46 +537,110 @@ export default function ContentDetailPage() {
         )}
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{plainText(item.content ?? '')}</p>
         {media.length > 0 && (
-          <MediaGrid
+          <PostMediaGallery
             items={media.map((m) => ({
               url: m.mediaUrl,
               type: m.mediaType,
               name: m.name,
             }))}
+            variant="full"
           />
         )}
       </div>
 
-      <Separator />
+      {publishedPostGroups.length > 0 && (
+        <>
+          <Separator />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <MessageSquareReply className="h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold">Published posts & comments</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Live posts with engagement and threaded replies
+                    {pendingTotal > 0 ? ` · ${pendingTotal} awaiting reply` : ''}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void fetchComments()}
+                disabled={fetchingComments || !tenant}
+              >
+                {fetchingComments ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                Pull comments
+              </Button>
+            </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Platform posts</h2>
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <ExternalLink className="h-3 w-3" />
-            What was sent to each channel
-          </span>
-        </div>
-
-        {platforms.length === 0 ? (
-          <p className="text-sm text-muted-foreground rounded-xl border border-dashed p-6 text-center">
-            No platforms selected yet. Edit this content to choose platforms and publish.
-          </p>
-        ) : (
-          <div className="grid gap-4">
-            {platforms.map((platform) => (
-              <PlatformSection
-                key={platform}
-                platform={platform}
-                publications={pubsByPlatform[platform] ?? []}
-                draft={item.platformPayloads?.[platform]}
-                onRetry={handleRetryPlatform}
-                retrying={retryingPlatform === platform}
-              />
-            ))}
+            {loadingComments ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground gap-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {publishedPostGroups.map((post) => (
+                  <PostCommentCard
+                    key={post.key}
+                    post={post}
+                    canReply={canReply}
+                    sendingId={sending}
+                    manualText={manualText}
+                    onDraftChange={(cid, text) => setManualText((p) => ({ ...p, [cid]: text }))}
+                    onSend={(node) => void sendReply(node)}
+                    onAiDraft={(node) => void generateAiReply(node)}
+                    onDismiss={(node) => void dismissComment(node)}
+                    hideViewLink
+                    fullMedia
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {(failedPlatforms.length > 0 || draftPlatforms.length > 0) && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Drafts & failed publishes</h2>
+            <div className="grid gap-4">
+              {failedPlatforms.map((platform) => (
+                <FailedPublicationBanner
+                  key={`fail-${platform}`}
+                  platform={platform}
+                  publications={pubsByPlatform[platform] ?? []}
+                  onRetry={handleRetryPlatform}
+                  retrying={retryingPlatform === platform}
+                />
+              ))}
+              {draftPlatforms.map((platform) => {
+                const latest = pubsByPlatform[platform]?.[0];
+                if (latest?.status === 'failed') return null;
+                return (
+                  <DraftPlatformSection
+                    key={`draft-${platform}`}
+                    platform={platform}
+                    draft={item.platformPayloads?.[platform]}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {platforms.length === 0 && (
+        <p className="text-sm text-muted-foreground rounded-xl border border-dashed p-6 text-center">
+          No platforms selected yet. Edit this content to choose platforms and publish.
+        </p>
+      )}
 
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto p-0">

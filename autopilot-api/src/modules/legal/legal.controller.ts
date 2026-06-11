@@ -7,6 +7,7 @@ import { join } from 'path';
 import { IsEmail } from 'class-validator';
 import { DataDeletionService } from './data-deletion.service';
 import { WhatsappInboundService } from '../whatsapp/whatsapp-inbound.service';
+import { SocialMessagingInboundService } from '../social_inbox/social-messaging-inbound.service';
 import { QueueDispatchService } from '../queues/queue-dispatch.service';
 
 class DataDeletionRequestDto {
@@ -21,6 +22,7 @@ export class LegalController {
     private readonly deletion: DataDeletionService,
     private readonly config: ConfigService,
     private readonly whatsappInbound: WhatsappInboundService,
+    private readonly socialMessagingInbound: SocialMessagingInboundService,
     private readonly queueDispatch: QueueDispatchService,
   ) {}
 
@@ -77,6 +79,10 @@ export class LegalController {
     if (this.queueDispatch.isEnabled()) {
       await this.queueDispatch.enqueueWhatsappInbound({ body });
       return { received: true };
+    }
+    const object = (body as { object?: string })?.object;
+    if (object === 'page' || object === 'instagram') {
+      return this.socialMessagingInbound.handleMetaWebhook(body);
     }
     return this.whatsappInbound.handleMetaWebhook(body);
   }

@@ -45,6 +45,7 @@ import { AuditModule } from './common/audit/audit.module';
 import { PlatformsModule } from './modules/platforms/platforms.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { QueuesModule } from './modules/queues/queues.module';
+import { SocialInboxModule } from './modules/social_inbox/social-inbox.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { QueuesModule } from './modules/queues/queues.module';
     PlatformsModule,
     WhatsappModule,
     QueuesModule,
+    SocialInboxModule,
   ],
   providers: [
     {

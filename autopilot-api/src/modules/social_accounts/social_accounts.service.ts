@@ -22,6 +22,7 @@ import {
 import {
   getWhatsappPlatformCredentials,
   isWhatsappPlatformEnabled,
+  WhatsappCredentials,
 } from '../whatsapp/whatsapp-platform.util';
 
 export type WhatsappSetupFromMetaResult =
@@ -115,7 +116,12 @@ export class SocialAccountsService {
 
   /** Refresh even when expiry is unknown or still in the future (e.g. before publish). */
   async forceRefreshToken(account: SocialAccounts): Promise<SocialAccounts> {
-    if (!account.refreshToken && account.platform !== 'facebook' && account.platform !== 'instagram') {
+    if (
+      !account.refreshToken &&
+      account.platform !== 'facebook' &&
+      account.platform !== 'instagram' &&
+      account.platform !== 'whatsapp'
+    ) {
       return account;
     }
 
@@ -168,6 +174,10 @@ export class SocialAccountsService {
         return this.refreshFacebookToken(account.accessToken);
       case 'instagram':
         return this.refreshInstagramToken(account.accessToken);
+      case 'whatsapp':
+        return account.accessToken?.trim()
+          ? this.refreshFacebookToken(account.accessToken)
+          : undefined;
       case 'linkedin':
         return account.refreshToken
           ? this.refreshLinkedInToken(account.refreshToken)
@@ -413,6 +423,11 @@ export class SocialAccountsService {
       throw new BadRequestException('Platform WhatsApp credentials are incomplete on the server.');
     }
 
+    const tokenCheck = await this.validateWhatsappCredentials(creds);
+    if (!tokenCheck.valid) {
+      throw new BadRequestException(tokenCheck.message);
+    }
+
     const displayName =
       this.config.get<string>('WHATSAPP_PLATFORM_DISPLAY_NAME')?.trim() || 'AutoPilot WhatsApp';
     const displayPhone = this.config.get<string>('WHATSAPP_PLATFORM_DISPLAY_PHONE')?.trim();
@@ -433,5 +448,37 @@ export class SocialAccountsService {
       },
       connected: true,
     });
+  }
+
+  private async validateWhatsappCredentials(
+    creds: WhatsappCredentials,
+  ): Promise<{ valid: boolean; message?: string }> {
+    try {
+      await axios.get(`https://graph.facebook.com/v19.0/${creds.phoneNumberId}`, {
+        params: { fields: 'id', access_token: creds.accessToken },
+      });
+      return { valid: true };
+    } catch (err: unknown) {
+      const graphMessage = axios.isAxiosError(err)
+        ? (() => {
+            const data = err.response?.data as { error?: { message?: string; code?: number } };
+            return data?.error?.message
+              ? `#${data.error.code ?? '?'} ${data.error.message}`
+              : err.message;
+          })()
+        : err instanceof Error
+          ? err.message
+          : String(err);
+
+      const expired = /#190\b|session has expired|error validating access token/i.test(
+        graphMessage,
+      );
+      return {
+        valid: false,
+        message: expired
+          ? 'Platform WhatsApp access token expired. Update WHATSAPP_PLATFORM_ACCESS_TOKEN in the server environment with a new System User token from Meta Business Settings, then restart the API.'
+          : `Platform WhatsApp credentials are invalid: ${graphMessage}`,
+      };
+    }
   }
 }

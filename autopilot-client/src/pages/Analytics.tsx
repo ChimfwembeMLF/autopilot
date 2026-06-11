@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, Eye, MousePointer, FileText, Sparkles, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
+import { BarChart3, TrendingUp, Eye, MousePointer, FileText, Sparkles, ArrowUp, ArrowDown, Loader2, ThumbsUp, MessageCircle, Share2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { contentItemsApi, leadsApi } from "@/lib/api";
+import { contentItemsApi, contentPublicationsApi, leadsApi, type TopPerformingPost } from "@/lib/api";
+import { platformOf } from "@/lib/platforms";
+import { Link } from "react-router-dom";
 import { invokeEdgeFunction } from "@/lib/edgeFunctions";
 import { useTenant } from "@/hooks/useTenant";
 import { useToast } from "@/hooks/use-toast";
@@ -33,17 +35,50 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [generatingSuggestions, setGeneratingSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<{ title: string; description: string; trend: string }[]>([]);
+  const [topPosts, setTopPosts] = useState<TopPerformingPost[]>([]);
+  const [syncingEngagement, setSyncingEngagement] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     loadAllData();
-  }, [user]);
+  }, [user, tenant?.id]);
 
   const loadAllData = async () => {
     if (!user) return;
     setLoading(true);
-    await Promise.all([loadContentStats(), loadLeadStats(), loadWeeklyTrend()]);
+    await Promise.all([loadContentStats(), loadLeadStats(), loadWeeklyTrend(), loadTopPosts()]);
     setLoading(false);
+  };
+
+  const loadTopPosts = async () => {
+    if (!tenant?.id) return;
+    try {
+      const posts = await contentPublicationsApi.topPerforming(tenant.id, 5);
+      setTopPosts(Array.isArray(posts) ? posts : []);
+    } catch {
+      setTopPosts([]);
+    }
+  };
+
+  const syncEngagement = async () => {
+    if (!tenant?.id) return;
+    setSyncingEngagement(true);
+    try {
+      const { updated } = await contentPublicationsApi.syncEngagement(tenant.id);
+      await loadTopPosts();
+      toast({
+        title: "Engagement synced",
+        description: updated > 0 ? `Updated metrics for ${updated} post${updated !== 1 ? "s" : ""}.` : "All posts are up to date.",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Sync failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingEngagement(false);
+    }
   };
 
   const loadContentStats = async () => {
@@ -308,6 +343,81 @@ const Analytics = () => {
             <Card className="border-border/50">
               <CardContent className="p-8 text-center text-muted-foreground">
                 No data yet. Generate some content in the Content Engine to see your analytics here.
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Top traction posts — used by AI for content scoring */}
+          {tenant && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
+                <CardTitle className="text-sm font-display flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  Top performing posts
+                </CardTitle>
+                <Button size="sm" variant="outline" onClick={syncEngagement} disabled={syncingEngagement}>
+                  {syncingEngagement ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+                  Sync engagement
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {topPosts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    Publish posts to social platforms, then sync engagement to see what captured traction.
+                    The AI uses these insights when generating new content.
+                  </p>
+                ) : (
+                  topPosts.map((post) => {
+                    const platform = platformOf(post.platform);
+                    const PlatformIcon = platform.icon;
+                    return (
+                      <div
+                        key={post.id}
+                        className="flex items-start gap-3 rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <PlatformIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium truncate">
+                              {post.publishedTitle || post.publishedContent.slice(0, 80) || "Untitled post"}
+                            </p>
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              score {post.engagementScore}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            {post.likeCount > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <ThumbsUp className="h-3 w-3" /> {post.likeCount}
+                              </span>
+                            )}
+                            {post.commentCount > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <MessageCircle className="h-3 w-3" /> {post.commentCount}
+                              </span>
+                            )}
+                            {post.shareCount > 0 && (
+                              <span className="inline-flex items-center gap-1">
+                                <Share2 className="h-3 w-3" /> {post.shareCount}
+                              </span>
+                            )}
+                            {post.viewCount > 0 && (
+                              <span>{post.viewCount.toLocaleString()} views</span>
+                            )}
+                          </div>
+                        </div>
+                        <Link
+                          to={`/content/${post.contentId}`}
+                          className="text-xs text-primary hover:underline shrink-0"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    );
+                  })
+                )}
               </CardContent>
             </Card>
           )}

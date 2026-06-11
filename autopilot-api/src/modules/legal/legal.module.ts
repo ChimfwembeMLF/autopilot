@@ -7,6 +7,7 @@ import { LegalController } from './legal.controller';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { SocialInboxModule } from '../social_inbox/social-inbox.module';
 import { QueuesModule } from '../queues/queues.module';
 
 @Module({
@@ -15,6 +16,7 @@ import { QueuesModule } from '../queues/queues.module';
     AuthModule,
     UserModule,
     WhatsappModule,
+    SocialInboxModule,
     forwardRef(() => QueuesModule),
   ],
   providers: [DataDeletionService],

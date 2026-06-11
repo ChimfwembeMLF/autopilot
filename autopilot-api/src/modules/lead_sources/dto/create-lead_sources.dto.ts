@@ -1,13 +1,4 @@
-import {
-  IsString,
-  IsOptional,
-  IsUUID,
-  IsBoolean,
-  IsDate,
-  IsArray,
-  IsNumber,
-  IsInt,
-} from 'class-validator';
+import { IsString, IsOptional, IsUUID } from 'class-validator';
 
 export class LeadSourcesCreateDto {
   @IsUUID()
@@ -22,7 +13,4 @@ export class LeadSourcesCreateDto {
   @IsOptional()
   @IsString()
   webhookSecret?: string;
-
-  @IsDate()
-  createdAt: Date;
 }

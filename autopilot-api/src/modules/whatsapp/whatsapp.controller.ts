@@ -14,6 +14,7 @@ import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WhatsappMessages } from './entities/whatsapp_messages.entity';
 import { WhatsappMessagingService } from './whatsapp-messaging.service';
+import { WhatsappAccountAuthService } from './whatsapp-account-auth.service';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { WhatsappFlowSessionService } from './whatsapp-flow-session.service';
 import { UpdateWhatsappFlowConfigDto } from './dto/update-whatsapp-flow-config.dto';
@@ -31,10 +32,22 @@ export class WhatsappController {
     @InjectRepository(WhatsappMessages)
     private readonly messagesRepo: Repository<WhatsappMessages>,
     private readonly messaging: WhatsappMessagingService,
+    private readonly waAuth: WhatsappAccountAuthService,
     @InjectRepository(SocialAccounts)
     private readonly socialRepo: Repository<SocialAccounts>,
     private readonly flowSessions: WhatsappFlowSessionService,
   ) {}
+
+  private async findWhatsappAccount(tenantId: string, userId: string) {
+    return (
+      (await this.socialRepo.findOne({
+        where: { tenantId, userId, platform: 'whatsapp', connected: true },
+      })) ??
+      (await this.socialRepo.findOne({
+        where: { tenantId, platform: 'whatsapp', connected: true },
+      }))
+    );
+  }
 
   @Get('flows/config')
   @ApiOperation({ summary: 'Get WhatsApp USSD-style menu flow config for a workspace' })
@@ -78,8 +91,57 @@ export class WhatsappController {
       direction: m.direction,
       body: m.body,
       status: m.status,
+      attachments: m.attachments ?? [],
+      reactions: m.reactions ?? [],
       created_at: m.created_at,
     }));
+  }
+
+  @Get('connection-status')
+  @ApiOperation({ summary: 'Verify WhatsApp token and phone number id' })
+  async connectionStatus(
+    @Req() req: { user: JwtUser },
+    @Query('tenantId') tenantId: string,
+  ) {
+    const account = await this.findWhatsappAccount(tenantId, String(req.user.sub));
+    if (!account) {
+      return { connected: false, message: 'WhatsApp not connected' };
+    }
+
+    const platformManaged = account.metadata?.platform_managed === true;
+    const { creds } = await this.waAuth.credentialsForAccount(account);
+    if (!creds) {
+      return {
+        connected: false,
+        platformManaged,
+        message: platformManaged
+          ? 'Platform WhatsApp credentials missing on the server (WHATSAPP_PLATFORM_* env vars).'
+          : 'WhatsApp credentials missing — reconnect in Publisher Connect.',
+      };
+    }
+
+    const validation = await this.messaging.validateCredentials(creds);
+    if (!validation.valid) {
+      return {
+        connected: false,
+        platformManaged,
+        tokenValid: false,
+        phoneNumberId: creds.phoneNumberId,
+        graphError: validation.error,
+        message: platformManaged
+          ? this.messaging.platformTokenErrorMessage(validation.error)
+          : this.messaging.oauthTokenErrorMessage(),
+      };
+    }
+
+    return {
+      connected: true,
+      tokenValid: true,
+      phoneNumberId: creds.phoneNumberId,
+      displayPhoneNumber: validation.displayPhoneNumber,
+      accountName: account.accountName,
+      platformManaged,
+    };
   }
 
   @Post('messages/reply')
@@ -88,19 +150,12 @@ export class WhatsappController {
     @Body() body: { tenantId: string; phone: string; message: string; leadId?: string; contactId?: string },
   ) {
     const userId = String(req.user.sub);
-    const account =
-      (await this.socialRepo.findOne({
-        where: { tenantId: body.tenantId, userId, platform: 'whatsapp', connected: true },
-      })) ??
-      (await this.socialRepo.findOne({
-        where: { tenantId: body.tenantId, platform: 'whatsapp', connected: true },
-      }));
-    const creds = account ? this.messaging.credentialsFromAccount(account) : null;
-    if (!creds) {
+    const account = await this.findWhatsappAccount(body.tenantId, userId);
+    if (!account) {
       return { sent: false, message: 'WhatsApp not connected' };
     }
 
-    const result = await this.messaging.sendSessionText(creds, body.phone, body.message);
+    const result = await this.waAuth.sendSessionText(account, body.phone, body.message);
     if (!result.success) {
       return { sent: false, message: result.error ?? 'Send failed' };
     }

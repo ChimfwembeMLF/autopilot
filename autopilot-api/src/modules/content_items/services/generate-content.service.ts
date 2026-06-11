@@ -12,6 +12,7 @@ import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.enti
 import { Workspaces } from '../../workspaces/entities/workspaces.entity';
 import { ContentItems } from '../entities/content_items.entity';
 import { TemplatesService } from '../../templates/templates.service';
+import { EngagementInsightsService } from '../../content_publications/engagement-insights.service';
 
 @Injectable()
 export class GenerateContentService {
@@ -20,6 +21,7 @@ export class GenerateContentService {
     private readonly prompts: PromptBuilderService,
     private readonly usage: AiUsageTrackerService,
     private readonly templates: TemplatesService,
+    private readonly engagementInsights: EngagementInsightsService,
     @InjectRepository(BrandProfiles)
     private readonly brandRepo: Repository<BrandProfiles>,
     @InjectRepository(Workspaces)
@@ -59,6 +61,11 @@ export class GenerateContentService {
       ? this.prompts.commentReplySystem(brandCtx, params.platform ?? 'social')
       : this.prompts.contentGenerationSystem(brandCtx, params.platform, template);
 
+    const topPosts = isReply
+      ? []
+      : await this.engagementInsights.getTopPerforming(tenantId, 5);
+    const tractionBlock = this.engagementInsights.formatForAiPrompt(topPosts);
+
     const userPrompt = isReply
       ? this.prompts.commentReplyUser({
           platform: params.platform ?? 'social',
@@ -72,6 +79,7 @@ export class GenerateContentService {
           params.theme || '',
           params.draft,
           params.contentType,
+          tractionBlock,
         );
 
     const { data, tokensUsed } = await this.mistral.completeJson<{

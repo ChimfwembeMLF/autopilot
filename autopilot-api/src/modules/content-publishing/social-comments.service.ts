@@ -9,6 +9,7 @@ import { SocialAccounts } from '../social_accounts/entities/social_accounts.enti
 import { CommentReplies } from '../comment_replies/entities/comment_replies.entity';
 import { YoutubePublishingService } from './youtube-publishing.service';
 import { SocialCommentAutoReplyService } from './social-comment-auto-reply.service';
+import { PublicationEngagementService } from './publication-engagement.service';
 
 type FetchedComment = {
   externalCommentId: string;
@@ -17,6 +18,8 @@ type FetchedComment = {
   commenterAvatarUrl?: string;
   commentText: string;
   parentCommentId?: string;
+  likeCount?: number;
+  isFromBrand?: boolean;
 };
 
 @Injectable()
@@ -32,6 +35,7 @@ export class FetchCommentsService {
     private readonly commentsRepo: Repository<CommentReplies>,
     private readonly youtubePublish: YoutubePublishingService,
     private readonly autoReply: SocialCommentAutoReplyService,
+    private readonly engagement: PublicationEngagementService,
     private readonly config: ConfigService,
   ) {}
 
@@ -39,7 +43,7 @@ export class FetchCommentsService {
     tenantId: string;
     userId: string;
     runAutoReply?: boolean;
-  }): Promise<{ fetched: number; autoReplied: number }> {
+  }): Promise<{ fetched: number; autoReplied: number; engagementSynced: number }> {
     const publications = await this.publicationsRepo.find({
       where: { tenantId: params.tenantId, status: 'published' },
       order: { publishedAt: 'DESC' },
@@ -61,7 +65,10 @@ export class FetchCommentsService {
           const exists = await this.commentsRepo.findOne({
             where: { tenantId: params.tenantId, externalCommentId: c.externalCommentId },
           });
-          if (exists) continue;
+          if (exists) {
+            await this.reconcileBrandClassification(exists, c);
+            continue;
+          }
 
           const saved = await this.commentsRepo.save(
             this.commentsRepo.create({
@@ -74,7 +81,9 @@ export class FetchCommentsService {
               commenterAvatarUrl: c.commenterAvatarUrl,
               commentText: c.commentText,
               parentCommentId: c.parentCommentId,
-              status: 'pending',
+              likeCount: c.likeCount ?? 0,
+              isFromBrand: c.isFromBrand ?? false,
+              status: c.isFromBrand ? 'sent' : 'pending',
             }),
           );
           fetched++;
@@ -86,12 +95,25 @@ export class FetchCommentsService {
     }
 
     let autoReplied = 0;
-    if (params.runAutoReply !== false && newCommentIds.length) {
-      const result = await this.autoReply.processNewComments(newCommentIds, params.userId);
-      autoReplied = result.sent;
+    if (params.runAutoReply !== false) {
+      if (newCommentIds.length) {
+        const result = await this.autoReply.processNewComments(newCommentIds, params.userId);
+        autoReplied += result.sent;
+      }
+      // Backlog: threaded / older pending comments (e.g. after enabling rules)
+      const backlog = await this.autoReply.processPendingForTenant(
+        params.tenantId,
+        params.userId,
+      );
+      autoReplied += backlog.sent;
     }
 
-    return { fetched, autoReplied };
+    const engagementSynced = await this.engagement.syncForTenant(
+      params.tenantId,
+      params.userId,
+    );
+
+    return { fetched, autoReplied, engagementSynced };
   }
 
   /** Sync comments for every tenant with published posts (cron). */
@@ -180,18 +202,36 @@ export class FetchCommentsService {
     const res = await axios.get(`https://graph.facebook.com/v19.0/${postId}/comments`, {
       params: {
         access_token: token,
-        fields: 'id,message,from,created_time,parent',
+        fields: 'id,message,from,created_time,like_count,comments{id,message,from,created_time,like_count}',
         limit: 50,
       },
     });
 
-    return (res.data?.data ?? []).map((c: Record<string, unknown>) => ({
-      externalCommentId: String(c.id),
-      externalPostId: postId,
-      commenterName: String((c.from as { name?: string })?.name ?? 'Facebook user'),
-      commentText: String(c.message ?? ''),
-      parentCommentId: (c.parent as { id?: string })?.id,
-    }));
+    const out: FetchedComment[] = [];
+    for (const c of res.data?.data ?? []) {
+      const from = c.from as { name?: string; id?: string } | undefined;
+      out.push({
+        externalCommentId: String(c.id),
+        externalPostId: postId,
+        commenterName: String(from?.name ?? 'Facebook user'),
+        commentText: String(c.message ?? ''),
+        likeCount: Number(c.like_count ?? 0),
+        isFromBrand: this.isBrandComment(account, from?.name, from?.id),
+      });
+      for (const reply of (c.comments as { data?: Record<string, unknown>[] })?.data ?? []) {
+        const replyFrom = reply.from as { name?: string; id?: string } | undefined;
+        out.push({
+          externalCommentId: String(reply.id),
+          externalPostId: postId,
+          commenterName: String(replyFrom?.name ?? 'Facebook user'),
+          commentText: String(reply.message ?? ''),
+          parentCommentId: String(c.id),
+          likeCount: Number(reply.like_count ?? 0),
+          isFromBrand: this.isBrandComment(account, replyFrom?.name, replyFrom?.id),
+        });
+      }
+    }
+    return out;
   }
 
   private async fetchInstagramComments(
@@ -204,17 +244,39 @@ export class FetchCommentsService {
     const res = await axios.get(`https://graph.facebook.com/v19.0/${mediaId}/comments`, {
       params: {
         access_token: token,
-        fields: 'id,text,username,timestamp',
+        fields:
+          'id,text,username,from,timestamp,like_count,replies{id,text,username,from,timestamp,like_count}',
         limit: 50,
       },
     });
 
-    return (res.data?.data ?? []).map((c: Record<string, unknown>) => ({
-      externalCommentId: String(c.id),
-      externalPostId: mediaId,
-      commenterName: String(c.username ?? 'Instagram user'),
-      commentText: String(c.text ?? ''),
-    }));
+    const out: FetchedComment[] = [];
+    for (const c of res.data?.data ?? []) {
+      const from = c.from as { id?: string; username?: string } | undefined;
+      const commenterName = String(from?.username ?? c.username ?? 'Instagram user');
+      out.push({
+        externalCommentId: String(c.id),
+        externalPostId: mediaId,
+        commenterName,
+        commentText: String(c.text ?? ''),
+        likeCount: Number(c.like_count ?? 0),
+        isFromBrand: this.isBrandComment(account, commenterName, from?.id),
+      });
+      for (const reply of (c.replies as { data?: Record<string, unknown>[] })?.data ?? []) {
+        const replyFrom = reply.from as { id?: string; username?: string } | undefined;
+        const replyName = String(replyFrom?.username ?? reply.username ?? 'Instagram user');
+        out.push({
+          externalCommentId: String(reply.id),
+          externalPostId: mediaId,
+          commenterName: replyName,
+          commentText: String(reply.text ?? ''),
+          parentCommentId: String(c.id),
+          likeCount: Number(reply.like_count ?? 0),
+          isFromBrand: this.isBrandComment(account, replyName, replyFrom?.id),
+        });
+      }
+    }
+    return out;
   }
 
   private async fetchLinkedInComments(
@@ -258,26 +320,120 @@ export class FetchCommentsService {
       const auth = this.youtubePublish.oauthClient(account);
       const youtube = google.youtube({ version: 'v3', auth });
       const { data } = await youtube.commentThreads.list({
-        part: ['snippet'],
+        part: ['snippet', 'replies'],
         videoId,
         maxResults: 50,
         order: 'time',
       });
 
-      return (data.items ?? []).map((thread) => {
-        const top = thread.snippet?.topLevelComment?.snippet;
-        const commentId = thread.snippet?.topLevelComment?.id ?? thread.id;
-        return {
-          externalCommentId: String(commentId ?? ''),
+      const out: FetchedComment[] = [];
+      for (const thread of data.items ?? []) {
+        const topComment = thread.snippet?.topLevelComment;
+        const top = topComment?.snippet;
+        const topId = String(topComment?.id ?? thread.id ?? '');
+        out.push({
+          externalCommentId: topId,
           externalPostId: videoId,
           commenterName: top?.authorDisplayName ?? 'YouTube user',
           commenterAvatarUrl: top?.authorProfileImageUrl,
           commentText: String(top?.textDisplay ?? top?.textOriginal ?? ''),
-        };
-      });
+          likeCount: Number(top?.likeCount ?? 0),
+          isFromBrand: this.isBrandComment(
+            account,
+            top?.authorDisplayName,
+            this.youtubeChannelId(top?.authorChannelId),
+          ),
+        });
+
+        for (const reply of thread.replies?.comments ?? []) {
+          const rs = reply.snippet;
+          out.push({
+            externalCommentId: String(reply.id ?? ''),
+            externalPostId: videoId,
+            commenterName: rs?.authorDisplayName ?? 'YouTube user',
+            commenterAvatarUrl: rs?.authorProfileImageUrl,
+            commentText: String(rs?.textDisplay ?? rs?.textOriginal ?? ''),
+            parentCommentId: topId,
+            likeCount: Number(rs?.likeCount ?? 0),
+            isFromBrand: this.isBrandComment(
+              account,
+              rs?.authorDisplayName,
+              this.youtubeChannelId(rs?.authorChannelId),
+            ),
+          });
+        }
+      }
+      return out;
     } catch (err) {
       this.logger.warn('YouTube comment fetch failed', err);
       return [];
     }
+  }
+
+  private youtubeChannelId(
+    raw: string | { value?: string } | null | undefined,
+  ): string | undefined {
+    if (!raw) return undefined;
+    if (typeof raw === 'string') return raw;
+    return raw.value;
+  }
+
+  /**
+   * Detect page/channel-authored comments. Never treat OAuth user personal profile
+   * names as the brand (account.username on Facebook is the connecting user, not the Page).
+   */
+  private isBrandComment(
+    account: SocialAccounts,
+    fromName?: string,
+    fromId?: string,
+  ): boolean {
+    const meta = account.metadata ?? {};
+    const platform = account.platform.toLowerCase();
+
+    const brandIds = [
+      meta.page_id,
+      meta.instagram_business_account_id,
+      (meta.profile as { id?: string } | undefined)?.id,
+      account.externalId,
+    ]
+      .filter(Boolean)
+      .map(String);
+
+    if (fromId && brandIds.includes(String(fromId))) {
+      return true;
+    }
+
+    const brandNames: string[] = [];
+    if (account.accountName) brandNames.push(account.accountName);
+    if (meta.page_name) brandNames.push(String(meta.page_name));
+    // Instagram username is the business handle; Facebook username is the personal profile — omit it
+    if (platform === 'instagram' && account.username) {
+      brandNames.push(account.username);
+    }
+
+    const normalized = fromName?.trim().toLowerCase();
+    if (!normalized || brandNames.length === 0) return false;
+
+    return brandNames.some((n) => n.toLowerCase() === normalized);
+  }
+
+  /** Fix rows misclassified before brand detection used page IDs only. */
+  private async reconcileBrandClassification(
+    existing: CommentReplies,
+    fetched: FetchedComment,
+  ): Promise<void> {
+    const shouldBeBrand = fetched.isFromBrand ?? false;
+    if (existing.isFromBrand === shouldBeBrand) return;
+
+    const patch: Partial<CommentReplies> = { isFromBrand: shouldBeBrand };
+
+    if (shouldBeBrand) {
+      patch.status = 'sent';
+    } else if (!existing.replyText?.trim()) {
+      // Was wrongly marked as brand — reopen for replies / auto-reply
+      patch.status = 'pending';
+    }
+
+    await this.commentsRepo.update(existing.id, patch);
   }
 }

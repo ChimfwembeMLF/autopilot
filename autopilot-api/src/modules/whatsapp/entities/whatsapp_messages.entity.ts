@@ -44,6 +44,12 @@ export class WhatsappMessages {
   @Column({ type: 'text', nullable: true })
   errorMessage?: string;
 
+  @Column({ type: 'jsonb', default: [] })
+  attachments: Array<{ url?: string; type?: string; name?: string; mimeType?: string }>;
+
+  @Column({ type: 'jsonb', default: [] })
+  reactions: Array<{ type: string; count?: number }>;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 

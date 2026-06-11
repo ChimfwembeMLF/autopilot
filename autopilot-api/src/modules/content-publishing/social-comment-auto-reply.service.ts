@@ -63,6 +63,11 @@ export class SocialCommentAutoReplyService {
   }
 
   private async tryAutoReply(comment: CommentReplies, userId: string): Promise<boolean> {
+    // Never auto-reply to our own comments (including threaded brand replies)
+    if (comment.isFromBrand) return false;
+    if (comment.status !== 'pending') return false;
+    if (comment.replyText?.trim()) return false;
+
     const activeRules = await this.rules.findActiveForPlatform(
       comment.tenantId,
       comment.platform,

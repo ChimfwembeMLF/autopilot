@@ -16,6 +16,7 @@ import { TwitterPublishingService } from './twitter-publishing.service';
 import { YoutubePublishingService } from './youtube-publishing.service';
 import { FetchCommentsService } from './social-comments.service';
 import { SendCommentReplyService } from './send-comment-reply.service';
+import { PublicationEngagementService } from './publication-engagement.service';
 import { CommentReplyAiService } from './comment-reply-ai.service';
 import { SocialCommentAutoReplyService } from './social-comment-auto-reply.service';
 import { PublishMediaResolverService } from './publish-media-resolver.service';
@@ -49,6 +50,7 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
     SocialCommentAutoReplyService,
     FetchCommentsService,
     SendCommentReplyService,
+    PublicationEngagementService,
   ],
   exports: [
     FacebookPublishingService,
@@ -58,6 +60,7 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
     YoutubePublishingService,
     FetchCommentsService,
     SendCommentReplyService,
+    PublicationEngagementService,
     CommentReplyAiService,
     SocialCommentAutoReplyService,
     WhatsappModule,

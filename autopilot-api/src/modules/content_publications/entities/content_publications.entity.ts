@@ -56,6 +56,24 @@ export class ContentPublications {
   @Column({ type: 'timestamptz', nullable: true })
   publishedAt?: Date;
 
+  @Column({ type: 'int', default: 0 })
+  likeCount: number;
+
+  @Column({ type: 'int', default: 0 })
+  commentCount: number;
+
+  @Column({ type: 'int', default: 0 })
+  shareCount: number;
+
+  @Column({ type: 'int', default: 0 })
+  viewCount: number;
+
+  @Column({ type: 'int', default: 0 })
+  engagementScore: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  engagementSyncedAt?: Date;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 

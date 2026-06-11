@@ -145,8 +145,12 @@ export class SocialAccountsController {
     const fallbackReturn = `${frontendUrl}/publisher`;
 
     if (error) {
-      const message = encodeURIComponent(errorDescription || error);
-      return res.redirect(`${fallbackReturn}?error=${message}`);
+      let message = errorDescription || error;
+      if (error === 'unauthorized_scope_error' && platform === 'linkedin') {
+        message =
+          'LinkedIn rejected a requested permission. Reconnect after removing restricted scopes, or enable Share on LinkedIn (w_member_social) in your LinkedIn app Products tab.';
+      }
+      return res.redirect(`${fallbackReturn}?error=${encodeURIComponent(message)}`);
     }
 
     if (!code || !state) {

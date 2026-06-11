@@ -60,11 +60,13 @@ ${outputFormat}`;
     theme: string,
     draft?: string,
     contentType?: string,
+    tractionInsights?: string,
   ): string {
     const parts = [
       `Brand profile:\n${brandContextBlock(brand)}`,
       `Campaign theme: ${theme}`,
     ];
+    if (tractionInsights?.trim()) parts.push(tractionInsights.trim());
     if (contentType) parts.push(`Content type: ${contentType}`);
     if (draft?.trim()) parts.push(`Existing draft to improve:\n${draft}`);
     return parts.join('\n\n');

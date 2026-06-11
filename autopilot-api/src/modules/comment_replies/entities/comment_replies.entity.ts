@@ -46,6 +46,17 @@ export class CommentReplies {
   sentAt?: Date;
   @Column({ type: 'text', nullable: true })
   parentCommentId?: string;
+  @Column({ type: 'int', default: 0 })
+  likeCount: number;
+  @Column({ type: 'boolean', default: false })
+  isFromBrand: boolean;
+
+  @Column({ type: 'jsonb', default: [] })
+  attachments: Array<{ url?: string; type?: string; name?: string }>;
+
+  @Column({ type: 'jsonb', default: [] })
+  reactions: Array<{ type: string; count?: number }>;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
   @ManyToOne(() => Tenants, { nullable: false })

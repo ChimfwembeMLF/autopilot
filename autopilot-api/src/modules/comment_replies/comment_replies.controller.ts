@@ -6,12 +6,14 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CommentRepliesService } from './comment_replies.service';
+import { CommentRepliesInboxService } from './comment-replies-inbox.service';
 import { CommentReplies } from './entities/comment_replies.entity';
 import { CommentRepliesCreateDto } from './dto/create-comment_replies.dto';
 import { CommentRepliesUpdateDto } from './dto/update-comment_replies.dto';
@@ -32,6 +34,7 @@ interface JwtUser {
 export class CommentRepliesController {
   constructor(
     private readonly service: CommentRepliesService,
+    private readonly inbox: CommentRepliesInboxService,
     private readonly fetchComments: FetchCommentsService,
     private readonly sendReply: SendCommentReplyService,
     private readonly replyAi: CommentReplyAiService,
@@ -88,9 +91,17 @@ export class CommentRepliesController {
     return this.service.create(dto);
   }
 
+  @Get('inbox')
+  getInbox(
+    @Query('tenantId') tenantId: string,
+    @Query('contentId') contentId?: string,
+  ) {
+    return this.inbox.getInbox(tenantId, contentId);
+  }
+
   @Get()
-  findAll(): Promise<CommentReplies[]> {
-    return this.service.findAll();
+  findAll(@Query('tenantId') tenantId?: string): Promise<CommentReplies[]> {
+    return this.service.findAll(tenantId);
   }
 
   @Get(':id')

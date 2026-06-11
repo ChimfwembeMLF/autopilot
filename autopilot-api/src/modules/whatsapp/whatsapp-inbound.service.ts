@@ -83,6 +83,7 @@ export class WhatsappInboundService {
             interactiveId: parsed.interactiveId,
             waMessageId: msg.id,
             account,
+            attachments: parsed.mediaAttachment ? [parsed.mediaAttachment] : [],
           });
         }
       }
@@ -91,7 +92,13 @@ export class WhatsappInboundService {
     return { received: true };
   }
 
-  private parseInboundMessage(msg: InboundWaMessage): { text: string; interactiveId?: string } | null {
+  private parseInboundMessage(
+    msg: InboundWaMessage,
+  ): {
+    text: string;
+    interactiveId?: string;
+    mediaAttachment?: { mediaId: string; type: string; mimeType?: string; name?: string };
+  } | null {
     if (msg.type === 'text' && msg.text?.body) {
       return { text: msg.text.body };
     }
@@ -115,6 +122,17 @@ export class WhatsappInboundService {
       return { text: button?.text ?? '', interactiveId: button?.payload };
     }
 
+    const mediaTypes = ['image', 'video', 'audio', 'document', 'sticker'] as const;
+    for (const t of mediaTypes) {
+      const media = (msg as Record<string, { id?: string; mime_type?: string; filename?: string }>)[t];
+      if (msg.type === t && media?.id) {
+        return {
+          text: t === 'document' ? `📎 ${media.filename ?? 'Document'}` : `📷 ${t}`,
+          mediaAttachment: { mediaId: media.id, type: t, mimeType: media.mime_type, name: media.filename },
+        };
+      }
+    }
+
     return null;
   }
 
@@ -125,6 +143,7 @@ export class WhatsappInboundService {
     interactiveId?: string;
     waMessageId?: string;
     account?: SocialAccounts | null;
+    attachments?: Array<{ mediaId: string; type: string; mimeType?: string; name?: string }>;
   }) {
     if (params.waMessageId) {
       const existing = await this.messagesRepo.findOne({
@@ -158,6 +177,13 @@ export class WhatsappInboundService {
         body: params.body,
         waMessageId: params.waMessageId,
         status: 'received',
+        attachments: (params.attachments ?? []).map((a) => ({
+          type: a.type,
+          name: a.name,
+          mimeType: a.mimeType,
+          mediaId: a.mediaId,
+        })),
+        reactions: [],
       }),
     );
 
@@ -189,7 +215,7 @@ export class WhatsappInboundService {
         tenantId: params.tenantId,
         phone,
         inboundText: params.body,
-        creds,
+        account: params.account,
         contactId: contact.id,
         leadId,
       });

@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { autoReplyRulesApi, commentRepliesApi } from '@/lib/api';
-import { invokeEdgeFunction } from '@/lib/edgeFunctions';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  autoReplyRulesApi,
+  commentRepliesApi,
+  contentPublicationsApi,
+  resolveQueued,
+  type CommentInboxNode,
+  type PostInboxGroup,
+} from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
@@ -15,27 +21,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { PermissionGate } from '@/components/PermissionGate';
-import { MessageSquareReply, Bot, Plus, Trash2, Save, Send, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { autoReplyPlatforms, commentReplyPlatforms } from '@/lib/platform-capabilities';
+import { PostCommentInbox } from '@/components/replies/PostCommentInbox';
+import { WhatsAppInbox } from '@/components/replies/WhatsAppInbox';
+import { UnifiedSocialInbox } from '@/components/replies/UnifiedSocialInbox';
+import {
+  MessageSquareReply,
+  Bot,
+  Plus,
+  Trash2,
+  Save,
+  Send,
+  Loader2,
+  MessagesSquare,
+  Inbox,
+} from 'lucide-react';
+import { autoReplyPlatforms } from '@/lib/platform-capabilities';
 
 const PLATFORMS = autoReplyPlatforms().map((p) => p.id);
-const COMMENT_PLATFORMS = commentReplyPlatforms().map((p) => p.id);
-const SENTIMENTS = ['any','positive','negative','neutral'];
+const SENTIMENTS = ['any', 'positive', 'negative', 'neutral'];
 
 interface ReplyRule {
-  id: string; tenant_id: string; platform: string; name: string;
-  trigger_keywords: string[]; trigger_sentiment: string;
-  response_template: string | null; ai_generate: boolean; is_active: boolean;
-}
-interface PostReply {
-  id: string; platform: string; commenter_name: string | null; comment_text: string;
-  reply_text: string | null; reply_type: string | null; status: string; created_at: string;
+  id: string;
+  tenant_id: string;
+  platform: string;
+  name: string;
+  trigger_keywords: string[];
+  trigger_sentiment: string;
+  response_template: string | null;
+  ai_generate: boolean;
+  is_active: boolean;
 }
 
-const BLANK_RULE: Omit<ReplyRule,'id'|'tenant_id'> = {
-  platform:'facebook', name:'', trigger_keywords:[], trigger_sentiment:'any',
-  response_template:'', ai_generate:true, is_active:true,
+const BLANK_RULE: Omit<ReplyRule, 'id' | 'tenant_id'> = {
+  platform: 'facebook',
+  name: '',
+  trigger_keywords: [],
+  trigger_sentiment: 'any',
+  response_template: '',
+  ai_generate: true,
+  is_active: true,
 };
 
 function fromRule(row: Record<string, unknown>): ReplyRule {
@@ -65,80 +89,89 @@ function toRulePayload(editing: Partial<ReplyRule>, tenantId: string) {
   };
 }
 
-function fromReply(row: Record<string, unknown>): PostReply {
-  return {
-    id: String(row.id),
-    platform: String(row.platform),
-    commenter_name: row.commenterName != null ? String(row.commenterName) : null,
-    comment_text: String(row.commentText ?? ''),
-    reply_text: row.replyText != null ? String(row.replyText) : null,
-    reply_type: row.replyType != null ? String(row.replyType) : null,
-    status: String(row.status ?? 'pending'),
-    created_at: String(row.created_at ?? new Date().toISOString()),
-  };
+function countPending(posts: PostInboxGroup[]) {
+  return posts.reduce((sum, p) => sum + p.pendingCount, 0);
 }
 
 export default function RepliesPage() {
   const { tenant } = useTenant();
-  const { can }    = usePermissions();
-  const { toast }  = useToast();
-  const [rules,   setRules]   = useState<ReplyRule[]>([]);
-  const [replies, setReplies] = useState<PostReply[]>([]);
+  const { can } = usePermissions();
+  const { toast } = useToast();
+
+  const [posts, setPosts] = useState<PostInboxGroup[]>([]);
+  const [rules, setRules] = useState<ReplyRule[]>([]);
   const [editing, setEditing] = useState<Partial<ReplyRule> | null>(null);
   const [keyInput, setKeyInput] = useState('');
-  const [manualText, setManualText] = useState<Record<string,string>>({});
+  const [manualText, setManualText] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<string | null>(null);
-  const [saving, setSaving]   = useState(false);
+  const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [loadingInbox, setLoadingInbox] = useState(true);
 
-  useEffect(() => { if (tenant) { loadRules(); loadReplies(); } }, [tenant]);
+  const loadInbox = useCallback(async () => {
+    if (!tenant) return;
+    setLoadingInbox(true);
+    try {
+      const { posts: rows } = await commentRepliesApi.inbox(tenant.id);
+      setPosts(rows);
+    } catch {
+      setPosts([]);
+    } finally {
+      setLoadingInbox(false);
+    }
+  }, [tenant]);
 
-  async function loadRules() {
+  const loadRules = useCallback(async () => {
     if (!tenant) return;
     try {
       const all = await autoReplyRulesApi.findAll();
       const list = Array.isArray(all) ? all : [];
-      setRules(
-        list
-          .filter((r: Record<string, unknown>) => r.tenantId === tenant.id)
-          .map(fromRule),
-      );
+      setRules(list.filter((r: Record<string, unknown>) => r.tenantId === tenant.id).map(fromRule));
     } catch {
       setRules([]);
     }
-  }
+  }, [tenant]);
 
-  async function loadReplies() {
-    if (!tenant) return;
-    try {
-      const all = await commentRepliesApi.findAll();
-      const list = Array.isArray(all) ? all : [];
-      setReplies(
-        list
-          .filter((r: Record<string, unknown>) => r.tenantId === tenant.id)
-          .map(fromReply)
-          .slice(0, 50),
-      );
-    } catch {
-      setReplies([]);
+  useEffect(() => {
+    if (tenant) {
+      void loadInbox();
+      void loadRules();
     }
-  }
+  }, [tenant, loadInbox, loadRules]);
 
   async function fetchComments() {
     if (!tenant) return;
     setFetching(true);
-    const { data, error } = await invokeEdgeFunction('fetch-comments', { body: { tenantId: tenant.id } });
-    setFetching(false);
-    if (error) { toast({ title: 'Fetch failed', description: error.message, variant: 'destructive' }); return; }
-    const result = data as { fetched?: number; autoReplied?: number } | null;
-    const count = result?.fetched ?? 0;
-    const autoReplied = result?.autoReplied ?? 0;
-    const parts = [
-      count > 0 ? `${count} new comment${count !== 1 ? 's' : ''} pulled` : 'No new comments found',
-      autoReplied > 0 ? `${autoReplied} auto-replied` : null,
-    ].filter(Boolean);
-    toast({ title: 'Comments synced', description: parts.join(' · ') });
-    if (count > 0 || autoReplied > 0) loadReplies();
+    try {
+      const raw = await commentRepliesApi.fetch(tenant.id);
+      const result = (await resolveQueued(raw)) as { fetched?: number; autoReplied?: number };
+      const count = result?.fetched ?? 0;
+      const autoReplied = result?.autoReplied ?? 0;
+
+      let engagementUpdated = 0;
+      try {
+        const eng = await contentPublicationsApi.syncEngagement(tenant.id);
+        engagementUpdated = eng?.updated ?? 0;
+      } catch {
+        /* engagement sync is best-effort */
+      }
+
+      const parts = [
+        count > 0 ? `${count} new comment${count !== 1 ? 's' : ''} pulled` : 'No new comments found',
+        autoReplied > 0 ? `${autoReplied} auto-replied` : null,
+        engagementUpdated > 0 ? `metrics updated for ${engagementUpdated} post${engagementUpdated !== 1 ? 's' : ''}` : null,
+      ].filter(Boolean);
+      toast({ title: 'Comments synced', description: parts.join(' · ') });
+      await loadInbox();
+    } catch (err: unknown) {
+      toast({
+        title: 'Fetch failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setFetching(false);
+    }
   }
 
   async function saveRule() {
@@ -148,17 +181,22 @@ export default function RepliesPage() {
       const payload = toRulePayload(editing, tenant.id);
       if (editing.id) {
         await autoReplyRulesApi.update(editing.id, payload as any);
-        setRules(prev => prev.map(r => r.id === editing.id ? { ...r, ...editing } as ReplyRule : r));
+        setRules((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...editing } as ReplyRule : r)));
         toast({ title: 'Rule saved' });
       } else {
         const data = await autoReplyRulesApi.create(payload as any);
-        setRules(prev => [...prev, fromRule(data as Record<string, unknown>)]);
+        setRules((prev) => [...prev, fromRule(data as Record<string, unknown>)]);
         toast({ title: 'Rule created' });
       }
       await logAudit({ tenantId: tenant.id, action: editing.id ? 'reply_rule.updated' : 'reply_rule.created' });
-      setEditing(null); setKeyInput('');
-    } catch (err: any) {
-      toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
+      setEditing(null);
+      setKeyInput('');
+    } catch (err: unknown) {
+      toast({
+        title: 'Save failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
     }
     setSaving(false);
   }
@@ -167,43 +205,54 @@ export default function RepliesPage() {
     if (!tenant) return;
     try {
       await autoReplyRulesApi.remove(id);
-      setRules(prev => prev.filter(r => r.id !== id));
+      setRules((prev) => prev.filter((r) => r.id !== id));
       await logAudit({ tenantId: tenant.id, action: 'reply_rule.deleted', resourceId: id });
       toast({ title: 'Rule deleted' });
     } catch (err: unknown) {
-      toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
-    }
-  }
-
-  async function sendReply(reply: PostReply) {
-    const text = manualText[reply.id];
-    if (!text?.trim() || !tenant) return;
-    setSending(reply.id);
-    try {
-      await commentRepliesApi.send(reply.id, text);
-      await logAudit({ tenantId: tenant.id, action: 'reply.sent', resourceId: reply.id });
-      toast({ title: 'Reply sent' });
-      setReplies(prev => prev.map(r => r.id === reply.id ? { ...r, reply_text: text, status: 'sent', reply_type: 'manual' } : r));
-      setManualText(prev => { const n = { ...prev }; delete n[reply.id]; return n; });
-    } catch (err: any) {
-      toast({ title: 'Send failed', description: err.message, variant: 'destructive' });
-    }
-    setSending(null);
-  }
-
-  async function generateAiReply(reply: PostReply) {
-    if (!tenant) return;
-    setSending(reply.id);
-    try {
-      const { data, error } = await invokeEdgeFunction('suggest-comment-reply', {
-        body: { commentReplyId: reply.id },
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
       });
-      if (error) throw error;
-      const text = (data as { content?: string } | null)?.content ?? '';
+    }
+  }
+
+  async function sendReply(node: CommentInboxNode) {
+    const text = manualText[node.id];
+    if (!text?.trim() || !tenant) return;
+    setSending(node.id);
+    try {
+      await commentRepliesApi.send(node.id, text);
+      await logAudit({ tenantId: tenant.id, action: 'reply.sent', resourceId: node.id });
+      toast({ title: 'Reply sent to platform' });
+      setManualText((prev) => {
+        const next = { ...prev };
+        delete next[node.id];
+        return next;
+      });
+      await loadInbox();
+    } catch (err: unknown) {
+      toast({
+        title: 'Send failed',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setSending(null);
+    }
+  }
+
+  async function generateAiReply(node: CommentInboxNode) {
+    if (!tenant) return;
+    setSending(node.id);
+    try {
+      const raw = await commentRepliesApi.suggest(node.id);
+      const data = (await resolveQueued(raw)) as { content?: string };
+      const text = data?.content ?? '';
       if (!text.trim()) {
         toast({ title: 'No suggestion', description: 'AI returned an empty reply.', variant: 'destructive' });
       } else {
-        setManualText(prev => ({ ...prev, [reply.id]: text }));
+        setManualText((prev) => ({ ...prev, [node.id]: text }));
       }
     } catch (err: unknown) {
       toast({
@@ -211,127 +260,169 @@ export default function RepliesPage() {
         description: err instanceof Error ? err.message : String(err),
         variant: 'destructive',
       });
+    } finally {
+      setSending(null);
     }
-    setSending(null);
+  }
+
+  async function dismissComment(node: CommentInboxNode) {
+    await commentRepliesApi.update(node.id, { status: 'dismissed' } as any);
+    await loadInbox();
   }
 
   const addKeyword = () => {
     if (!keyInput.trim() || !editing) return;
-    setEditing(e => ({ ...e!, trigger_keywords: [...(e!.trigger_keywords ?? []), keyInput.trim()] }));
+    setEditing((e) => ({
+      ...e!,
+      trigger_keywords: [...(e!.trigger_keywords ?? []), keyInput.trim()],
+    }));
     setKeyInput('');
   };
 
-  const STATUS_ICON: Record<string, JSX.Element> = {
-    pending:   <Clock className="h-3.5 w-3.5 text-amber-500"/>,
-    sent:      <CheckCircle2 className="h-3.5 w-3.5 text-green-500"/>,
-    failed:    <XCircle className="h-3.5 w-3.5 text-red-500"/>,
-    dismissed: <XCircle className="h-3.5 w-3.5 text-muted-foreground"/>,
-  };
+  const pendingCount = countPending(posts);
+  const activeRules = rules.filter((r) => r.is_active).length;
 
   return (
     <PermissionGate require={P.replies.view} fallback={true}>
       <div className="max-w-5xl mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <MessageSquareReply className="h-6 w-6 text-primary"/>
+            <MessageSquareReply className="h-6 w-6 text-primary" />
             <div>
               <h1 className="text-2xl font-semibold">Replies</h1>
-              <p className="text-sm text-muted-foreground">Manage AI auto-reply rules and manual replies to social comments. Comments sync automatically every 10 minutes.</p>
+              <p className="text-sm text-muted-foreground">
+                Unified inbox for all platforms — comments, DMs, attachments, and auto-replies.
+              </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchComments} disabled={fetching}>
+          <Button variant="outline" size="sm" onClick={() => void fetchComments()} disabled={fetching}>
             {fetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            {fetching ? 'Syncing...' : 'Pull Latest Comments'}
+            {fetching ? 'Syncing…' : 'Pull comments'}
           </Button>
         </div>
 
-        <Tabs defaultValue="queue">
+        <Tabs defaultValue="inbox">
           <TabsList>
-            <TabsTrigger value="queue">Reply Queue {replies.filter(r=>r.status==='pending').length > 0 && `(${replies.filter(r=>r.status==='pending').length})`}</TabsTrigger>
-            <TabsTrigger value="rules">Auto-Reply Rules</TabsTrigger>
+            <TabsTrigger value="inbox">
+              <Inbox className="h-3.5 w-3.5 mr-1.5" />
+              All inbox
+            </TabsTrigger>
+            <TabsTrigger value="comments">
+              Post comments{pendingCount > 0 ? ` (${pendingCount})` : ''}
+            </TabsTrigger>
+            <TabsTrigger value="messages">
+              <MessagesSquare className="h-3.5 w-3.5 mr-1.5" />
+              WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="rules">
+              Auto-reply rules{activeRules > 0 ? ` (${activeRules} on)` : ''}
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="queue" className="space-y-4 mt-4">
-            {replies.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground text-sm">No comments yet.</div>
-            ) : replies.map(reply => (
-              <div key={reply.id} className="rounded-lg border bg-card p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{reply.commenter_name ?? 'Anonymous'}</p>
-                      <Badge variant="outline" className="text-[10px] capitalize">{reply.platform}</Badge>
-                      {STATUS_ICON[reply.status]}
-                    </div>
-                    <p className="text-sm mt-1 text-muted-foreground">"{reply.comment_text}"</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground shrink-0">
-                    {formatDistanceToNow(new Date(reply.created_at), {addSuffix:true})}
-                  </p>
-                </div>
-                {reply.status === 'sent' && reply.reply_text && (
-                  <div className={`rounded p-2 text-xs ${reply.reply_type === 'auto_reply' ? 'bg-primary/5 border border-primary/20' : 'bg-green-50 dark:bg-green-950/20'}`}>
-                    <strong>{reply.reply_type === 'auto_reply' ? 'Auto-replied:' : 'Replied:'}</strong> {reply.reply_text}
-                  </div>
-                )}
-                {reply.status === 'pending' && can(P.replies.create) && (
-                  <div className="space-y-2">
-                    <Textarea rows={2} placeholder="Type your reply…" className="text-sm resize-none"
-                      value={manualText[reply.id] ?? reply.reply_text ?? ''}
-                      onChange={e => setManualText(p => ({ ...p, [reply.id]: e.target.value }))} />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => sendReply(reply)} disabled={sending===reply.id || !manualText[reply.id]?.trim()} className="gap-1">
-                        <Send className="h-3.5 w-3.5"/> Send
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => generateAiReply(reply)} disabled={sending===reply.id} className="gap-1">
-                        <Bot className="h-3.5 w-3.5"/> AI Draft
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={async()=>{
-                        await commentRepliesApi.update(reply.id, { status: 'dismissed' } as any);
-                        loadReplies();
-                      }}>
-                        Dismiss
-                      </Button>
-                    </div>
-                  </div>
-                )}
+          <TabsContent value="inbox" className="mt-4">
+            <UnifiedSocialInbox />
+          </TabsContent>
+
+          <TabsContent value="comments" className="mt-4">
+            {loadingInbox ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading inbox…
               </div>
-            ))}
+            ) : (
+              <PostCommentInbox
+                posts={posts}
+                canReply={can(P.replies.create)}
+                sendingId={sending}
+                manualText={manualText}
+                onDraftChange={(id, text) => setManualText((p) => ({ ...p, [id]: text }))}
+                onSend={(node) => void sendReply(node)}
+                onAiDraft={(node) => void generateAiReply(node)}
+                onDismiss={(node) => void dismissComment(node)}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="messages" className="mt-4">
+            <WhatsAppInbox />
           </TabsContent>
 
           <TabsContent value="rules" className="space-y-4 mt-4">
+            <p className="text-xs text-muted-foreground">
+              Rules match inbound comments and WhatsApp messages by keyword. Toggle a rule on to enable
+              auto-replies (AI or template). New tenants get starter rules — activate them here.
+            </p>
+
             <PermissionGate require={P.replies.manageRules}>
               <div className="rounded-lg border bg-card p-4 space-y-4">
                 <p className="font-medium text-sm">{editing?.id ? 'Edit rule' : 'New auto-reply rule'}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Rule name</Label>
-                    <Input value={editing?.name ?? ''} onChange={e => setEditing(p => ({...(p??BLANK_RULE),name:e.target.value}))} placeholder="e.g. Positive comment thanks" />
+                    <Input
+                      value={editing?.name ?? ''}
+                      onChange={(e) => setEditing((p) => ({ ...(p ?? BLANK_RULE), name: e.target.value }))}
+                      placeholder="e.g. Positive comment thanks"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Platform</Label>
-                    <Select value={editing?.platform ?? 'facebook'} onValueChange={v => setEditing(p => ({...(p??BLANK_RULE),platform:v}))}>
-                      <SelectTrigger><SelectValue/></SelectTrigger>
-                      <SelectContent>{PLATFORMS.map(p=><SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent>
+                    <Select
+                      value={editing?.platform ?? 'facebook'}
+                      onValueChange={(v) => setEditing((p) => ({ ...(p ?? BLANK_RULE), platform: v }))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PLATFORMS.map((p) => (
+                          <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label>Sentiment trigger</Label>
-                    <Select value={editing?.trigger_sentiment ?? 'any'} onValueChange={v => setEditing(p => ({...(p??BLANK_RULE),trigger_sentiment:v}))}>
-                      <SelectTrigger><SelectValue/></SelectTrigger>
-                      <SelectContent>{SENTIMENTS.map(s=><SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                    <Select
+                      value={editing?.trigger_sentiment ?? 'any'}
+                      onValueChange={(v) => setEditing((p) => ({ ...(p ?? BLANK_RULE), trigger_sentiment: v }))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {SENTIMENTS.map((s) => (
+                          <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label>Keywords (any match)</Label>
                     <div className="flex gap-2">
-                      <Input value={keyInput} onChange={e=>setKeyInput(e.target.value)} placeholder="Add keyword" onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addKeyword();}}} />
-                      <Button size="sm" onClick={addKeyword} type="button"><Plus className="h-3.5 w-3.5"/></Button>
+                      <Input
+                        value={keyInput}
+                        onChange={(e) => setKeyInput(e.target.value)}
+                        placeholder="Add keyword"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addKeyword();
+                          }
+                        }}
+                      />
+                      <Button size="sm" onClick={addKeyword} type="button">
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {(editing?.trigger_keywords ?? []).map(kw=>(
-                        <Badge key={kw} variant="secondary" className="gap-1 cursor-pointer"
-                          onClick={()=>setEditing(p=>({...p!,trigger_keywords:p!.trigger_keywords!.filter(k=>k!==kw)}))}>
+                      {(editing?.trigger_keywords ?? []).map((kw) => (
+                        <Badge
+                          key={kw}
+                          variant="secondary"
+                          className="gap-1 cursor-pointer"
+                          onClick={() =>
+                            setEditing((p) => ({
+                              ...p!,
+                              trigger_keywords: p!.trigger_keywords!.filter((k) => k !== kw),
+                            }))
+                          }
+                        >
                           {kw} ×
                         </Badge>
                       ))}
@@ -340,51 +431,107 @@ export default function RepliesPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label>Response template (used when AI is off)</Label>
+                    <Label>Response template (when AI is off)</Label>
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-muted-foreground">AI generate</span>
-                      <Switch checked={editing?.ai_generate ?? true} onCheckedChange={v=>setEditing(p=>({...(p??BLANK_RULE),ai_generate:v}))} />
+                      <Switch
+                        checked={editing?.ai_generate ?? true}
+                        onCheckedChange={(v) => setEditing((p) => ({ ...(p ?? BLANK_RULE), ai_generate: v }))}
+                      />
                     </div>
                   </div>
-                  <Textarea rows={3} value={editing?.response_template ?? ''} placeholder="e.g. Thank you for your kind comment! 😊"
-                    onChange={e=>setEditing(p=>({...(p??BLANK_RULE),response_template:e.target.value}))} className="resize-none text-sm" />
+                  <Textarea
+                    rows={3}
+                    value={editing?.response_template ?? ''}
+                    placeholder="e.g. Thank you for your kind comment!"
+                    onChange={(e) =>
+                      setEditing((p) => ({ ...(p ?? BLANK_RULE), response_template: e.target.value }))
+                    }
+                    className="resize-none text-sm"
+                  />
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={saveRule} disabled={saving || !editing?.name?.trim()} className="gap-1">
-                    <Save className="h-3.5 w-3.5"/> {editing?.id ? 'Save Changes' : 'Create Rule'}
+                  <Button
+                    size="sm"
+                    onClick={() => void saveRule()}
+                    disabled={saving || !editing?.name?.trim()}
+                    className="gap-1"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {editing?.id ? 'Save changes' : 'Create rule'}
                   </Button>
-                  {editing && <Button size="sm" variant="outline" onClick={()=>{setEditing(null);setKeyInput('');}}>Cancel</Button>}
+                  {editing && (
+                    <Button size="sm" variant="outline" onClick={() => { setEditing(null); setKeyInput(''); }}>
+                      Cancel
+                    </Button>
+                  )}
+                  {!editing && (
+                    <Button size="sm" variant="outline" onClick={() => setEditing({ ...BLANK_RULE })}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> New rule
+                    </Button>
+                  )}
                 </div>
               </div>
             </PermissionGate>
 
             <div className="space-y-2">
-              {rules.length === 0 && <div className="py-8 text-center text-muted-foreground text-sm">No rules yet.</div>}
-              {rules.map(rule => (
+              {rules.length === 0 && (
+                <div className="py-8 text-center text-muted-foreground text-sm">No rules yet.</div>
+              )}
+              {rules.map((rule) => (
                 <div key={rule.id} className="rounded-lg border bg-card p-4 flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{rule.name}</p>
                       <Badge variant="outline" className="text-[10px] capitalize">{rule.platform}</Badge>
-                      {rule.ai_generate && <Badge variant="secondary" className="text-[10px] gap-1"><Bot className="h-3 w-3"/>AI</Badge>}
+                      {rule.ai_generate && (
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          <Bot className="h-3 w-3" /> AI
+                        </Badge>
+                      )}
+                      {!rule.is_active && (
+                        <Badge variant="secondary" className="text-[10px]">inactive</Badge>
+                      )}
                     </div>
                     <div className="flex gap-1 mt-1 flex-wrap">
-                      {rule.trigger_keywords.map(kw=><Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>)}
-                      {rule.trigger_sentiment !== 'any' && <Badge variant="secondary" className="text-[10px]">{rule.trigger_sentiment}</Badge>}
+                      {rule.trigger_keywords.map((kw) => (
+                        <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
+                      ))}
+                      {rule.trigger_keywords.length === 0 && (
+                        <Badge variant="outline" className="text-[10px]">catch-all</Badge>
+                      )}
+                      {rule.trigger_sentiment !== 'any' && (
+                        <Badge variant="secondary" className="text-[10px]">{rule.trigger_sentiment}</Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Switch checked={rule.is_active} disabled={!can(P.replies.manageRules)}
-                      onCheckedChange={async v => {
+                    <Switch
+                      checked={rule.is_active}
+                      disabled={!can(P.replies.manageRules)}
+                      onCheckedChange={async (v) => {
                         await autoReplyRulesApi.update(rule.id, { isActive: v } as any);
-                        loadRules();
-                      }} />
+                        void loadRules();
+                      }}
+                    />
                     <PermissionGate require={P.replies.manageRules}>
-                      <Button variant="ghost" size="sm" onClick={()=>{setEditing(rule);setKeyInput('');}}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditing(rule);
+                          setKeyInput('');
+                        }}
+                      >
                         Edit
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={()=>deleteRule(rule.id)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-3.5 w-3.5"/>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void deleteRule(rule.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </PermissionGate>
                   </div>
