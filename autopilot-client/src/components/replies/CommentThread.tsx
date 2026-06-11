@@ -1,16 +1,11 @@
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Bot, ChevronRight, Loader2, PenLine, Send, ThumbsUp } from 'lucide-react';
+import { Bot, ChevronDown, Loader2, PenLine, Send } from 'lucide-react';
 import type { CommentInboxNode } from '@/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
 import { MessageAttachments } from './MessageAttachments';
 import { MessageReactions } from './MessageReactions';
 import { cn } from '@/lib/utils';
@@ -46,8 +41,17 @@ function hasSyncedBrandReply(node: CommentInboxNode): boolean {
   );
 }
 
-function CommentBubble({
+function visibleChildren(node: CommentInboxNode): CommentInboxNode[] {
+  const parentReply = node.replyText?.trim();
+  if (!parentReply) return node.children;
+  return node.children.filter(
+    (child) => !(child.isFromBrand && replyBody(child) === parentReply),
+  );
+}
+
+function CommentRow({
   node,
+  depth = 0,
   brandPageName,
   canReply,
   sendingId,
@@ -73,47 +77,36 @@ function CommentBubble({
     ...(node.reactions ?? []),
     ...(node.likeCount > 0 ? [{ type: 'like', count: node.likeCount }] : []),
   ];
+  const avatarSize = depth > 0 ? 'h-7 w-7' : 'h-9 w-9';
 
   return (
-    <div className="flex gap-2 sm:gap-2.5">
-      <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+    <div className="flex gap-2.5 min-w-0">
+      <Avatar className={cn(avatarSize, 'shrink-0 mt-0.5 ring-2 ring-background')}>
         {node.commenterAvatarUrl ? (
           <AvatarImage src={node.commenterAvatarUrl} alt={node.commenterName} />
         ) : null}
-        <AvatarFallback className="text-[10px] bg-muted">
+        <AvatarFallback
+          className={cn(
+            'text-[10px] font-medium',
+            isAuthor ? 'bg-primary/15 text-primary' : 'bg-muted',
+          )}
+        >
           {initials(node.commenterName)}
         </AvatarFallback>
       </Avatar>
 
       <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[13px] font-semibold leading-none">{displayName}</span>
-          {isAuthor && (
-            <Badge
-              variant="secondary"
-              className="text-[10px] h-4 px-1.5 gap-0.5 font-normal bg-primary/15 text-primary border-0"
-            >
-              <PenLine className="h-2.5 w-2.5" />
-              Author
-            </Badge>
-          )}
-        </div>
-
         <div
           className={cn(
-            'inline-block max-w-full rounded-2xl px-3 py-2 text-[13px] leading-relaxed',
-            isAuthor ? 'bg-muted/90 text-foreground' : 'bg-muted/50 text-foreground',
+            'rounded-2xl px-3.5 py-2.5 shadow-sm',
+            isAuthor
+              ? 'bg-primary/8 border border-primary/15'
+              : 'bg-muted/60 border border-border/50',
           )}
         >
-          <p className="whitespace-pre-wrap break-words">{displayText}</p>
-          <MessageAttachments items={attachments} />
-          <MessageReactions items={reactions} />
-        </div>
-
-        {showInlineReply && (
-          <div className="mt-2 ml-1">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-[12px] font-semibold">{brandPageName ?? 'Author'}</span>
+          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+            <span className="text-[13px] font-semibold leading-tight">{displayName}</span>
+            {isAuthor && (
               <Badge
                 variant="secondary"
                 className="text-[10px] h-4 px-1.5 gap-0.5 font-normal bg-primary/15 text-primary border-0"
@@ -121,25 +114,62 @@ function CommentBubble({
                 <PenLine className="h-2.5 w-2.5" />
                 Author
               </Badge>
-            </div>
-            <div className="inline-block rounded-2xl bg-muted/90 px-3 py-2 text-[13px] leading-relaxed">
-              {node.replyText}
+            )}
+            {node.status === 'pending' && !isAuthor && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">
+                Needs reply
+              </Badge>
+            )}
+          </div>
+
+          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words text-foreground">
+            {displayText}
+          </p>
+          <MessageAttachments items={attachments} className="mt-2" />
+          <MessageReactions items={reactions} />
+        </div>
+
+        {showInlineReply && (
+          <div className="ml-2 mt-2">
+            <div
+              className={cn(
+                'rounded-2xl px-3.5 py-2.5 shadow-sm',
+                'bg-primary/8 border border-primary/15',
+              )}
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[13px] font-semibold">{brandPageName ?? 'Author'}</span>
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] h-4 px-1.5 gap-0.5 font-normal bg-primary/15 text-primary border-0"
+                >
+                  <PenLine className="h-2.5 w-2.5" />
+                  Author
+                </Badge>
+              </div>
+              <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                {node.replyText}
+              </p>
             </div>
           </div>
         )}
 
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground pl-1">
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground px-1">
           <span>{formatDistanceToNow(new Date(node.created_at), { addSuffix: true })}</span>
-          {canReply && node.status === 'pending' && (
+          {canReply && node.status === 'pending' && !isAuthor && (
             <>
               <button
                 type="button"
-                className="font-semibold hover:underline"
+                className="font-semibold hover:text-foreground transition-colors"
                 onClick={() => onStartReply(node.id)}
               >
                 Reply
               </button>
-              <button type="button" className="hover:underline" onClick={() => onDismiss(node)}>
+              <button
+                type="button"
+                className="hover:text-foreground transition-colors"
+                onClick={() => onDismiss(node)}
+              >
                 Dismiss
               </button>
             </>
@@ -147,12 +177,12 @@ function CommentBubble({
         </div>
 
         {showComposer && (
-          <div className="mt-2 space-y-2 pl-1">
+          <div className="mt-2 space-y-2">
             <Textarea
               rows={2}
               autoFocus
               placeholder={`Reply as ${brandPageName ?? 'your page'}…`}
-              className="text-sm resize-none rounded-xl bg-background"
+              className="text-sm resize-none rounded-xl bg-background border-border/80"
               value={getDraft(node.id)}
               onChange={(e) => onDraftChange(node.id, e.target.value)}
             />
@@ -189,61 +219,46 @@ function CommentBubble({
 }
 
 export function CommentThread(props: Props) {
-  const { node, depth = 0, brandPageName } = props;
-  const hasChildren = node.children.length > 0;
-  const preview = (node.isFromBrand ? replyBody(node) : node.commentText).slice(0, 80);
-
-  if (!hasChildren) {
-    return (
-      <div className={cn('relative', depth > 0 && 'mt-2')}>
-        {depth > 0 && (
-          <div
-            className="absolute -left-[18px] sm:-left-[22px] top-0 bottom-0 w-0.5 bg-border/80 rounded-full"
-            aria-hidden
-          />
-        )}
-        <CommentBubble {...props} />
-      </div>
-    );
-  }
+  const { node, depth = 0 } = props;
+  const children = visibleChildren(node);
+  const [expanded, setExpanded] = useState(depth < 2);
+  const hiddenCount = children.length;
+  const canCollapse = depth === 0 && hiddenCount > 3;
 
   return (
-    <div className={cn('relative', depth > 0 && 'mt-2')}>
-      {depth > 0 && (
+    <div className={cn(depth > 0 && 'mt-3')}>
+      <CommentRow {...props} />
+
+      {children.length > 0 && (
         <div
-          className="absolute -left-[18px] sm:-left-[22px] top-0 bottom-0 w-0.5 bg-border/80 rounded-full"
-          aria-hidden
-        />
+          className={cn(
+            'relative mt-2 space-y-3',
+            depth === 0 ? 'ml-11 sm:ml-12' : 'ml-9 sm:ml-10',
+          )}
+        >
+          <div
+            className="absolute left-0 top-0 bottom-3 w-px bg-border"
+            aria-hidden
+          />
+
+          {canCollapse && !expanded ? (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline pl-3"
+              onClick={() => setExpanded(true)}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              View {hiddenCount} repl{hiddenCount === 1 ? 'y' : 'ies'}
+            </button>
+          ) : (
+            children.map((child) => (
+              <div key={child.id} className="pl-3">
+                <CommentThread {...props} node={child} depth={depth + 1} />
+              </div>
+            ))
+          )}
+        </div>
       )}
-      <Accordion type="single" collapsible className="w-full border-0">
-        <AccordionItem value={node.id} className="border-0">
-          <AccordionTrigger className="py-2 hover:no-underline [&[data-state=open]>svg]:rotate-90">
-            <div className="flex items-center gap-2 text-left flex-1 min-w-0 pr-2">
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform" />
-              <span className="text-[13px] font-semibold truncate">
-                {node.isFromBrand && brandPageName ? brandPageName : node.commenterName}
-              </span>
-              <span className="text-xs text-muted-foreground truncate flex-1">{preview}</span>
-              <Badge variant="outline" className="text-[10px] shrink-0">
-                {node.children.length} repl{node.children.length === 1 ? 'y' : 'ies'}
-              </Badge>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pb-2 pt-0">
-            <CommentBubble {...props} />
-            <div className="ml-9 sm:ml-10 mt-2 space-y-1 border-l-2 border-border/60 pl-3 sm:pl-4">
-              {node.children.map((child) => (
-                <CommentThread
-                  key={child.id}
-                  {...props}
-                  node={child}
-                  depth={depth + 1}
-                />
-              ))}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
     </div>
   );
 }

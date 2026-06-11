@@ -14,6 +14,7 @@ import { InstagramPublishingService } from './instagram-publishing.service';
 import { LinkedInPublishingService } from './linkedin-publishing.service';
 import { TwitterPublishingService } from './twitter-publishing.service';
 import { YoutubePublishingService } from './youtube-publishing.service';
+import { TiktokPublishingService } from './tiktok-publishing.service';
 import { FetchCommentsService } from './social-comments.service';
 import { SendCommentReplyService } from './send-comment-reply.service';
 import { PublicationEngagementService } from './publication-engagement.service';
@@ -46,6 +47,7 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
     LinkedInPublishingService,
     TwitterPublishingService,
     YoutubePublishingService,
+    TiktokPublishingService,
     CommentReplyAiService,
     SocialCommentAutoReplyService,
     FetchCommentsService,
@@ -58,6 +60,7 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
     LinkedInPublishingService,
     TwitterPublishingService,
     YoutubePublishingService,
+    TiktokPublishingService,
     FetchCommentsService,
     SendCommentReplyService,
     PublicationEngagementService,

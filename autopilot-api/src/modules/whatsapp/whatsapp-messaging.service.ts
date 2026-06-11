@@ -299,6 +299,36 @@ export class WhatsappMessagingService {
     return 'WhatsApp session expired. Reconnect WhatsApp in Publisher Connect, then try again.';
   }
 
+  /** Map Meta Graph/WhatsApp errors to actionable messages for the UI. */
+  humanizeSendError(message?: string): string {
+    if (!message?.trim()) return 'WhatsApp send failed';
+    if (/131030|not in allowed list/i.test(message)) {
+      return (
+        'This phone number is not on your WhatsApp test allow list. In Meta Developer Console → ' +
+        'WhatsApp → API Setup, add the recipient under "Send messages to" (or complete Meta Business ' +
+        'verification to message any customer in production).'
+      );
+    }
+    if (/131026|message undeliverable/i.test(message)) {
+      return 'WhatsApp could not deliver to this number — confirm it is registered on WhatsApp and uses the correct country code.';
+    }
+    if (/131047|24.?hour|session/i.test(message)) {
+      return (
+        'Outside the 24-hour messaging window. The customer must message you first, or send an approved template message.'
+      );
+    }
+    if (this.isAuthError(message)) {
+      return this.oauthTokenErrorMessage();
+    }
+    return message;
+  }
+
+  private isAuthError(message: string): boolean {
+    return /#190\b|invalid oauth|session has expired|error validating access token/i.test(
+      message,
+    );
+  }
+
   private formatGraphError(err: unknown): string {
     if (axios.isAxiosError(err)) {
       const data = err.response?.data as { error?: { message?: string; code?: number } };

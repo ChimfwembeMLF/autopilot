@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
@@ -10,6 +10,7 @@ import { TenantMembersService } from '../tenant_members/tenant_members.service';
 import { normalizePlanKey, PlanKey, PLAN_CONFIG } from '../subscriptions/plan.constants';
 import { buildInvoiceNumber, invoiceDataFromDeposit, renderInvoiceHtml, InvoiceData } from './invoice.template';
 import { getInvoicePdfFilename, renderInvoicePdf } from './invoice.pdf';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface ClientPaymentRecord {
   id: string;
@@ -38,6 +39,7 @@ export class PaymentsService {
     private readonly subscriptions: SubscriptionsService,
     private readonly tenantMembers: TenantMembersService,
     private readonly config: ConfigService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /** Server-only flag; accepts legacy env name for local dev. */
@@ -104,6 +106,11 @@ export class PaymentsService {
     const plan = normalizePlanKey(deposit.plan) as PlanKey;
     await this.subscriptions.activatePlan(deposit.tenantId, plan);
     this.logger.log(`Activated ${plan} for tenant ${deposit.tenantId} via deposit ${depositId}`);
+    void this.notifications?.notifyPaymentSuccess({
+      tenantId: deposit.tenantId,
+      plan,
+      amount: deposit.amount ? Number(deposit.amount) : undefined,
+    });
     return { tenantId: deposit.tenantId, plan, status: 'COMPLETED' };
   }
 

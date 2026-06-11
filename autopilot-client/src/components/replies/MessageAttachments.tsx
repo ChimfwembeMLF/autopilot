@@ -12,7 +12,7 @@ export function MessageAttachments({
   if (!items?.length) return null;
 
   return (
-    <div className={cn('flex flex-wrap gap-2 mt-2', className)}>
+    <div className={cn('flex flex-wrap gap-2', className)}>
       {items.map((a, i) => {
         const isVideo = a.type === 'video' || a.mimeType?.startsWith('video');
         if (a.url) {
@@ -21,14 +21,21 @@ export function MessageAttachments({
               key={`${a.url}-${i}`}
               src={a.url}
               controls
-              className="max-h-40 rounded-lg border"
+              playsInline
+              className="max-h-48 max-w-full rounded-xl border border-border/60 shadow-sm"
             />
           ) : (
-            <a key={`${a.url}-${i}`} href={a.url} target="_blank" rel="noopener noreferrer">
+            <a
+              key={`${a.url}-${i}`}
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block overflow-hidden rounded-xl border border-border/60 shadow-sm hover:ring-2 hover:ring-primary/20 transition-all"
+            >
               <img
                 src={a.url}
                 alt={a.name ?? 'attachment'}
-                className="max-h-40 rounded-lg border object-cover"
+                className="max-h-48 max-w-full object-cover"
               />
             </a>
           );

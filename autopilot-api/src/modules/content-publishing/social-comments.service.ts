@@ -10,6 +10,8 @@ import { CommentReplies } from '../comment_replies/entities/comment_replies.enti
 import { YoutubePublishingService } from './youtube-publishing.service';
 import { SocialCommentAutoReplyService } from './social-comment-auto-reply.service';
 import { PublicationEngagementService } from './publication-engagement.service';
+import { SocialPublishAccountService } from './social-publish-account.service';
+import { summarizeAxiosError } from './publish-error.util';
 
 type FetchedComment = {
   externalCommentId: string;
@@ -36,6 +38,7 @@ export class FetchCommentsService {
     private readonly youtubePublish: YoutubePublishingService,
     private readonly autoReply: SocialCommentAutoReplyService,
     private readonly engagement: PublicationEngagementService,
+    private readonly publishAccounts: SocialPublishAccountService,
     private readonly config: ConfigService,
   ) {}
 
@@ -90,7 +93,9 @@ export class FetchCommentsService {
           newCommentIds.push(saved.id);
         }
       } catch (err) {
-        this.logger.warn(`Comment fetch failed for ${pub.platform} post ${pub.externalPostId}`, err);
+        this.logger.warn(
+          `Comment fetch failed for ${pub.platform} post ${pub.externalPostId}: ${summarizeAxiosError(err)}`,
+        );
       }
     }
 
@@ -170,13 +175,30 @@ export class FetchCommentsService {
     pub: ContentPublications,
     userId: string,
   ): Promise<FetchedComment[]> {
-    const account = pub.socialAccountId
-      ? await this.socialRepo.findOne({ where: { id: pub.socialAccountId } })
-      : await this.socialRepo.findOne({
-          where: { userId, platform: pub.platform, connected: true },
-        });
+    let account: SocialAccounts | null = null;
 
-    if (!account) return [];
+    if (pub.socialAccountId) {
+      account = await this.socialRepo.findOne({ where: { id: pub.socialAccountId } });
+    }
+
+    if (!account) {
+      account =
+        (await this.socialRepo.findOne({
+          where: {
+            tenantId: pub.tenantId,
+            userId,
+            platform: pub.platform,
+            connected: true,
+          },
+        })) ??
+        (await this.socialRepo.findOne({
+          where: { tenantId: pub.tenantId, platform: pub.platform, connected: true },
+        }));
+    }
+
+    if (!account?.connected) return [];
+
+    account = await this.publishAccounts.prepareAccount(account);
 
     switch (pub.platform.toLowerCase()) {
       case 'facebook':
@@ -196,8 +218,13 @@ export class FetchCommentsService {
     postId: string,
     account: SocialAccounts,
   ): Promise<FetchedComment[]> {
-    const token = account.metadata?.page_token ?? account.accessToken;
-    if (!token) return [];
+    const token = this.publishAccounts.getFacebookPageToken(account);
+    if (!token?.trim()) {
+      this.logger.warn(
+        `Facebook comment fetch skipped for post ${postId}: missing page access token — reconnect Facebook in Publisher Connect`,
+      );
+      return [];
+    }
 
     const res = await axios.get(`https://graph.facebook.com/v19.0/${postId}/comments`, {
       params: {
@@ -238,8 +265,13 @@ export class FetchCommentsService {
     mediaId: string,
     account: SocialAccounts,
   ): Promise<FetchedComment[]> {
-    const token = account.accessToken;
-    if (!token) return [];
+    const token = this.publishAccounts.getInstagramToken(account);
+    if (!token?.trim()) {
+      this.logger.warn(
+        `Instagram comment fetch skipped for media ${mediaId}: missing page access token — reconnect Instagram in Publisher Connect`,
+      );
+      return [];
+    }
 
     const res = await axios.get(`https://graph.facebook.com/v19.0/${mediaId}/comments`, {
       params: {

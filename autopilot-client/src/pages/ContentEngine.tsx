@@ -88,7 +88,7 @@ function ContentCard({
           <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => onPublish(item)}>
             <Send className="h-3 w-3 mr-1" /> Publish
           </Button>
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(item)} title="Edit">
+          {/* <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(item)} title="Edit">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
@@ -105,8 +105,8 @@ function ContentCard({
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-          </Button>
-          <Button
+          </Button> */}
+          {/* <Button
             type="button"
             size="icon"
             variant="ghost"
@@ -119,7 +119,7 @@ function ContentCard({
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
-          </Button>
+          </Button> */}
           <Button
             type="button"
             size="icon"

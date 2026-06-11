@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WhatsappMessages } from '../whatsapp/entities/whatsapp_messages.entity';
+import { WhatsappMessagingService } from '../whatsapp/whatsapp-messaging.service';
 import { SocialMessages } from './entities/social_messages.entity';
 import { CommentRepliesInboxService } from '../comment_replies/comment-replies-inbox.service';
 
@@ -46,6 +47,7 @@ export class UnifiedInboxService {
     @InjectRepository(SocialMessages)
     private readonly socialRepo: Repository<SocialMessages>,
     private readonly commentInbox: CommentRepliesInboxService,
+    private readonly waMessaging: WhatsappMessagingService,
   ) {}
 
   async listConversations(
@@ -93,7 +95,7 @@ export class UnifiedInboxService {
       return [];
     }
     if (conversationId.startsWith('wa:')) {
-      const phone = conversationId.slice(3);
+      const phone = this.waMessaging.normalizePhone(conversationId.slice(3));
       const rows = await this.waRepo.find({
         where: { tenantId, phone },
         order: { created_at: 'ASC' },

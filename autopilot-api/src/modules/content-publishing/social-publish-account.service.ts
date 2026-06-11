@@ -37,17 +37,22 @@ export class SocialPublishAccountService {
 
     if (!account) return null;
 
-    account = await this.socialAccounts.refreshAccessTokenIfNeeded(account);
+    return this.prepareAccount(account);
+  }
 
-    if (platform === 'linkedin' && account.refreshToken) {
-      account = await this.socialAccounts.forceRefreshToken(account);
+  /** Refresh OAuth / Meta page tokens on an existing connected account. */
+  async prepareAccount(account: SocialAccounts): Promise<SocialAccounts> {
+    let prepared = await this.socialAccounts.refreshAccessTokenIfNeeded(account);
+
+    if (prepared.platform === 'linkedin' && prepared.refreshToken) {
+      prepared = await this.socialAccounts.forceRefreshToken(prepared);
     }
 
-    if (platform === 'facebook' || platform === 'instagram') {
-      account = await this.refreshMetaPageTokens(account);
+    if (prepared.platform === 'facebook' || prepared.platform === 'instagram') {
+      prepared = await this.refreshMetaPageTokens(prepared);
     }
 
-    return account;
+    return prepared;
   }
 
   async markDisconnectedOnAuthError(

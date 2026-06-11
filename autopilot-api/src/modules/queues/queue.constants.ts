@@ -6,6 +6,7 @@ export const QUEUE_EMAIL = 'email';
 
 export const JOB_PUBLISH_CONTENT = 'publish-content';
 export const JOB_AUTO_PUBLISH_SCAN = 'auto-publish-scan';
+export const JOB_AUTO_PUBLISH_TENANT = 'auto-publish-tenant';
 export const JOB_SYNC_TENANT_COMMENTS = 'sync-tenant-comments';
 export const JOB_SYNC_ALL_COMMENTS = 'sync-all-comments';
 export const JOB_WHATSAPP_INBOUND = 'whatsapp-inbound';
@@ -30,7 +31,12 @@ export type AiTaskType =
   | 'daily-workflow'
   | 'suggest-comment-reply';
 
+export type AutoPublishTenantJobData = {
+  tenantId: string;
+};
+
 export type PublishContentJobData = {
+  tenantId: string;
   contentId: string;
   userId: string;
   platforms?: string[];
@@ -71,5 +77,14 @@ export type SendEmailJobData = {
 export type AiTaskJobData = {
   type: AiTaskType;
   userId: string;
+  tenantId?: string;
   payload: Record<string, unknown>;
+};
+
+export type SendNotificationEmailJobData = {
+  userId: string;
+  tenantId: string;
+  subject: string;
+  body: string;
+  notificationId?: string;
 };

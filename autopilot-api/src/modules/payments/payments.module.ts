@@ -6,12 +6,14 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TenantMembersModule } from '../tenant_members/tenant_members.module';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Deposits, Tenants]),
     SubscriptionsModule,
     TenantMembersModule,
+    NotificationsModule,
   ],
   providers: [PaymentsService],
   controllers: [PaymentsController],

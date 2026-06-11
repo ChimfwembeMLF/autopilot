@@ -128,13 +128,8 @@ const Scheduler = () => {
   const handleRetry = async (id: string) => {
     setRetrying(id);
     try {
-      const { data, error } = await invokeEdgeFunction("publish-content", {
-        body: { contentId: id },
-      });
-      if (error) throw error;
-      const result = data as { error?: string; message?: string } | null;
-      if (result?.error) throw new Error(result.error);
-      toast({ title: "Published!", description: result?.message || "Content published." });
+      const { submitPublish } = await import('@/lib/publishContent');
+      await submitPublish(id, undefined, undefined, (t) => toast(t));
       loadPosts();
     } catch (err: any) {
       toast({ title: "Retry failed", description: err.message, variant: "destructive" });
@@ -181,13 +176,8 @@ const Scheduler = () => {
   const handlePublish = async (id: string) => {
     setPublishing(id);
     try {
-      const { data, error } = await invokeEdgeFunction("publish-content", {
-        body: { contentId: id },
-      });
-      if (error) throw error;
-      const result = data as { error?: string; message?: string } | null;
-      if (result?.error) throw new Error(result.error);
-      toast({ title: "Published!", description: result?.message || "Content published." });
+      const { submitPublish } = await import('@/lib/publishContent');
+      await submitPublish(id, undefined, undefined, (t) => toast(t));
       loadPosts();
     } catch (err: any) {
       toast({ title: "Publish failed", description: err.message, variant: "destructive" });

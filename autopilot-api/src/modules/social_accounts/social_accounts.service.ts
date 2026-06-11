@@ -187,6 +187,10 @@ export class SocialAccountsService {
         return account.refreshToken
           ? this.refreshGoogleToken(account.refreshToken)
           : undefined;
+      case 'tiktok':
+        return account.refreshToken
+          ? this.refreshTikTokToken(account.refreshToken)
+          : undefined;
       default:
         return undefined;
     }
@@ -301,6 +305,15 @@ export class SocialAccountsService {
       expiresAt: refreshed.expiry_date
         ? new Date(refreshed.expiry_date)
         : undefined,
+    };
+  }
+
+  private async refreshTikTokToken(refreshToken: string) {
+    const refreshed = await this.oauth.refreshTikTokAccessToken(refreshToken);
+    return {
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken ?? refreshToken,
+      expiresAt: refreshed.expiresAt,
     };
   }
 

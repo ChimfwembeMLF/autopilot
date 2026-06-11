@@ -72,8 +72,19 @@ export class SocialCommentAutoReplyService {
       comment.tenantId,
       comment.platform,
     );
+    if (!activeRules.length) {
+      this.logger.debug(
+        `Auto-reply skipped for ${comment.platform} comment ${comment.id}: no active rules (enable one on Replies → Rules)`,
+      );
+      return false;
+    }
     const rule = this.rules.matchKeywordRule(activeRules, comment.commentText);
-    if (!rule) return false;
+    if (!rule) {
+      this.logger.debug(
+        `Auto-reply skipped for ${comment.platform} comment ${comment.id}: no keyword match`,
+      );
+      return false;
+    }
 
     try {
       const replyText = await this.replyAi.buildReplyText(comment, rule, userId);
@@ -92,7 +103,8 @@ export class SocialCommentAutoReplyService {
       );
       return true;
     } catch (err) {
-      this.logger.warn(`Auto-reply failed for comment ${comment.id}`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Auto-reply failed for ${comment.platform} comment ${comment.id}: ${msg}`);
       return false;
     }
   }

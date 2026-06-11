@@ -4,13 +4,14 @@ export default function PrivacyPage() {
   return (
     <LegalLayout title="Privacy Policy">
       <p>
-        Tekrem Innvation Solutions Autopilot respects your privacy. This policy explains what we collect, why, and your choices.
+        Tekrem Innovation Solutions - Autopilot respects your privacy. This policy explains what we collect, why, and your choices.
       </p>
       <h2>Information we collect</h2>
       <ul>
         <li>Account details (email, name) when you register</li>
-        <li>Brand profile and content you create</li>
-        <li>Social account tokens when you connect Facebook, Instagram, or LinkedIn</li>
+        <li>Brand profile, content, and media you create</li>
+        <li>OAuth tokens when you connect Facebook, Instagram, LinkedIn, YouTube, TikTok, or WhatsApp</li>
+        <li>WhatsApp message content and phone numbers when you use inbox and auto-reply</li>
         <li>Usage data for AI features and billing</li>
       </ul>
       <h2>How we use data</h2>
@@ -21,7 +22,8 @@ export default function PrivacyPage() {
       </ul>
       <h2>Third parties</h2>
       <p>
-        We integrate with Meta, LinkedIn, Mistral AI, and payment providers. We do not sell personal data.
+        We integrate with Meta (Facebook, Instagram, WhatsApp), LinkedIn, Google (YouTube), TikTok,
+        Mistral AI, and payment providers. We do not sell personal data.
       </p>
       <h2>Deletion</h2>
       <p>

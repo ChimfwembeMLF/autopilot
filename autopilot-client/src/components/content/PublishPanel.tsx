@@ -15,7 +15,6 @@ import {
   resolveQueued,
 } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { invokeEdgeFunction } from '@/lib/edgeFunctions';
 import {
   buildPlatformPayloads,
   platformOf,
@@ -323,17 +322,13 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
       } as any);
 
       try {
-        await invokeEdgeFunction('publish-content', {
-          body: {
-            contentId: item.id,
-            platforms: selectedPlatforms,
-            platformPayloads: publishPayloads,
-          },
-        });
-        toast({
-          title: 'Published!',
-          description: `Sent to ${selectedPlatforms.map((p) => platformOf(p).label).join(', ')}.`,
-        });
+        const { submitPublish } = await import('@/lib/publishContent');
+        await submitPublish(
+          item.id,
+          selectedPlatforms,
+          publishPayloads,
+          (t) => toast(t),
+        );
       } catch (err: unknown) {
         toast({
           title: 'Publish issue',

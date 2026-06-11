@@ -1,29 +1,53 @@
+import { formatDistanceToNow } from 'date-fns';
+import { MessageCircle, Share2, ThumbsUp } from 'lucide-react';
 import {
   platformOf,
   PlatformPayload,
   stripHtml,
   validatePlatformPayload,
 } from '@/lib/platforms';
-import { resolveMediaUrl } from '@/lib/mediaUrl';
 import { cn } from '@/lib/utils';
 import { AlertTriangle } from 'lucide-react';
+import {
+  platformMediaFirst,
+  renderPlatformPostMedia,
+} from './platformPostMedia';
+
+export type PlatformPreviewEngagement = {
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  views?: number;
+};
 
 interface PlatformPreviewProps {
   platform: string;
   payload: PlatformPayload;
   className?: string;
+  mode?: 'draft' | 'published';
+  authorName?: string;
+  publishedAt?: string | null;
+  engagement?: PlatformPreviewEngagement;
 }
 
-export function PlatformPreview({ platform, payload, className }: PlatformPreviewProps) {
+export function PlatformPreview({
+  platform,
+  payload,
+  className,
+  mode = 'draft',
+  authorName,
+  publishedAt,
+  engagement,
+}: PlatformPreviewProps) {
   const def = platformOf(platform);
   const Icon = def.icon;
   const text = stripHtml(payload.content);
   const media = payload.media ?? [];
   const validation = validatePlatformPayload(platform, payload);
-  const images = media.filter((m) => m.type === 'image');
-  const videos = media.filter((m) => m.type === 'video');
+  const isPublished = mode === 'published';
+  const displayName = authorName ?? 'Tekrem Innvation Solutions';
 
-  const charFooter = (
+  const charFooter = !isPublished && (
     <div
       className={cn(
         'px-4 pb-3 text-[10px]',
@@ -36,7 +60,74 @@ export function PlatformPreview({ platform, payload, className }: PlatformPrevie
     </div>
   );
 
+  const engagementBar = isPublished && engagement && (
+    <div className="px-4 py-2.5 border-t flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+      {(engagement.likes ?? 0) > 0 && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-white">
+            <ThumbsUp className="h-2.5 w-2.5" />
+          </span>
+          {engagement.likes!.toLocaleString()}
+        </span>
+      )}
+      {(engagement.comments ?? 0) > 0 && (
+        <span className="inline-flex items-center gap-1">
+          <MessageCircle className="h-3.5 w-3.5" />
+          {engagement.comments!.toLocaleString()}
+        </span>
+      )}
+      {(engagement.shares ?? 0) > 0 && (
+        <span className="inline-flex items-center gap-1">
+          <Share2 className="h-3.5 w-3.5" />
+          {engagement.shares!.toLocaleString()}
+        </span>
+      )}
+      {(engagement.views ?? 0) > 0 && (
+        <span>{engagement.views!.toLocaleString()} views</span>
+      )}
+    </div>
+  );
+
+  const header = (
+    <div className="px-4 py-3 flex items-center gap-2.5 border-b bg-muted/20">
+      <div
+        className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 ring-2 ring-background"
+        style={{ backgroundColor: `${def.color}18` }}
+      >
+        <Icon className="h-5 w-5" style={{ color: def.color }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold leading-tight truncate">{displayName}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {def.label}
+          {publishedAt
+            ? ` · ${formatDistanceToNow(new Date(publishedAt), { addSuffix: true })}`
+            : isPublished
+              ? ''
+              : ` · ${def.media.aspectRatio}`}
+        </p>
+      </div>
+    </div>
+  );
+
+  const titleBlock =
+    payload.title && platform === 'linkedin' ? (
+      <p className="text-sm font-semibold leading-snug mb-1.5">{payload.title}</p>
+    ) : null;
+
+  const contentBlock = (
+    <div className="px-4 py-3">
+      {titleBlock}
+      <p className="text-sm whitespace-pre-wrap leading-relaxed">
+        {text || (isPublished ? '' : 'Your post content will appear here…')}
+      </p>
+    </div>
+  );
+
+  const mediaBlock = renderPlatformPostMedia(platform, media, { mode });
+
   if (def.previewType === 'email') {
+    const images = media.filter((m) => m.type === 'image');
     return (
       <div className={cn('rounded-xl border bg-card overflow-hidden', className)}>
         <div className="px-4 py-3 border-b bg-muted/40 flex items-center gap-2">
@@ -45,18 +136,7 @@ export function PlatformPreview({ platform, payload, className }: PlatformPrevie
         </div>
         <div className="p-4 space-y-3 text-sm">
           <p className="font-semibold">{payload.title || 'Subject line'}</p>
-          {images.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {images.map((m, i) => (
-                <img
-                  key={i}
-                  src={resolveMediaUrl(m.url)}
-                  alt=""
-                  className="max-h-32 rounded border object-cover"
-                />
-              ))}
-            </div>
-          )}
+          {images.length > 0 && mediaBlock}
           <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{text}</p>
         </div>
         {charFooter}
@@ -65,6 +145,8 @@ export function PlatformPreview({ platform, payload, className }: PlatformPrevie
   }
 
   if (def.previewType === 'ad') {
+    const images = media.filter((m) => m.type === 'image');
+    const videos = media.filter((m) => m.type === 'video');
     return (
       <div className={cn('rounded-xl border bg-card overflow-hidden', className)}>
         <div className="px-4 py-2 border-b bg-amber-500/10 flex items-center gap-2">
@@ -72,19 +154,7 @@ export function PlatformPreview({ platform, payload, className }: PlatformPrevie
           <span className="text-xs font-medium">Ad preview · {def.media.recommendedImageSize}</span>
         </div>
         <div className="p-4">
-          {(images[0] || videos[0]) && (
-            images[0] ? (
-              <img
-                src={resolveMediaUrl(images[0].url)}
-                alt=""
-                className="w-full aspect-[1.91/1] object-cover rounded-lg mb-3 border"
-              />
-            ) : (
-              <div className="w-full aspect-[1.91/1] rounded-lg mb-3 border bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                Video creative
-              </div>
-            )
-          )}
+          {(images[0] || videos[0]) && mediaBlock}
           <p className="font-semibold text-sm">{payload.title}</p>
           <p className="text-sm text-muted-foreground mt-1">{text}</p>
           <span className="inline-block mt-3 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground">
@@ -96,104 +166,24 @@ export function PlatformPreview({ platform, payload, className }: PlatformPrevie
     );
   }
 
-  // Social — platform-specific media layout
-  const renderMedia = () => {
-    if (videos.length > 0 && platform === 'tiktok') {
-      return (
-        <div className="aspect-[9/16] max-h-72 bg-black flex items-center justify-center border-y">
-          <span className="text-xs text-white/70">9:16 video preview</span>
-        </div>
-      );
-    }
-
-    if (videos.length === 1 && images.length === 0) {
-      return (
-        <div className="aspect-video max-h-48 bg-muted flex items-center justify-center border-y text-xs text-muted-foreground">
-          Video · max {def.media.maxVideoDurationSec}s
-        </div>
-      );
-    }
-
-    if (images.length === 0) return null;
-
-    if (platform === 'instagram' && images.length > 1) {
-      return (
-        <div className="grid grid-cols-2 gap-0.5 border-y">
-          {images.slice(0, 4).map((m, i) => (
-            <img
-              key={i}
-              src={resolveMediaUrl(m.url)}
-              alt=""
-              className={cn(
-                'w-full object-cover',
-                images.length === 1 ? 'aspect-square max-h-56' : 'aspect-square h-28',
-                i === 0 && images.length === 3 ? 'row-span-2 h-full' : '',
-              )}
-            />
-          ))}
-        </div>
-      );
-    }
-
-    if (platform === 'twitter' && images.length > 1) {
-      return (
-        <div
-          className={cn(
-            'grid gap-0.5 border-y',
-            images.length === 2 ? 'grid-cols-2' : 'grid-cols-2',
-          )}
-        >
-          {images.slice(0, 4).map((m, i) => (
-            <img
-              key={i}
-              src={resolveMediaUrl(m.url)}
-              alt=""
-              className={cn(
-                'w-full object-cover',
-                images.length === 1 ? 'max-h-48' : 'h-24',
-                images.length === 3 && i === 0 ? 'row-span-2 h-full' : '',
-              )}
-            />
-          ))}
-        </div>
-      );
-    }
-
-    return (
-      <img
-        src={resolveMediaUrl(images[0].url)}
-        alt=""
-        className={cn(
-          'w-full object-cover border-y',
-          platform === 'linkedin' ? 'max-h-52 aspect-[1.91/1]' : 'max-h-48',
-        )}
-      />
-    );
-  };
+  const mediaFirst = platformMediaFirst(platform);
 
   return (
-    <div className={cn('rounded-xl border bg-card overflow-hidden w-full', className)}>
-      <div className="px-4 py-3 flex items-center gap-2 border-b">
-        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-          <Icon className="h-4 w-4" style={{ color: def.color }} />
-        </div>
-        <div>
-          <p className="text-sm font-semibold leading-none">Tekrem Innvation Solutions</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            {def.label} · {def.media.aspectRatio}
-          </p>
-        </div>
-      </div>
+    <div className={cn('rounded-xl border bg-card overflow-hidden w-full shadow-sm', className)}>
+      {header}
+      {mediaFirst ? (
+        <>
+          {mediaBlock}
+          {contentBlock}
+        </>
+      ) : (
+        <>
+          {contentBlock}
+          {mediaBlock}
+        </>
+      )}
 
-      {renderMedia()}
-
-      <div className="p-4">
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {text || 'Your post content will appear here…'}
-        </p>
-      </div>
-
-      {validation.errors.length > 0 && (
+      {!isPublished && validation.errors.length > 0 && (
         <div className="px-4 pb-2 space-y-0.5">
           {validation.errors.slice(0, 2).map((e) => (
             <p key={e} className="text-[10px] text-destructive flex items-center gap-1">
@@ -204,6 +194,7 @@ export function PlatformPreview({ platform, payload, className }: PlatformPrevie
         </div>
       )}
 
+      {engagementBar}
       {charFooter}
     </div>
   );

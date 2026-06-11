@@ -43,7 +43,12 @@ export class SocialDmAutoReplyService {
     const replyText = await this.buildReplyText(params.tenantId, rule, params.inboundText);
     if (!replyText?.trim()) return false;
 
-    const sent = await this.sendDm(params.account, params.participantId, replyText.trim());
+    const sent = await this.sendDm(
+      params.account,
+      params.participantId,
+      replyText.trim(),
+      params.platform,
+    );
     if (!sent) return false;
 
     await this.messagesRepo.save(
@@ -69,12 +74,20 @@ export class SocialDmAutoReplyService {
     account: SocialAccounts,
     recipientId: string,
     message: string,
+    platform: string,
   ): Promise<boolean> {
     const token = account.metadata?.page_token ?? account.accessToken;
-    if (!token) return false;
+    if (!token?.trim()) {
+      this.logger.warn(`DM auto-reply skipped: missing page token for ${platform}`);
+      return false;
+    }
+    const pageId = account.metadata?.page_id;
+    const endpoint = pageId
+      ? `https://graph.facebook.com/v20.0/${pageId}/messages`
+      : 'https://graph.facebook.com/v20.0/me/messages';
     try {
       await axios.post(
-        'https://graph.facebook.com/v19.0/me/messages',
+        endpoint,
         {
           recipient: { id: recipientId },
           message: { text: message },
@@ -83,7 +96,8 @@ export class SocialDmAutoReplyService {
       );
       return true;
     } catch (err) {
-      this.logger.warn('DM send failed', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`DM auto-reply send failed (${platform}): ${msg}`);
       return false;
     }
   }

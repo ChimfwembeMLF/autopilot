@@ -1,11 +1,15 @@
 import {
   Body,
   Controller,
+  NotFoundException,
   Param,
   Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ContentItems } from './entities/content_items.entity';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -44,6 +48,8 @@ export class ContentAiController {
     private readonly autoPublishService: AutoPublishService,
     private readonly dailyWorkflowService: DailyContentWorkflowService,
     private readonly queueDispatch: QueueDispatchService,
+    @InjectRepository(ContentItems)
+    private readonly contentRepo: Repository<ContentItems>,
   ) {}
 
   @Post('generate')
@@ -179,12 +185,16 @@ export class ContentAiController {
   }
 
   @Post(':contentId/publish')
-  publish(
+  async publish(
     @Req() req: { user: JwtUser },
     @Param('contentId') contentId: string,
     @Body() dto: PublishContentDto,
   ) {
+    const item = await this.contentRepo.findOne({ where: { id: contentId } });
+    if (!item) throw new NotFoundException('Content item not found');
+
     const data = {
+      tenantId: item.tenantId,
       contentId,
       userId: String(req.user.sub),
       platforms: dto.platforms,
@@ -193,11 +203,13 @@ export class ContentAiController {
         | undefined,
     };
     if (this.queueDispatch.isEnabled()) {
-      return this.queueDispatch.enqueuePublish(data).then(({ jobId, queue }) => ({
+      const { jobId, queue } = await this.queueDispatch.enqueuePublish(data);
+      return {
         queued: true,
         jobId,
         queue,
-      }));
+        message: 'Added to publish queue',
+      };
     }
     return this.publishContent.publish(data);
   }

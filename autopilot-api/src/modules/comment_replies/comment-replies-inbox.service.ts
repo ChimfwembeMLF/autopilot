@@ -212,6 +212,22 @@ function buildCommentTree(rows: CommentReplies[]): CommentInboxNode[] {
     for (const n of list) sortNodes(n.children);
   };
   sortNodes(roots);
+  dedupeSyncedBrandReplies(roots);
 
   return roots;
+}
+
+/** Drop brand child rows that duplicate the parent's stored replyText */
+function dedupeSyncedBrandReplies(nodes: CommentInboxNode[]): void {
+  for (const node of nodes) {
+    const parentReply = node.replyText?.trim();
+    if (parentReply) {
+      node.children = node.children.filter((child) => {
+        if (!child.isFromBrand) return true;
+        const childBody = (child.replyText ?? child.commentText ?? '').trim();
+        return childBody !== parentReply;
+      });
+    }
+    dedupeSyncedBrandReplies(node.children);
+  }
 }

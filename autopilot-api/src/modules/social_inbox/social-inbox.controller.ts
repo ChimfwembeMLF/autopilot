@@ -57,6 +57,9 @@ export class SocialInboxController {
       tenantId: string;
       conversationId: string;
       message: string;
+      useTemplate?: boolean;
+      templateName?: string;
+      templateLanguage?: string;
     },
   ) {
     return this.dmReply.sendReply({
@@ -64,6 +67,9 @@ export class SocialInboxController {
       userId: String(req.user.sub),
       conversationId: body.conversationId,
       message: body.message,
+      useTemplate: body.useTemplate,
+      templateName: body.templateName,
+      templateLanguage: body.templateLanguage,
     });
   }
 }

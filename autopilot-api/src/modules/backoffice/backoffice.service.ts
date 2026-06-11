@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { resolveLegalUrls } from '../legal/legal-urls.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenants } from '../tenants/entities/tenants.entity';
@@ -18,6 +20,7 @@ import { DataDeletionRequests } from '../legal/entities/data_deletion_requests.e
 @Injectable()
 export class BackofficeService {
   constructor(
+    private readonly config: ConfigService,
     @InjectRepository(Tenants) private readonly tenantsRepo: Repository<Tenants>,
     @InjectRepository(UserEntity) private readonly usersRepo: Repository<UserEntity>,
     @InjectRepository(Deposits) private readonly depositsRepo: Repository<Deposits>,
@@ -111,11 +114,7 @@ export class BackofficeService {
         region: 'Zambia · Southern Africa',
         supportEmail: process.env.SUPPORT_EMAIL ?? 'support@agriwide.co',
         website: process.env.COMPANY_WEBSITE ?? 'https://agriwide.co',
-        legal: {
-          privacy: '/privacy',
-          terms: '/terms',
-          dataDeletion: '/data-deletion',
-        },
+        legal: resolveLegalUrls(this.config),
       },
       stats: {
         tenants: tenantCount,

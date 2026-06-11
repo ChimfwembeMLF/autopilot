@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContentItems } from '../entities/content_items.entity';
@@ -10,9 +10,11 @@ import { LinkedInPublishingService } from '../../content-publishing/linkedin-pub
 import { TwitterPublishingService } from '../../content-publishing/twitter-publishing.service';
 import { WhatsappPublishingService } from '../../whatsapp/whatsapp-publishing.service';
 import { YoutubePublishingService } from '../../content-publishing/youtube-publishing.service';
+import { TiktokPublishingService } from '../../content-publishing/tiktok-publishing.service';
 import { ContentToPublish, MediaAttachment } from '../../content-publishing/interfaces/publish-result.interface';
 import { SupabaseStorageService } from '../../media/supabase-storage.service';
 import { ContentPublicationsService } from '../../content_publications/content-publications.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 type PlatformPayloadStored = {
   content?: string;
@@ -40,6 +42,8 @@ export class PublishContentService {
     private readonly twitter: TwitterPublishingService,
     private readonly whatsapp: WhatsappPublishingService,
     private readonly youtube: YoutubePublishingService,
+    private readonly tiktok: TiktokPublishingService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async publish(params: {
@@ -161,6 +165,17 @@ export class PublishContentService {
         publishFailedReason: undefined,
         externalPostId: primaryExternalId,
       } as Partial<ContentItems>);
+
+      const publishedPlatforms = Object.entries(results)
+        .filter(([, r]) => r.published)
+        .map(([p]) => p);
+      void this.notifications?.notifyPublishSuccess({
+        tenantId: item.tenantId,
+        userId: params.userId,
+        contentId: item.id,
+        title: item.title,
+        platforms: publishedPlatforms,
+      });
     } else {
       const reasons = Object.entries(results)
         .map(([p, r]) => `${p}: ${r.message}`)
@@ -168,6 +183,14 @@ export class PublishContentService {
       await this.contentRepo.update(item.id, {
         publishFailedReason: reasons,
       } as Partial<ContentItems>);
+
+      void this.notifications?.notifyPublishFailed({
+        tenantId: item.tenantId,
+        userId: params.userId,
+        contentId: item.id,
+        title: item.title,
+        reason: reasons,
+      });
     }
 
     return { published: anyPublished, results };
@@ -234,6 +257,8 @@ export class PublishContentService {
         });
       case 'youtube':
         return this.youtube.publishPost(content, media);
+      case 'tiktok':
+        return this.tiktok.publishPost(content, media);
       default:
         return { published: false, message: `Unsupported platform: ${platform}` };
     }

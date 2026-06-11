@@ -22,10 +22,15 @@ import { ContentPublishingModule } from '../content-publishing/content-publishin
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
+import { ContentPublications } from '../content_publications/entities/content_publications.entity';
+import { ContentItems } from '../content_items/entities/content_items.entity';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { TenantQueueFanoutService } from './tenant-queue-fanout.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, Profiles]),
+    TypeOrmModule.forFeature([UserEntity, Profiles, ContentPublications, ContentItems]),
+    SubscriptionsModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -67,6 +72,7 @@ import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
   controllers: [QueueJobsController],
   providers: [
     QueueDispatchService,
+    TenantQueueFanoutService,
     SuperAdminGuard,
     ContentPublishProcessor,
     CommentsProcessor,
@@ -74,6 +80,6 @@ import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
     EmailProcessor,
     AiProcessor,
   ],
-  exports: [QueueDispatchService, BullModule],
+  exports: [QueueDispatchService, TenantQueueFanoutService, BullModule],
 })
 export class QueuesModule {}

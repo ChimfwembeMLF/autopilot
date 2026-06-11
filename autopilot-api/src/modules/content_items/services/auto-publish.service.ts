@@ -17,6 +17,38 @@ export class AutoPublishService {
     @Optional() private readonly queueDispatch?: QueueDispatchService,
   ) {}
 
+  /** Enqueue publish jobs for due approved content in one tenant. */
+  async queueDueItemsForTenant(tenantId: string): Promise<{
+    queued: number;
+    jobs: Array<{ jobId: string | number | undefined; queue: string; contentId: string }>;
+  }> {
+    const due = (await this.findDueItems()).filter((item) => item.tenantId === tenantId);
+    const jobs: Array<{ jobId: string | number | undefined; queue: string; contentId: string }> = [];
+
+    for (const item of due) {
+      if (!this.queueDispatch?.isEnabled()) {
+        await this.publishContent.publish({
+          contentId: item.id,
+          userId: item.userId,
+          platforms: item.platforms,
+        });
+        jobs.push({ jobId: undefined, queue: 'sync', contentId: item.id });
+        continue;
+      }
+
+      const { jobId, queue } = await this.queueDispatch.enqueuePublish({
+        tenantId: item.tenantId,
+        contentId: item.id,
+        userId: item.userId,
+        platforms: item.platforms,
+      });
+      jobs.push({ jobId, queue, contentId: item.id });
+      this.logger.log(`Queued auto-publish for ${item.id} (tenant ${tenantId}) → job ${jobId}`);
+    }
+
+    return { queued: jobs.length, jobs };
+  }
+
   /** Enqueue publish jobs for all due approved content (used by queue worker). */
   async queueDueItems(): Promise<{
     queued: number;
@@ -37,6 +69,7 @@ export class AutoPublishService {
       }
 
       const { jobId, queue } = await this.queueDispatch.enqueuePublish({
+        tenantId: item.tenantId,
         contentId: item.id,
         userId: item.userId,
         platforms: item.platforms,

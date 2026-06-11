@@ -6,12 +6,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
+import { createHash, randomBytes } from 'crypto';
 import { google } from 'googleapis';
 import {
   FACEBOOK_PUBLISHER_SCOPES,
   GOOGLE_PUBLISHER_SCOPES,
   INSTAGRAM_PUBLISHER_SCOPES,
   LINKEDIN_PUBLISHER_SCOPES,
+  TIKTOK_PUBLISHER_SCOPES,
   WHATSAPP_PUBLISHER_SCOPES,
   YOUTUBE_PUBLISHER_SCOPES,
   scopesToParam,
@@ -24,7 +26,8 @@ export type SocialOAuthPlatform =
   | 'instagram'
   | 'google'
   | 'youtube'
-  | 'whatsapp';
+  | 'whatsapp'
+  | 'tiktok';
 
 export interface WhatsAppPhoneOption {
   id: string;
@@ -104,6 +107,8 @@ export interface OAuthConnectState {
   returnUrl?: string;
   provider: SocialOAuthPlatform;
   redirectUri: string;
+  /** TikTok OAuth 2.0 PKCE code verifier (stored in state until callback). */
+  codeVerifier?: string;
 }
 
 export interface OAuthConnectResult {
@@ -162,10 +167,16 @@ export class SocialAccountsOAuthService {
     return `${base}/api/v1/social-accounts/oauth/${platform}/callback`;
   }
 
+  attachTikTokPkce(state: OAuthConnectState): OAuthConnectState {
+    const codeVerifier = randomBytes(48).toString('base64url').slice(0, 64);
+    return { ...state, codeVerifier };
+  }
+
   getAuthorizeUrl(
     platform: SocialOAuthPlatform,
     state: string,
     redirectUri: string,
+    codeVerifier?: string,
   ): string {
     switch (platform) {
       case 'facebook':
@@ -180,6 +191,11 @@ export class SocialAccountsOAuthService {
         return this.youtubeAuthorizeUrl(state, redirectUri);
       case 'whatsapp':
         return this.whatsappAuthorizeUrl(state, redirectUri);
+      case 'tiktok':
+        if (!codeVerifier) {
+          throw new BadRequestException('TikTok OAuth requires PKCE code_verifier');
+        }
+        return this.tiktokAuthorizeUrl(state, redirectUri, codeVerifier);
       default:
         throw new BadRequestException(`Unsupported platform: ${platform}`);
     }
@@ -189,6 +205,7 @@ export class SocialAccountsOAuthService {
     platform: SocialOAuthPlatform,
     code: string,
     redirectUri: string,
+    options?: { codeVerifier?: string },
   ): Promise<OAuthConnectResult> {
     switch (platform) {
       case 'facebook':
@@ -203,6 +220,8 @@ export class SocialAccountsOAuthService {
         throw new BadRequestException('YouTube uses a separate finalize flow after channel selection');
       case 'whatsapp':
         throw new BadRequestException('WhatsApp uses a separate finalize flow after phone selection');
+      case 'tiktok':
+        return this.handleTikTokCallback(code, redirectUri, options?.codeVerifier);
       default:
         throw new BadRequestException(`Unsupported platform: ${platform}`);
     }
@@ -911,4 +930,171 @@ export class SocialAccountsOAuthService {
     });
     return data.data ?? [];
   }
+
+  private tiktokAuthorizeUrl(state: string, redirectUri: string, codeVerifier: string): string {
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+    const params = new URLSearchParams({
+      client_key: this.config.getOrThrow<string>('TIKTOK_CLIENT_KEY'),
+      redirect_uri: redirectUri,
+      scope: scopesToParam(TIKTOK_PUBLISHER_SCOPES),
+      response_type: 'code',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+    return `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`;
+  }
+
+  private async handleTikTokCallback(
+    code: string,
+    redirectUri: string,
+    codeVerifier?: string,
+  ): Promise<OAuthConnectResult> {
+    const tokens = await this.exchangeTikTokAuthorizationCode(code, redirectUri, codeVerifier);
+    const profile = await this.fetchTikTokUserProfile(tokens.accessToken);
+
+    const displayName =
+      profile.display_name?.trim() ||
+      profile.username?.trim() ||
+      'TikTok Account';
+
+    return {
+      platform: 'tiktok',
+      accountName: displayName,
+      externalId: tokens.openId || profile.open_id,
+      username: profile.username,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresAt: tokens.expiresAt,
+      metadata: {
+        open_id: tokens.openId || profile.open_id,
+        union_id: profile.union_id,
+        avatar_url: profile.avatar_url,
+        username: profile.username,
+        scope: tokens.scope,
+        refresh_expires_at: tokens.refreshExpiresAt?.toISOString(),
+      },
+    };
+  }
+
+  async refreshTikTokAccessToken(refreshToken: string): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: Date;
+    refreshExpiresAt?: Date;
+  }> {
+    const body = new URLSearchParams({
+      client_key: this.config.getOrThrow<string>('TIKTOK_CLIENT_KEY'),
+      client_secret: this.config.getOrThrow<string>('TIKTOK_CLIENT_SECRET'),
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    });
+
+    const { data } = await axios.post<TikTokTokenEnvelope>(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      body.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+
+    const tokenData = this.parseTikTokTokenResponse(data);
+    return tokenData;
+  }
+
+  private async exchangeTikTokAuthorizationCode(
+    code: string,
+    redirectUri: string,
+    codeVerifier?: string,
+  ) {
+    const body = new URLSearchParams({
+      client_key: this.config.getOrThrow<string>('TIKTOK_CLIENT_KEY'),
+      client_secret: this.config.getOrThrow<string>('TIKTOK_CLIENT_SECRET'),
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    });
+    if (codeVerifier) {
+      body.set('code_verifier', codeVerifier);
+    }
+
+    const { data } = await axios.post<TikTokTokenEnvelope>(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      body.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+
+    return this.parseTikTokTokenResponse(data);
+  }
+
+  private parseTikTokTokenResponse(body: TikTokTokenEnvelope) {
+    if (typeof body.error === 'string') {
+      throw new BadRequestException(
+        body.error_description || body.error || 'TikTok token exchange failed',
+      );
+    }
+    if (body.error?.code && body.error.code !== 'ok') {
+      throw new BadRequestException(
+        body.error.message || `TikTok token error: ${body.error.code}`,
+      );
+    }
+
+    const token = body.access_token ? body : body.data;
+    if (!token?.access_token) {
+      throw new BadRequestException('TikTok token exchange failed');
+    }
+
+    return {
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      openId: token.open_id,
+      scope: token.scope,
+      expiresAt: token.expires_in
+        ? new Date(Date.now() + token.expires_in * 1000)
+        : undefined,
+      refreshExpiresAt: token.refresh_expires_in
+        ? new Date(Date.now() + token.refresh_expires_in * 1000)
+        : undefined,
+    };
+  }
+
+  private async fetchTikTokUserProfile(accessToken: string): Promise<{
+    open_id?: string;
+    union_id?: string;
+    avatar_url?: string;
+    display_name?: string;
+    username?: string;
+  }> {
+    const { data } = await axios.get<{
+      data?: { user?: Record<string, string> };
+      error?: { code?: string; message?: string };
+    }>('https://open.tiktokapis.com/v2/user/info/', {
+      params: { fields: 'open_id,union_id,avatar_url,display_name,username' },
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (data.error?.code && data.error.code !== 'ok') {
+      this.logger.warn(`TikTok user info failed: ${data.error.message ?? data.error.code}`);
+      return {};
+    }
+
+    return data.data?.user ?? {};
+  }
 }
+
+type TikTokTokenEnvelope = {
+  access_token?: string;
+  refresh_token?: string;
+  open_id?: string;
+  scope?: string;
+  expires_in?: number;
+  refresh_expires_in?: number;
+  error?: string | { code?: string; message?: string };
+  error_description?: string;
+  data?: {
+    access_token?: string;
+    refresh_token?: string;
+    open_id?: string;
+    scope?: string;
+    expires_in?: number;
+    refresh_expires_in?: number;
+  };
+};

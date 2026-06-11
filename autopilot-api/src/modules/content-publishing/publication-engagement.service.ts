@@ -6,6 +6,10 @@ import { google } from 'googleapis';
 import { ContentPublications } from '../content_publications/entities/content_publications.entity';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { YoutubePublishingService } from './youtube-publishing.service';
+import { SocialPublishAccountService } from './social-publish-account.service';
+import { summarizeAxiosError } from './publish-error.util';
+
+const GRAPH_API = 'https://graph.facebook.com/v20.0';
 
 export type EngagementMetrics = {
   likeCount: number;
@@ -30,6 +34,7 @@ export class PublicationEngagementService {
     @InjectRepository(SocialAccounts)
     private readonly socialRepo: Repository<SocialAccounts>,
     private readonly youtubePublish: YoutubePublishingService,
+    private readonly publishAccounts: SocialPublishAccountService,
   ) {}
 
   async syncForTenant(tenantId: string, userId: string): Promise<number> {
@@ -41,12 +46,13 @@ export class PublicationEngagementService {
     for (const pub of publications) {
       if (!pub.externalPostId) continue;
       try {
-        const account = pub.socialAccountId
-          ? await this.socialRepo.findOne({ where: { id: pub.socialAccountId } })
-          : await this.socialRepo.findOne({
-              where: { userId, platform: pub.platform, connected: true },
-            });
-        if (!account) continue;
+        const account = await this.resolveAccount(pub, tenantId, userId);
+        if (!account) {
+          this.logger.debug(
+            `Engagement sync skipped — no connected ${pub.platform} account for publication ${pub.id}`,
+          );
+          continue;
+        }
 
         const metrics = await this.fetchMetrics(pub.platform, pub.externalPostId, account);
         if (!metrics) continue;
@@ -61,10 +67,38 @@ export class PublicationEngagementService {
         });
         updated++;
       } catch (err) {
-        this.logger.warn(`Engagement sync failed for ${pub.platform} ${pub.externalPostId}`, err);
+        this.logger.warn(
+          `Engagement sync failed for ${pub.platform} ${pub.externalPostId}: ${summarizeAxiosError(err)}`,
+        );
       }
     }
     return updated;
+  }
+
+  private async resolveAccount(
+    pub: ContentPublications,
+    tenantId: string,
+    userId: string,
+  ): Promise<SocialAccounts | null> {
+    let account: SocialAccounts | null = null;
+
+    if (pub.socialAccountId) {
+      account = await this.socialRepo.findOne({ where: { id: pub.socialAccountId } });
+    }
+
+    if (!account) {
+      account =
+        (await this.socialRepo.findOne({
+          where: { tenantId, userId, platform: pub.platform, connected: true },
+        })) ??
+        (await this.socialRepo.findOne({
+          where: { tenantId, platform: pub.platform, connected: true },
+        }));
+    }
+
+    if (!account?.connected) return null;
+
+    return this.publishAccounts.prepareAccount(account);
   }
 
   private async fetchMetrics(
@@ -89,9 +123,16 @@ export class PublicationEngagementService {
   private async fetchFacebookMetrics(
     postId: string,
     account: SocialAccounts,
-  ): Promise<EngagementMetrics> {
-    const token = account.metadata?.page_token ?? account.accessToken;
-    const { data } = await axios.get(`https://graph.facebook.com/v19.0/${postId}`, {
+  ): Promise<EngagementMetrics | null> {
+    const token = this.publishAccounts.getFacebookPageToken(account);
+    if (!token?.trim()) {
+      this.logger.warn(
+        `Facebook engagement sync skipped for post ${postId}: missing page access token — reconnect Facebook in Publisher Connect`,
+      );
+      return null;
+    }
+
+    const { data } = await axios.get(`${GRAPH_API}/${postId}`, {
       params: {
         access_token: token,
         fields: 'likes.summary(true),comments.summary(true),shares',
@@ -108,10 +149,18 @@ export class PublicationEngagementService {
   private async fetchInstagramMetrics(
     mediaId: string,
     account: SocialAccounts,
-  ): Promise<EngagementMetrics> {
-    const { data } = await axios.get(`https://graph.facebook.com/v19.0/${mediaId}`, {
+  ): Promise<EngagementMetrics | null> {
+    const token = this.publishAccounts.getInstagramToken(account);
+    if (!token?.trim()) {
+      this.logger.warn(
+        `Instagram engagement sync skipped for media ${mediaId}: missing page access token — reconnect Instagram in Publisher Connect`,
+      );
+      return null;
+    }
+
+    const { data } = await axios.get(`${GRAPH_API}/${mediaId}`, {
       params: {
-        access_token: account.accessToken,
+        access_token: token,
         fields: 'like_count,comments_count',
       },
     });
@@ -146,12 +195,15 @@ export class PublicationEngagementService {
     postUrn: string,
     account: SocialAccounts,
   ): Promise<EngagementMetrics | null> {
+    const token = account.accessToken?.trim();
+    if (!token) return null;
+
     try {
       const { data } = await axios.get(
         `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(postUrn)}`,
         {
           headers: {
-            Authorization: `Bearer ${account.accessToken}`,
+            Authorization: `Bearer ${token}`,
             'X-Restli-Protocol-Version': '2.0.0',
           },
         },

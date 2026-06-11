@@ -8,6 +8,7 @@ import {
   Sparkles, ChevronRight, Activity,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -52,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: "Lead Agent", url: "/leads", icon: MessageSquare, description: "Qualify & reply to leads" },
       { title: "Replies", url: "/replies", icon: MessageSquareReply, description: "Auto-reply rules" },
       { title: "Analytics", url: "/analytics", icon: BarChart3, description: "Performance insights" },
+      { title: "Reports", url: "/reports", icon: ClipboardList, description: "On-demand insights" },
     ],
   },
   {
@@ -385,6 +387,7 @@ export function AppNavbar() {
               Create
             </Link>
           </Button>
+          <NotificationBell />
           <TenantSwitcher />
           <UserMenu />
         </div>

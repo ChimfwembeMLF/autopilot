@@ -86,6 +86,10 @@ export class WhatsappInboundService {
             attachments: parsed.mediaAttachment ? [parsed.mediaAttachment] : [],
           });
         }
+
+        for (const status of value.statuses ?? []) {
+          await this.processDeliveryStatus(status);
+        }
       }
     }
 
@@ -134,6 +138,36 @@ export class WhatsappInboundService {
     }
 
     return null;
+  }
+
+  private async processDeliveryStatus(status: {
+    id?: string;
+    status?: string;
+    recipient_id?: string;
+    errors?: Array<{ code?: number; title?: string; message?: string }>;
+  }) {
+    if (!status.id) return;
+
+    const row = await this.messagesRepo.findOne({ where: { waMessageId: status.id } });
+    if (!row) return;
+
+    const deliveryStatus = status.status?.toLowerCase();
+    if (deliveryStatus) {
+      row.status = deliveryStatus;
+    }
+
+    if (deliveryStatus === 'failed') {
+      const err = status.errors?.[0];
+      row.errorMessage =
+        err?.message ?? err?.title ?? `WhatsApp delivery failed (code ${err?.code ?? '?'})`;
+      this.logger.warn(
+        `WhatsApp delivery failed → ${row.phone}: ${row.errorMessage} (wamid ${status.id})`,
+      );
+    } else if (deliveryStatus === 'delivered' || deliveryStatus === 'read') {
+      row.errorMessage = undefined;
+    }
+
+    await this.messagesRepo.save(row);
   }
 
   private async processInbound(params: {

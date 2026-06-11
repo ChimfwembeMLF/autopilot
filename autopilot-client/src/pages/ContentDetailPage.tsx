@@ -22,7 +22,6 @@ import { PublishPanel } from '@/components/content/PublishPanel';
 import { ContentItem } from '@/components/content/types';
 import {
   commentRepliesApi,
-  contentAiApi,
   contentItemsApi,
   contentPublicationsApi,
   resolveQueued,
@@ -297,37 +296,20 @@ export default function ContentDetailPage() {
 
   const editorWorkspaceId = data?.item.workspaceId ?? activeWorkspace ?? null;
 
-  const publishResultsToast = (
-    results: Record<string, { published: boolean; message: string }>,
-    label: string,
-  ) => {
-    const lines = Object.entries(results).map(
-      ([p, r]) => `${platformOf(p).label}: ${r.published ? 'OK' : r.message}`,
-    );
-    const anyOk = Object.values(results).some((r) => r.published);
-    toast({
-      title: anyOk ? `${label} complete` : `${label} failed`,
-      description: lines.join('\n') || undefined,
-      variant: anyOk ? 'default' : 'destructive',
-    });
-  };
-
   const retryPlatforms = async (targetPlatforms: string[], all = false) => {
     if (!data?.item.id || targetPlatforms.length === 0) return;
     if (all) setRetryingAll(true);
     else setRetryingPlatform(targetPlatforms[0]);
 
     try {
-      const queued = await contentAiApi.publish(
+      const { submitPublish } = await import('@/lib/publishContent');
+      await submitPublish(
         data.item.id,
         targetPlatforms,
-        data.item.platformPayloads,
+        data.item.platformPayloads as Record<string, unknown> | undefined,
+        (t) => toast(t),
+        { waitInForeground: true },
       );
-      const result = (await resolveQueued(queued)) as {
-        published?: boolean;
-        results?: Record<string, { published: boolean; message: string }>;
-      };
-      publishResultsToast(result.results ?? {}, all ? 'Retry all' : 'Retry');
       await loadDetails();
     } catch (err: unknown) {
       toast({

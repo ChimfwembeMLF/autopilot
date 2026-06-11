@@ -66,8 +66,27 @@ export function formatGraphApiError(
 ): string {
   const msg = data?.error?.message ?? JSON.stringify(data);
   const code = data?.error?.code;
+  const subcode = data?.error?.error_subcode;
+
   if (code === 190) {
     return `${platform} token expired — reconnect in Publisher Connect. (${msg})`;
   }
+
+  if (
+    code === 368 ||
+    subcode === 1404078 ||
+    /confirm your identity|page publishing authorization|restricted from acting as your page/i.test(
+      msg,
+    )
+  ) {
+    return (
+      `${platform}: Meta requires identity confirmation before you can publish as this Page. ` +
+      'On your phone: open the Facebook app → finish any security prompts, then go to ' +
+      'Settings → Accounts Center → Personal details → Identity confirmation. ' +
+      'If you were just invited as a Page admin, accept the invite first, complete verification, ' +
+      'then disconnect and reconnect Facebook in Publisher Connect and select this Page again.'
+    );
+  }
+
   return `${platform}: ${msg}`;
 }

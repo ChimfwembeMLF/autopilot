@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
-import { socialAccountsApi, SocialAccount } from "@/lib/api";
+import { socialAccountsApi, notificationsApi, SocialAccount } from "@/lib/api";
 
 interface Profile {
   display_name: string | null;
@@ -43,6 +43,10 @@ const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [notifyHotLeads, setNotifyHotLeads] = useState(true);
   const [notifyPublished, setNotifyPublished] = useState(true);
+  const [notifyBilling, setNotifyBilling] = useState(true);
+  const [notifyWeekly, setNotifyWeekly] = useState(true);
+  const [inAppEnabled, setInAppEnabled] = useState(true);
+  const [prefsLoading, setPrefsLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -56,8 +60,45 @@ const SettingsPage = () => {
   useEffect(() => {
     if (tenant) {
       loadSocialAccounts();
+      loadNotificationPrefs();
     }
   }, [tenant]);
+
+  const loadNotificationPrefs = async () => {
+    if (!tenant) return;
+    setPrefsLoading(true);
+    try {
+      const prefs = await notificationsApi.getPreferences(tenant.id);
+      setNotifyHotLeads(prefs.emailHotLeads);
+      setNotifyPublished(prefs.emailPublishSuccess);
+      setNotifyBilling(prefs.emailBilling);
+      setNotifyWeekly(prefs.emailWeeklyDigest);
+      setInAppEnabled(prefs.inAppEnabled);
+    } catch {
+      /* keep defaults */
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
+  const saveNotificationPrefs = async (patch: Partial<{
+    emailHotLeads: boolean;
+    emailPublishSuccess: boolean;
+    emailBilling: boolean;
+    emailWeeklyDigest: boolean;
+    inAppEnabled: boolean;
+  }>) => {
+    if (!tenant) return;
+    try {
+      await notificationsApi.updatePreferences({ tenantId: tenant.id, ...patch });
+    } catch (err: unknown) {
+      toast({
+        title: "Could not save preferences",
+        description: err instanceof Error ? err.message : "Try again",
+        variant: "destructive",
+      });
+    }
+  };
 
   const loadSocialAccounts = async () => {
     if (!tenant) return;
@@ -167,23 +208,89 @@ const SettingsPage = () => {
         <TabsContent value="notifications" className="space-y-4 mt-4">
           <Card className="border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-display">Email Notifications</CardTitle>
+              <CardTitle className="text-base font-display">In-app notifications</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Bell notifications</p>
+                  <p className="text-xs text-muted-foreground">Show alerts in the navbar</p>
+                </div>
+                <Switch
+                  checked={inAppEnabled}
+                  disabled={prefsLoading}
+                  onCheckedChange={(v) => {
+                    setInAppEnabled(v);
+                    void saveNotificationPrefs({ inAppEnabled: v });
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-display">Email notifications</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-sm">🔥 Hot Lead Alerts</p>
-                  <p className="text-xs text-muted-foreground">Get notified when a high-intent lead comes in</p>
+                  <p className="font-medium text-sm">Hot lead alerts</p>
+                  <p className="text-xs text-muted-foreground">When AI classifies a lead as hot</p>
                 </div>
-                <Switch checked={notifyHotLeads} onCheckedChange={setNotifyHotLeads} />
+                <Switch
+                  checked={notifyHotLeads}
+                  disabled={prefsLoading}
+                  onCheckedChange={(v) => {
+                    setNotifyHotLeads(v);
+                    void saveNotificationPrefs({ emailHotLeads: v });
+                  }}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-sm">✅ Content Published</p>
-                  <p className="text-xs text-muted-foreground">Get notified when content is published to social accounts</p>
+                  <p className="font-medium text-sm">Content published</p>
+                  <p className="text-xs text-muted-foreground">After successful publish to social accounts</p>
                 </div>
-                <Switch checked={notifyPublished} onCheckedChange={setNotifyPublished} />
+                <Switch
+                  checked={notifyPublished}
+                  disabled={prefsLoading}
+                  onCheckedChange={(v) => {
+                    setNotifyPublished(v);
+                    void saveNotificationPrefs({ emailPublishSuccess: v });
+                  }}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Billing & subscription</p>
+                  <p className="text-xs text-muted-foreground">Payments and renewal reminders</p>
+                </div>
+                <Switch
+                  checked={notifyBilling}
+                  disabled={prefsLoading}
+                  onCheckedChange={(v) => {
+                    setNotifyBilling(v);
+                    void saveNotificationPrefs({ emailBilling: v });
+                  }}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Weekly content overview</p>
+                  <p className="text-xs text-muted-foreground">Monday digest of posts, engagement, and leads</p>
+                </div>
+                <Switch
+                  checked={notifyWeekly}
+                  disabled={prefsLoading}
+                  onCheckedChange={(v) => {
+                    setNotifyWeekly(v);
+                    void saveNotificationPrefs({ emailWeeklyDigest: v });
+                  }}
+                />
               </div>
             </CardContent>
           </Card>
@@ -191,7 +298,7 @@ const SettingsPage = () => {
           <Card className="border-border/50 bg-muted/30">
             <CardContent className="p-5">
               <p className="text-sm text-muted-foreground">
-                Notifications are sent to <strong>{user?.email}</strong>. Hot lead alerts trigger automatically when the AI classifies a new lead as "hot."
+                Email notifications go to <strong>{user?.email}</strong>. In-app alerts appear in the bell icon in the navbar.
               </p>
             </CardContent>
           </Card>

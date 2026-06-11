@@ -5,6 +5,7 @@ import { AutoPublishService } from '../content_items/services/auto-publish.servi
 import { DailyContentWorkflowService } from '../content_items/services/daily-content-workflow.service';
 import { PaymentsService } from '../payments/payments.service';
 import { QueueDispatchService } from '../queues/queue-dispatch.service';
+import { TenantQueueFanoutService } from '../queues/tenant-queue-fanout.service';
 import { FetchCommentsService } from '../content-publishing/social-comments.service';
 
 @Injectable()
@@ -13,24 +14,41 @@ export class CommentSyncCron {
 
   constructor(
     private readonly queueDispatch: QueueDispatchService,
+    private readonly fanout: TenantQueueFanoutService,
     private readonly fetchComments: FetchCommentsService,
     private readonly config: ConfigService,
   ) {}
 
-  /** Every 10 minutes — enqueue comment sync for all tenants. */
+  /** Every 10 minutes — one queue job per tenant (not one job for all tenants). */
   @Cron('0 */10 * * * *')
   async syncComments(): Promise<void> {
     if (this.config.get<string>('COMMENT_SYNC_CRON_ENABLED') === 'false') return;
     try {
+      const tenants = await this.fanout.listTenantsForCommentSync();
+      if (!tenants.length) return;
+
       if (this.queueDispatch.isEnabled()) {
-        const { jobId } = await this.queueDispatch.enqueueSyncAllComments();
-        this.logger.log(`Comment sync enqueued (job ${jobId})`);
+        const result = await this.queueDispatch.fanOutCommentSync(
+          tenants.map((t) => ({ tenantId: t.tenantId, userId: t.userId, runAutoReply: true })),
+        );
+        this.logger.log(`Comment sync enqueued for ${result.enqueued} tenant(s)`);
         return;
       }
-      const result = await this.fetchComments.fetchAllTenants();
-      if (result.fetched > 0 || result.autoReplied > 0) {
+
+      let fetched = 0;
+      let autoReplied = 0;
+      for (const t of tenants) {
+        const result = await this.fetchComments.fetchForTenant({
+          tenantId: t.tenantId,
+          userId: t.userId,
+          runAutoReply: true,
+        });
+        fetched += result.fetched;
+        autoReplied += result.autoReplied;
+      }
+      if (fetched > 0 || autoReplied > 0) {
         this.logger.log(
-          `Comment sync: ${result.fetched} new, ${result.autoReplied} auto-replied across ${result.tenants} tenant(s)`,
+          `Comment sync: ${fetched} new, ${autoReplied} auto-replied across ${tenants.length} tenant(s)`,
         );
       }
     } catch (err) {
@@ -46,6 +64,7 @@ export class AutoPublishCron {
   constructor(
     private readonly autoPublish: AutoPublishService,
     private readonly queueDispatch: QueueDispatchService,
+    private readonly fanout: TenantQueueFanoutService,
     private readonly config: ConfigService,
   ) {}
 
@@ -53,11 +72,15 @@ export class AutoPublishCron {
   async handleAutoPublish(): Promise<void> {
     if (this.config.get<string>('AUTO_PUBLISH_CRON_ENABLED') === 'false') return;
     try {
+      const tenantIds = await this.fanout.listTenantsForAutoPublish();
+      if (!tenantIds.length) return;
+
       if (this.queueDispatch.isEnabled()) {
-        const { jobId } = await this.queueDispatch.enqueueAutoPublishScan();
-        this.logger.log(`Auto-publish scan enqueued (job ${jobId})`);
+        const result = await this.queueDispatch.fanOutAutoPublishTenants(tenantIds);
+        this.logger.log(`Auto-publish enqueued for ${result.enqueued} tenant(s)`);
         return;
       }
+
       const result = await this.autoPublish.publishDueItems();
       if (result.attempted > 0) {
         this.logger.log(
@@ -77,6 +100,7 @@ export class DailyContentWorkflowCron {
   constructor(
     private readonly dailyWorkflow: DailyContentWorkflowService,
     private readonly queueDispatch: QueueDispatchService,
+    private readonly fanout: TenantQueueFanoutService,
     private readonly config: ConfigService,
   ) {}
 
@@ -84,18 +108,26 @@ export class DailyContentWorkflowCron {
   async handleDailyWorkflow(): Promise<void> {
     if (this.config.get<string>('DAILY_WORKFLOW_CRON_ENABLED') === 'false') return;
     try {
+      const tenantIds = await this.fanout.listTenantsForDailyWorkflow();
+      if (!tenantIds.length) return;
+
       if (this.queueDispatch.isEnabled()) {
-        const { jobId } = await this.queueDispatch.enqueueAiTask({
-          type: 'daily-workflow',
-          userId: 'system',
-          payload: {},
-        });
-        this.logger.log(`Daily workflow enqueued (job ${jobId})`);
+        const result = await this.queueDispatch.fanOutDailyWorkflow(tenantIds);
+        this.logger.log(`Daily workflow enqueued for ${result.enqueued} tenant(s)`);
         return;
       }
-      const result = await this.dailyWorkflow.run({});
+
+      let generated = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+      for (const tenantId of tenantIds) {
+        const result = await this.dailyWorkflow.run({ tenantId, userId: 'system' });
+        generated += result.generated;
+        skipped += result.skipped;
+        errors.push(...result.errors);
+      }
       this.logger.log(
-        `Daily content workflow: ${result.generated} generated, ${result.skipped} skipped, ${result.errors.length} messages`,
+        `Daily content workflow: ${generated} generated, ${skipped} skipped, ${errors.length} messages`,
       );
     } catch (err) {
       this.logger.error('Daily workflow cron error', err);

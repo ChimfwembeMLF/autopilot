@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import axios from 'axios';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { WhatsappAccountAuthService } from '../whatsapp/whatsapp-account-auth.service';
+import { WhatsappMessagingService } from '../whatsapp/whatsapp-messaging.service';
 import { WhatsappMessages } from '../whatsapp/entities/whatsapp_messages.entity';
 import { SocialMessages } from './entities/social_messages.entity';
 
@@ -17,6 +18,7 @@ export class SocialDmReplyService {
     @InjectRepository(WhatsappMessages)
     private readonly waMessagesRepo: Repository<WhatsappMessages>,
     private readonly waAuth: WhatsappAccountAuthService,
+    private readonly waMessaging: WhatsappMessagingService,
   ) {}
 
   async sendReply(params: {
@@ -24,12 +26,15 @@ export class SocialDmReplyService {
     userId: string;
     conversationId: string;
     message: string;
+    useTemplate?: boolean;
+    templateName?: string;
+    templateLanguage?: string;
   }) {
     const text = params.message?.trim();
     if (!text) throw new NotFoundException('Message required');
 
     if (params.conversationId.startsWith('wa:')) {
-      const phone = params.conversationId.slice(3);
+      const phone = this.waMessaging.normalizePhone(params.conversationId.slice(3));
       const account =
         (await this.socialRepo.findOne({
           where: { tenantId: params.tenantId, userId: params.userId, platform: 'whatsapp', connected: true },
@@ -39,20 +44,29 @@ export class SocialDmReplyService {
         }));
       if (!account) return { sent: false, message: 'WhatsApp not connected' };
 
-      const result = await this.waAuth.sendSessionText(account, phone, text);
-      if (!result.success) return { sent: false, message: result.error };
+      const result = await this.waAuth.sendReply(account, phone, text, {
+        useTemplate: params.useTemplate,
+        templateName: params.templateName,
+        templateLanguage: params.templateLanguage,
+      });
+      if (!result.success) {
+        return {
+          sent: false,
+          message: this.waMessaging.humanizeSendError(result.error),
+        };
+      }
 
       await this.waMessagesRepo.save(
         this.waMessagesRepo.create({
           tenantId: params.tenantId,
-          phone: phone.replace(/\D/g, ''),
+          phone,
           direction: 'outbound',
           body: text,
           waMessageId: result.waMessageId,
-          status: 'sent',
+          status: result.usedTemplate ? 'template' : 'sent',
         }),
       );
-      return { sent: true };
+      return { sent: true, usedTemplate: result.usedTemplate ?? false };
     }
 
     if (!params.conversationId.startsWith('dm:')) {

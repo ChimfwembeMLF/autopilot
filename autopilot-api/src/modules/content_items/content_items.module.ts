@@ -25,6 +25,7 @@ import { SocialAccounts } from '../social_accounts/entities/social_accounts.enti
 import { TemplatesModule } from '../templates/templates.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { QueuesModule } from '../queues/queues.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { QueuesModule } from '../queues/queues.module';
     TemplatesModule,
     WhatsappModule,
     forwardRef(() => QueuesModule),
+    NotificationsModule,
   ],
   providers: [
     ContentItemsService,

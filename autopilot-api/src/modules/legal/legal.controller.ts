@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { IsEmail } from 'class-validator';
 import { DataDeletionService } from './data-deletion.service';
+import { resolveLegalUrls } from './legal-urls.util';
 import { WhatsappInboundService } from '../whatsapp/whatsapp-inbound.service';
 import { SocialMessagingInboundService } from '../social_inbox/social-messaging-inbound.service';
 import { QueueDispatchService } from '../queues/queue-dispatch.service';
@@ -39,6 +40,15 @@ export class LegalController {
   @Get(['data-deletion', 'data-deletion.html'])
   dataDeletionInfo(@Res() res: Response) {
     this.sendPublicHtml(res, 'data-deletion.html');
+  }
+
+  @Get('api/v1/legal/urls')
+  legalUrls() {
+    const urls = resolveLegalUrls(this.config);
+    const appName = this.config.get<string>('APP_NAME') ?? 'Tekrem Innovation Solutions - Autopilot';
+    const supportEmail =
+      this.config.get<string>('SUPPORT_EMAIL')?.trim() ?? 'support@agriwide.co';
+    return { appName, supportEmail, ...urls };
   }
 
   @Get('api/v1/legal/deletion-status')
@@ -98,14 +108,20 @@ export class LegalController {
   private sendPublicHtml(res: Response, filename: string) {
     try {
       const html = readFileSync(join(process.cwd(), 'public', filename), 'utf8');
-      const appName = this.config.get<string>('APP_NAME') ?? 'Tekrem Innvation Solutions Autopilot';
+      const appName = this.config.get<string>('APP_NAME') ?? 'Tekrem Innovation Solutions - Autopilot';
       const frontend = (this.config.get<string>('FRONTEND_URL') ?? '').replace(/\/$/, '');
+      const supportEmail =
+        this.config.get<string>('SUPPORT_EMAIL')?.trim() ?? 'support@agriwide.co';
+      const { privacyPolicyUrl, termsOfServiceUrl } = resolveLegalUrls(this.config);
       res
         .type('html')
         .send(
           html
             .replace(/\{\{APP_NAME\}\}/g, appName)
-            .replace(/\{\{FRONTEND_URL\}\}/g, frontend),
+            .replace(/\{\{FRONTEND_URL\}\}/g, frontend)
+            .replace(/\{\{SUPPORT_EMAIL\}\}/g, supportEmail)
+            .replace(/\{\{PRIVACY_URL\}\}/g, privacyPolicyUrl)
+            .replace(/\{\{TERMS_URL\}\}/g, termsOfServiceUrl),
         );
     } catch {
       res.status(404).send('Page not found');

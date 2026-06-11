@@ -46,6 +46,7 @@ import { PlatformsModule } from './modules/platforms/platforms.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { QueuesModule } from './modules/queues/queues.module';
 import { SocialInboxModule } from './modules/social_inbox/social-inbox.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { SocialInboxModule } from './modules/social_inbox/social-inbox.module';
     WhatsappModule,
     QueuesModule,
     SocialInboxModule,
+    NotificationsModule,
   ],
   providers: [
     {

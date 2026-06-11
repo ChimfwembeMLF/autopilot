@@ -13,8 +13,8 @@ import { capabilityOf } from "@/lib/platform-capabilities";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "youtube" | "whatsapp";
-type ManualPlatform = "twitter" | "tiktok";
+type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "youtube" | "whatsapp" | "tiktok";
+type ManualPlatform = "twitter";
 type PlatformId = OAuthPlatform | ManualPlatform;
 
 type WhatsAppPhoneOption = {
@@ -31,7 +31,7 @@ type FacebookPageOption = {
   category?: string;
 };
 
-const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "youtube", "whatsapp"];
+const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "youtube", "whatsapp", "tiktok"];
 
 const platforms: {
   id: PlatformId;
@@ -100,12 +100,8 @@ const platforms: {
     icon: Instagram,
     color: "text-black",
     bgColor: "bg-gray-100",
-    description: "Publish videos to TikTok Business account",
-    fields: [
-      { key: "client_key", label: "Client Key (App ID)", placeholder: "TikTok Client Key" },
-      { key: "client_secret", label: "Client Secret", placeholder: "TikTok Client Secret", type: "password" },
-      { key: "access_token", label: "Access Token", placeholder: "TikTok OAuth access token", type: "password" },
-    ],
+    description: "Publish videos via TikTok Content Posting API (OAuth)",
+    oauth: true,
   },
   {
     id: "whatsapp",

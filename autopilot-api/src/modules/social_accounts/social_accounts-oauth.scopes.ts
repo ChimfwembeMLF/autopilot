@@ -21,6 +21,7 @@ export const INSTAGRAM_PUBLISHER_SCOPES = [
   'instagram_basic',
   'instagram_content_publish',
   'instagram_manage_comments',
+  'instagram_manage_messages',
 ] as const;
 
 /**
@@ -51,6 +52,14 @@ export const YOUTUBE_PUBLISHER_SCOPES = [
   'https://www.googleapis.com/auth/youtube.readonly',
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.force-ssl',
+] as const;
+
+/** TikTok Content Posting API — profile + direct video publish */
+export const TIKTOK_PUBLISHER_SCOPES = [
+  'user.info.basic',
+  'user.info.profile',
+  'video.upload',
+  'video.publish',
 ] as const;
 
 /** WhatsApp Business — list WABAs / phone numbers and send messages */

@@ -7,6 +7,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { MessageAttachments } from './MessageAttachments';
 import { MessageReactions } from './MessageReactions';
@@ -25,6 +34,7 @@ type Message = {
   direction: 'inbound' | 'outbound';
   body: string;
   status: string;
+  error_message?: string;
   attachments?: Array<{ url?: string; type?: string; name?: string }>;
   reactions?: Array<{ type: string; count?: number }>;
   created_at: string;
@@ -37,6 +47,12 @@ export function WhatsAppInbox() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [replyText, setReplyText] = useState('');
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('hello_world');
+  const [templateLanguage, setTemplateLanguage] = useState('en');
+  const [templates, setTemplates] = useState<
+    Array<{ name: string; language: string; status: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -75,6 +91,17 @@ export function WhatsAppInbox() {
   }, [loadConversations]);
 
   useEffect(() => {
+    if (!tenant) return;
+    void whatsappApi.listTemplates(tenant.id).then((res) => {
+      const list = res.templates ?? [];
+      setTemplates(list);
+      if (res.defaultTemplate) setTemplateName(res.defaultTemplate);
+      else if (list[0]?.name) setTemplateName(list[0].name);
+      if (list[0]?.language) setTemplateLanguage(list[0].language);
+    }).catch(() => setTemplates([]));
+  }, [tenant]);
+
+  useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
 
@@ -86,6 +113,9 @@ export function WhatsAppInbox() {
         tenantId: tenant.id,
         phone: selectedPhone,
         message: replyText.trim(),
+        useTemplate,
+        templateName: useTemplate ? templateName : undefined,
+        templateLanguage: useTemplate ? templateLanguage : undefined,
       });
       if (!result.sent) {
         throw new Error(result.message ?? 'Send failed');
@@ -93,7 +123,12 @@ export function WhatsAppInbox() {
       setReplyText('');
       await loadMessages();
       await loadConversations();
-      toast({ title: 'Message sent' });
+      toast({
+        title: result.usedTemplate ? 'Template message sent' : 'Message sent',
+        description: result.usedTemplate
+          ? 'Delivered via approved WhatsApp template (outside 24h window).'
+          : undefined,
+      });
     } catch (err: unknown) {
       toast({
         title: 'Send failed',
@@ -190,6 +225,16 @@ export function WhatsAppInbox() {
                     <span className="text-[10px] opacity-70">
                       {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
                     </span>
+                    {m.status === 'template' && (
+                      <Badge variant="outline" className="text-[9px] h-4">
+                        template
+                      </Badge>
+                    )}
+                    {m.status === 'failed' && (
+                      <Badge variant="destructive" className="text-[9px] h-4" title={m.error_message}>
+                        not delivered
+                      </Badge>
+                    )}
                     {m.status === 'auto_reply' && (
                       <Badge variant="secondary" className="text-[9px] h-4 gap-0.5">
                         <Bot className="h-2.5 w-2.5" /> auto
@@ -202,6 +247,44 @@ export function WhatsAppInbox() {
           </div>
 
           <div className="p-3 border-t space-y-2">
+            <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-2">
+              <Checkbox
+                id="wa-use-template"
+                checked={useTemplate}
+                onCheckedChange={(v) => setUseTemplate(v === true)}
+              />
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <Label htmlFor="wa-use-template" className="text-xs font-medium cursor-pointer">
+                  Send as template (outside 24h window)
+                </Label>
+                <p className="text-[10px] text-muted-foreground leading-snug">
+                  Use when the customer has not messaged recently. Requires a Meta-approved template.
+                </p>
+                {useTemplate && (
+                  <Select
+                    value={`${templateName}::${templateLanguage}`}
+                    onValueChange={(v) => {
+                      const [name, lang] = v.split('::');
+                      setTemplateName(name);
+                      setTemplateLanguage(lang || 'en');
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs mt-1">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(templates.length ? templates : [{ name: 'hello_world', language: 'en', status: 'APPROVED' }]).map(
+                        (t) => (
+                          <SelectItem key={`${t.name}-${t.language}`} value={`${t.name}::${t.language}`}>
+                            {t.name} ({t.language})
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
             <Textarea
               rows={2}
               placeholder="Reply on WhatsApp…"

@@ -19,7 +19,11 @@ import { Request, Response } from 'express';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { SocialAccountsService } from './social_accounts.service';
-import { SocialAccountsOAuthService, SocialOAuthPlatform } from './social_accounts-oauth.service';
+import {
+  SocialAccountsOAuthService,
+  SocialOAuthPlatform,
+  OAuthConnectState,
+} from './social_accounts-oauth.service';
 import { SocialAccountsCreateDto } from './dto/create-social_accounts.dto';
 import { WhatsappFinalizeDto } from './dto/whatsapp-finalize.dto';
 import { FacebookFinalizeDto } from './dto/facebook-finalize.dto';
@@ -33,6 +37,7 @@ const OAUTH_PLATFORMS: SocialOAuthPlatform[] = [
   'google',
   'youtube',
   'whatsapp',
+  'tiktok',
 ];
 
 @ApiTags('Social Accounts')
@@ -110,19 +115,25 @@ export class SocialAccountsController {
 
     const userId = this.getUserId(req);
     const apiBase = this.getApiBaseUrl(req);
-    const redirectUri = this.oauth.getCallbackUrl(apiBase, platform as SocialOAuthPlatform);
-    const state = this.oauth.encodeState({
+    const oauthPlatform = platform as SocialOAuthPlatform;
+    const redirectUri = this.oauth.getCallbackUrl(apiBase, oauthPlatform);
+    let connectState: OAuthConnectState = {
       userId,
       tenantId,
       returnUrl,
-      provider: platform as SocialOAuthPlatform,
+      provider: oauthPlatform,
       redirectUri,
-    });
+    };
+    if (oauthPlatform === 'tiktok') {
+      connectState = this.oauth.attachTikTokPkce(connectState);
+    }
+    const state = this.oauth.encodeState(connectState);
 
     const redirectUrl = this.oauth.getAuthorizeUrl(
-      platform as SocialOAuthPlatform,
+      oauthPlatform,
       state,
       redirectUri,
+      connectState.codeVerifier,
     );
 
     this.logger.log(`OAuth authorize ${platform} → redirect_uri=${redirectUri}`);
@@ -214,6 +225,7 @@ export class SocialAccountsController {
         platform as SocialOAuthPlatform,
         code,
         decoded.redirectUri,
+        { codeVerifier: decoded.codeVerifier },
       );
 
       await this.service.connectAccount({

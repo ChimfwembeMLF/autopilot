@@ -964,10 +964,16 @@ export const contentAiApi = {
         platforms?: string[],
         platformPayloads?: Record<string, unknown>,
     ) =>
-        request<{ published: boolean; results: Record<string, { published: boolean; message: string }> }>(
-            `/api/v1/content-ai/${contentId}/publish`,
-            { method: 'POST', body: JSON.stringify({ platforms, platformPayloads }) },
-        ),
+        request<
+            QueuedJobResponse & {
+                message?: string;
+                published?: boolean;
+                results?: Record<string, { published: boolean; message: string }>;
+            }
+        >(`/api/v1/content-ai/${contentId}/publish`, {
+            method: 'POST',
+            body: JSON.stringify({ platforms, platformPayloads }),
+        }),
 
     autoPublish: () =>
         request<{ attempted: number; published: number; failed: number; errors: string[] }>(
@@ -1359,11 +1365,23 @@ export const whatsappApi = {
             `/api/v1/whatsapp/conversations?tenantId=${tenantId}`,
         ),
 
-    reply: (data: { tenantId: string; phone: string; message: string; leadId?: string; contactId?: string }) =>
-        request<{ sent: boolean; message?: string }>('/api/v1/whatsapp/messages/reply', {
-            method: 'POST',
-            body: JSON.stringify(data),
-        }),
+    reply: (data: {
+        tenantId: string;
+        phone: string;
+        message: string;
+        leadId?: string;
+        contactId?: string;
+        useTemplate?: boolean;
+        templateName?: string;
+        templateLanguage?: string;
+    }) =>
+        request<{ sent: boolean; message?: string; usedTemplate?: boolean }>(
+            '/api/v1/whatsapp/messages/reply',
+            {
+                method: 'POST',
+                body: JSON.stringify(data),
+            },
+        ),
 
     listTemplates: (tenantId: string) =>
         request<{
@@ -1448,11 +1466,19 @@ export const inboxApi = {
             body: JSON.stringify({ tenantId }),
         }),
 
-    reply: (tenantId: string, conversationId: string, message: string) =>
-        request<{ sent: boolean; message?: string }>('/api/v1/inbox/messages/reply', {
-            method: 'POST',
-            body: JSON.stringify({ tenantId, conversationId, message }),
-        }),
+    reply: (
+        tenantId: string,
+        conversationId: string,
+        message: string,
+        options?: { useTemplate?: boolean; templateName?: string; templateLanguage?: string },
+    ) =>
+        request<{ sent: boolean; message?: string; usedTemplate?: boolean }>(
+            '/api/v1/inbox/messages/reply',
+            {
+                method: 'POST',
+                body: JSON.stringify({ tenantId, conversationId, message, ...options }),
+            },
+        ),
 };
 
 // ==================== Content Publications / Engagement ====================
@@ -1658,4 +1684,112 @@ export const aiUsageApi = {
 
     remove: (id: string) =>
         request<any>(`/api/v1/ai-usage/${id}`, { method: 'DELETE' }),
+};
+
+// ==================== Notifications & Reports ====================
+export type AppNotification = {
+    id: string;
+    tenantId: string;
+    userId: string;
+    type: string;
+    title: string;
+    body: string;
+    link?: string | null;
+    read: boolean;
+    emailSent: boolean;
+    metadata?: Record<string, unknown>;
+    created_at: string;
+};
+
+export type NotificationPreferences = {
+    userId: string;
+    tenantId: string;
+    emailPublishSuccess: boolean;
+    emailBilling: boolean;
+    emailWeeklyDigest: boolean;
+    emailHotLeads: boolean;
+    inAppEnabled: boolean;
+};
+
+export type ReportCatalogItem = {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+};
+
+export const notificationsApi = {
+    list: (tenantId: string, unreadOnly?: boolean) => {
+        const params = new URLSearchParams({ tenantId });
+        if (unreadOnly) params.set('unreadOnly', 'true');
+        return request<AppNotification[]>(`/api/v1/notifications?${params}`);
+    },
+
+    unreadCount: (tenantId: string) =>
+        request<{ count: number }>(
+            `/api/v1/notifications/unread-count?tenantId=${encodeURIComponent(tenantId)}`,
+        ),
+
+    markRead: (id: string) =>
+        request<void>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' }),
+
+    markAllRead: (tenantId: string) =>
+        request<void>('/api/v1/notifications/mark-all-read', {
+            method: 'POST',
+            body: JSON.stringify({ tenantId }),
+        }),
+
+    getPreferences: (tenantId: string) =>
+        request<NotificationPreferences>(
+            `/api/v1/notifications/preferences?tenantId=${encodeURIComponent(tenantId)}`,
+        ),
+
+    updatePreferences: (data: Partial<NotificationPreferences> & { tenantId: string }) =>
+        request<NotificationPreferences>('/api/v1/notifications/preferences', {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
+
+    reportCatalog: () =>
+        request<ReportCatalogItem[]>('/api/v1/notifications/reports/catalog'),
+
+    generateReport: (tenantId: string, reportId: string) =>
+        request<Record<string, unknown>>(
+            `/api/v1/notifications/reports/${encodeURIComponent(reportId)}?tenantId=${encodeURIComponent(tenantId)}`,
+        ),
+
+    downloadReport: async (
+        tenantId: string,
+        reportId: string,
+        format: 'pdf' | 'csv' | 'xlsx',
+    ) => {
+        const token = getAuthToken();
+        if (!token) throw new ApiError('Not authenticated', { status: 401, isAuthError: true });
+        const params = new URLSearchParams({ tenantId, format });
+        const response = await fetch(
+            `${API_BASE_URL}/api/v1/notifications/reports/${encodeURIComponent(reportId)}/export?${params}`,
+            { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!response.ok) {
+            let message = `HTTP ${response.status}`;
+            try {
+                const body = await response.json();
+                message = body.message || message;
+            } catch { /* ignore */ }
+            throw new ApiError(message, { status: response.status });
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const nameMatch = disposition.match(/filename="([^"]+)"/);
+        const filename =
+            nameMatch?.[1] ?? `autopilot-${reportId}-${new Date().toISOString().slice(0, 10)}.${format}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    },
 };

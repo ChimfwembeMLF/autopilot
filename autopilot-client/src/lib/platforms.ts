@@ -6,6 +6,7 @@ import {
   Megaphone,
   MessageCircle,
   Twitter,
+  Video,
   LucideIcon,
 } from 'lucide-react';
 import { publishablePlatforms } from '@/lib/platform-capabilities';
@@ -138,6 +139,27 @@ const ALL_PLATFORM_DEFS: PlatformDef[] = [
       supportsVideo: false,
       supportsCarousel: false,
       mediaNotes: 'Text broadcast to opted-in contacts. Media via template messages (coming soon).',
+    },
+  },
+  {
+    value: 'tiktok',
+    label: 'TikTok',
+    icon: Video,
+    color: '#010101',
+    maxChars: 2200,
+    previewType: 'social',
+    media: {
+      maxAttachments: 1,
+      maxImages: 0,
+      maxVideos: 1,
+      maxImageSizeMB: 0,
+      maxVideoSizeMB: 4096,
+      maxVideoDurationSec: 600,
+      recommendedImageSize: '1080×1920 px',
+      aspectRatio: '9:16',
+      supportsVideo: true,
+      supportsCarousel: false,
+      mediaNotes: 'One MP4 video per post (9:16 recommended). Caption supports hashtags.',
     },
   },
 ];

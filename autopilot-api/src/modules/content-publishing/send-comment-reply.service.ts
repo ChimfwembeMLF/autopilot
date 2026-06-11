@@ -7,6 +7,10 @@ import { ContentPublications } from '../content_publications/entities/content_pu
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { CommentReplies } from '../comment_replies/entities/comment_replies.entity';
 import { YoutubePublishingService } from './youtube-publishing.service';
+import { SocialPublishAccountService } from './social-publish-account.service';
+import { summarizeAxiosError } from './publish-error.util';
+
+const GRAPH_API = 'https://graph.facebook.com/v20.0';
 
 @Injectable()
 export class SendCommentReplyService {
@@ -20,6 +24,7 @@ export class SendCommentReplyService {
     @InjectRepository(ContentPublications)
     private readonly publicationsRepo: Repository<ContentPublications>,
     private readonly youtubePublish: YoutubePublishingService,
+    private readonly publishAccounts: SocialPublishAccountService,
   ) {}
 
   async sendReply(params: {
@@ -32,12 +37,19 @@ export class SendCommentReplyService {
     const reply = await this.commentsRepo.findOne({ where: { id: params.commentReplyId } });
     if (!reply) throw new NotFoundException('Comment reply not found');
 
-    const account = await this.socialRepo.findOne({
-      where: { userId: params.userId, platform: reply.platform, connected: true },
-    });
+    let account =
+      (await this.socialRepo.findOne({
+        where: { tenantId: reply.tenantId, platform: reply.platform, connected: true },
+      })) ??
+      (await this.socialRepo.findOne({
+        where: { userId: params.userId, platform: reply.platform, connected: true },
+      }));
     if (!account) {
-      throw new NotFoundException(`No connected ${reply.platform} account`);
+      throw new NotFoundException(
+        `No connected ${reply.platform} account for this workspace — reconnect in Publisher Connect`,
+      );
     }
+    account = await this.publishAccounts.prepareAccount(account);
 
     const pub = await this.publicationsRepo.findOne({
       where: {
@@ -76,24 +88,32 @@ export class SendCommentReplyService {
 
       return { sent: true };
     } catch (err) {
-      this.logger.error(`Failed to send reply on ${reply.platform}`, err);
+      const summary = summarizeAxiosError(err);
+      this.logger.error(`Failed to send reply on ${reply.platform}: ${summary}`);
       await this.commentsRepo.update(reply.id, { status: 'failed' } as Partial<CommentReplies>);
       throw err;
     }
   }
 
   private async replyFacebook(commentId: string, message: string, account: SocialAccounts) {
-    const token = account.metadata?.page_token ?? account.accessToken;
-    await axios.post(`https://graph.facebook.com/v19.0/${commentId}/comments`, {
-      message,
-      access_token: token,
+    const token = this.publishAccounts.getFacebookPageToken(account);
+    if (!token?.trim()) {
+      throw new NotFoundException('Facebook page token missing — reconnect Facebook in Publisher Connect');
+    }
+    await axios.post(`${GRAPH_API}/${commentId}/comments`, null, {
+      params: { message, access_token: token },
     });
   }
 
   private async replyInstagram(commentId: string, message: string, account: SocialAccounts) {
-    await axios.post(`https://graph.facebook.com/v19.0/${commentId}/replies`, {
-      message,
-      access_token: account.accessToken,
+    const token = this.publishAccounts.getInstagramToken(account);
+    if (!token?.trim()) {
+      throw new NotFoundException(
+        'Instagram page token missing — reconnect Instagram in Publisher Connect',
+      );
+    }
+    await axios.post(`${GRAPH_API}/${commentId}/replies`, null, {
+      params: { message, access_token: token },
     });
   }
 

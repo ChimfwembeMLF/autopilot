@@ -1,4 +1,25 @@
 import type { PostInboxGroup } from '@/lib/api';
+import type { PlatformPayload } from '@/lib/platforms';
+
+function isVideoMedia(item: { type?: string; url?: string }): boolean {
+  return Boolean(
+    item.type?.startsWith('video') || item.url?.match(/\.(mp4|webm|mov|m4v)(\?|$)/i),
+  );
+}
+
+export function postToPlatformPayload(post: Pick<PostInboxGroup, 'postContent' | 'postTitle' | 'postMedia'>): PlatformPayload {
+  return {
+    content: post.postContent,
+    title: post.postTitle,
+    media: (post.postMedia ?? [])
+      .filter((m) => m.url)
+      .map((m) => ({
+        url: m.url,
+        type: isVideoMedia(m) ? 'video' as const : 'image' as const,
+        name: m.name,
+      })),
+  };
+}
 
 export function plainText(html: string): string {
   return html

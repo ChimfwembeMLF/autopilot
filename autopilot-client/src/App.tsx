@@ -45,6 +45,7 @@ import RepliesPage from "./pages/RepliesPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import BillingPage from "./pages/BillingPage";
 import ExportPage from "./pages/ExportPage";
+import ReportsPage from "./pages/ReportsPage";
 import WorkspacesPage from "./pages/WorkspacesPage";
 import SocialCallback from "./pages/auth/SocialCallback";
 import PrivacyPage from "./pages/legal/PrivacyPage";
@@ -126,6 +127,7 @@ const App = () => (
                   <Route path="/scheduler" element={<Scheduler />} />
                   <Route path="/leads" element={<LeadAgent />} />
                   <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/reports" element={<ReportsPage />} />
                   <Route path="/publisher" element={<PublisherConnect />} />
                   <Route path="/settings" element={<SettingsPage />} />
 

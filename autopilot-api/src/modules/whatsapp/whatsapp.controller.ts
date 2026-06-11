@@ -91,6 +91,7 @@ export class WhatsappController {
       direction: m.direction,
       body: m.body,
       status: m.status,
+      error_message: m.errorMessage,
       attachments: m.attachments ?? [],
       reactions: m.reactions ?? [],
       created_at: m.created_at,
@@ -147,7 +148,18 @@ export class WhatsappController {
   @Post('messages/reply')
   async reply(
     @Req() req: { user: JwtUser },
-    @Body() body: { tenantId: string; phone: string; message: string; leadId?: string; contactId?: string },
+    @Body()
+    body: {
+      tenantId: string;
+      phone: string;
+      message: string;
+      leadId?: string;
+      contactId?: string;
+      /** Send as Meta-approved template (works outside the 24h session window). */
+      useTemplate?: boolean;
+      templateName?: string;
+      templateLanguage?: string;
+    },
   ) {
     const userId = String(req.user.sub);
     const account = await this.findWhatsappAccount(body.tenantId, userId);
@@ -155,9 +167,16 @@ export class WhatsappController {
       return { sent: false, message: 'WhatsApp not connected' };
     }
 
-    const result = await this.waAuth.sendSessionText(account, body.phone, body.message);
+    const result = await this.waAuth.sendReply(account, body.phone, body.message, {
+      useTemplate: body.useTemplate,
+      templateName: body.templateName,
+      templateLanguage: body.templateLanguage,
+    });
     if (!result.success) {
-      return { sent: false, message: result.error ?? 'Send failed' };
+      return {
+        sent: false,
+        message: this.messaging.humanizeSendError(result.error),
+      };
     }
 
     await this.messagesRepo.save(
@@ -169,11 +188,15 @@ export class WhatsappController {
         direction: 'outbound',
         body: body.message.trim(),
         waMessageId: result.waMessageId,
-        status: 'sent',
+        status: result.usedTemplate ? 'template' : 'sent',
       }),
     );
 
-    return { sent: true, waMessageId: result.waMessageId };
+    return {
+      sent: true,
+      waMessageId: result.waMessageId,
+      usedTemplate: result.usedTemplate ?? false,
+    };
   }
 
   @Get('templates')

@@ -86,11 +86,13 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     id: 'tiktok',
     label: 'TikTok',
     connect: true,
-    publish: false,
+    publish: true,
     comments: false,
     messaging: false,
-    oauth: false,
-    status: 'coming_soon',
+    oauth: true,
+    status: 'available',
+    notes:
+      'OAuth + Content Posting API. Unaudited apps may be limited to private posts until TikTok app review approves video.publish.',
   },
   {
     id: 'google',

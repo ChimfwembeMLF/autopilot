@@ -5,6 +5,8 @@ import {
   QUEUE_CONTENT_PUBLISH,
   JOB_PUBLISH_CONTENT,
   JOB_AUTO_PUBLISH_SCAN,
+  JOB_AUTO_PUBLISH_TENANT,
+  AutoPublishTenantJobData,
   PublishContentJobData,
 } from '../queue.constants';
 import { PublishContentService } from '../../content_items/services/publish-content.service';
@@ -27,6 +29,8 @@ export class ContentPublishProcessor extends WorkerHost {
         return this.handlePublish(job as Job<PublishContentJobData>);
       case JOB_AUTO_PUBLISH_SCAN:
         return this.handleAutoPublishScan();
+      case JOB_AUTO_PUBLISH_TENANT:
+        return this.handleAutoPublishTenant(job as Job<AutoPublishTenantJobData>);
       default:
         this.logger.warn(`Unknown job: ${job.name}`);
         return null;
@@ -46,7 +50,13 @@ export class ContentPublishProcessor extends WorkerHost {
   }
 
   private async handleAutoPublishScan() {
-    this.logger.log('Running auto-publish scan');
+    this.logger.log('Running auto-publish scan (legacy — fans out per content)');
     return this.autoPublish.queueDueItems();
+  }
+
+  private async handleAutoPublishTenant(job: Job<AutoPublishTenantJobData>) {
+    const { tenantId } = job.data;
+    this.logger.log(`Auto-publish scan for tenant ${tenantId} (job ${job.id})`);
+    return this.autoPublish.queueDueItemsForTenant(tenantId);
   }
 }

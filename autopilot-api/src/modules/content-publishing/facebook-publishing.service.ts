@@ -37,6 +37,15 @@ export class FacebookPublishingService {
         };
       }
 
+      const pageCheck = await this.verifyPageAccess(
+        pageId,
+        socialAccount.accessToken,
+        socialAccount.metadata?.page_name as string | undefined,
+      );
+      if (pageCheck) {
+        return { published: false, message: pageCheck };
+      }
+
       const plainText = content.content.replace(/<[^>]*>/g, '');
       const resolvedMedia = await this.mediaResolver.resolveForPublish(media, content.tenantId);
       const attachedMedia: Array<{ media_fbid: string }> = [];
@@ -98,6 +107,57 @@ export class FacebookPublishingService {
         message: formatPublishError(err, 'Facebook'),
         error: String(err),
       };
+    }
+  }
+
+  /**
+   * Ensure the connected Meta user still manages the target Page (e.g. after a new admin invite).
+   */
+  private async verifyPageAccess(
+    pageId: string,
+    userToken?: string,
+    pageName?: string,
+  ): Promise<string | null> {
+    if (!userToken?.trim()) return null;
+
+    try {
+      const { data } = await axios.get<{
+        data?: Array<{ id: string; name?: string; tasks?: string[] }>;
+      }>('https://graph.facebook.com/v19.0/me/accounts', {
+        params: {
+          access_token: userToken,
+          fields: 'id,name,tasks,access_token',
+        },
+      });
+
+      const pages = data.data ?? [];
+      const page = pages.find((p) => p.id === pageId);
+      if (!page) {
+        const label = pageName ? `"${pageName}"` : 'this Page';
+        return (
+          `Facebook: ${label} is not linked to your connected Meta account. ` +
+          'You may have been invited after connecting — open Publisher Connect, disconnect Facebook, ' +
+          'reconnect, and select the correct Page.'
+        );
+      }
+
+      const tasks = page.tasks ?? [];
+      if (
+        tasks.length > 0 &&
+        !tasks.includes('CREATE_CONTENT') &&
+        !tasks.includes('MANAGE') &&
+        !tasks.includes('MODERATE')
+      ) {
+        return (
+          `Facebook: your role on "${page.name ?? pageId}" does not include publishing. ` +
+          'Ask the Page owner for Admin or Editor access.'
+        );
+      }
+
+      return null;
+    } catch (err) {
+      this.logger.warn(`Facebook page access check skipped: ${err}`);
+      return null;
     }
   }
 

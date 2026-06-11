@@ -10,6 +10,7 @@ import {
   QUEUE_WEBHOOKS,
   JOB_AI_TASK,
   JOB_AUTO_PUBLISH_SCAN,
+  JOB_AUTO_PUBLISH_TENANT,
   JOB_LEAD_WEBHOOK,
   JOB_PUBLISH_CONTENT,
   JOB_SEND_EMAIL,
@@ -17,6 +18,7 @@ import {
   JOB_SYNC_TENANT_COMMENTS,
   JOB_WHATSAPP_INBOUND,
   AiTaskJobData,
+  AutoPublishTenantJobData,
   LeadWebhookJobData,
   PublishContentJobData,
   SendEmailJobData,
@@ -43,7 +45,7 @@ export class QueueDispatchService {
 
   async enqueuePublish(data: PublishContentJobData) {
     const job = await this.publishQueue.add(JOB_PUBLISH_CONTENT, data, {
-      jobId: `publish-${data.contentId}-${Date.now()}`,
+      jobId: `publish-${data.tenantId}-${data.contentId}-${Date.now()}`,
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
       removeOnComplete: 100,
@@ -52,6 +54,7 @@ export class QueueDispatchService {
     return { jobId: job.id, queue: QUEUE_CONTENT_PUBLISH };
   }
 
+  /** @deprecated Use fanOutAutoPublishTenants — one job per tenant */
   async enqueueAutoPublishScan() {
     const job = await this.publishQueue.add(
       JOB_AUTO_PUBLISH_SCAN,
@@ -63,6 +66,34 @@ export class QueueDispatchService {
       },
     );
     return { jobId: job.id, queue: QUEUE_CONTENT_PUBLISH };
+  }
+
+  async enqueueAutoPublishTenant(data: AutoPublishTenantJobData) {
+    const minute = Math.floor(Date.now() / 60000);
+    const job = await this.publishQueue.add(JOB_AUTO_PUBLISH_TENANT, data, {
+      jobId: `auto-publish-${data.tenantId}-${minute}`,
+      attempts: 2,
+      removeOnComplete: 50,
+    });
+    return { jobId: job.id, queue: QUEUE_CONTENT_PUBLISH };
+  }
+
+  async fanOutAutoPublishTenants(tenantIds: string[]) {
+    const jobs: Array<{ tenantId: string; jobId: string | number | undefined }> = [];
+    for (const tenantId of tenantIds) {
+      const { jobId } = await this.enqueueAutoPublishTenant({ tenantId });
+      jobs.push({ tenantId, jobId });
+    }
+    return { enqueued: jobs.length, jobs };
+  }
+
+  async fanOutCommentSync(tenants: SyncTenantCommentsJobData[]) {
+    const jobs: Array<{ tenantId: string; jobId: string | number | undefined }> = [];
+    for (const data of tenants) {
+      const { jobId } = await this.enqueueSyncTenantComments(data);
+      jobs.push({ tenantId: data.tenantId, jobId });
+    }
+    return { enqueued: jobs.length, jobs };
   }
 
   async enqueueSyncTenantComments(data: SyncTenantCommentsJobData) {
@@ -117,13 +148,31 @@ export class QueueDispatchService {
   }
 
   async enqueueAiTask(data: AiTaskJobData) {
+    const tenantId = data.tenantId ?? (data.payload.tenantId as string | undefined);
     const job = await this.aiQueue.add(JOB_AI_TASK, data, {
+      jobId: tenantId
+        ? `ai-${data.type}-${tenantId}-${Date.now()}`
+        : `ai-${data.type}-${data.userId}-${Date.now()}`,
       attempts: 2,
       backoff: { type: 'exponential', delay: 4000 },
       removeOnComplete: 100,
       removeOnFail: 200,
     });
     return { jobId: job.id, queue: QUEUE_AI };
+  }
+
+  async fanOutDailyWorkflow(tenantIds: string[]) {
+    const jobs: Array<{ tenantId: string; jobId: string | number | undefined }> = [];
+    for (const tenantId of tenantIds) {
+      const { jobId } = await this.enqueueAiTask({
+        type: 'daily-workflow',
+        userId: 'system',
+        tenantId,
+        payload: { tenantId },
+      });
+      jobs.push({ tenantId, jobId });
+    }
+    return { enqueued: jobs.length, jobs };
   }
 
   async getJobStatus(queueName: string, jobId: string) {
