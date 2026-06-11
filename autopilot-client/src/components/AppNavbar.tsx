@@ -71,6 +71,7 @@ const MORE_ITEMS: NavItem[] = [
   { title: "Roles & Permissions", url: "/admin/roles", icon: ShieldCheck, permission: P.admin.roles },
   { title: "Maker-Checker", url: "/admin/maker-checker", icon: GitPullRequestArrow, permission: P.admin.makerChecker },
   { title: "Platform Backoffice", url: "/admin/backoffice", icon: Activity, superAdmin: true },
+  { title: "Job Queues", url: "/admin/queues", icon: Activity, superAdmin: true },
   { title: "System Settings", url: "/admin/system", icon: Settings, superAdmin: true },
   { title: "Export Data", url: "/export", icon: Download, permission: P.leads.export },
   { title: "Billing", url: "/billing", icon: CreditCard, permission: P.settings.billing },

@@ -91,4 +91,16 @@ Use <p>, <ul>, <li>, <strong> only — no scripts or external links.
 Structure: compelling title → intro paragraph → 2-4 sections with subheads as <strong> → conclusion with CTA.
 Tone: on-brand, helpful, authoritative. 400-800 words.`,
   },
+  {
+    name: 'YouTube — Video Description',
+    description: 'SEO-friendly description with timestamps hook and subscribe CTA.',
+    contentType: 'social',
+    platforms: ['youtube'],
+    body: `Write a YouTube video description.
+First 2 lines: hook + primary keyword (visible before "Show more").
+Body: 2-3 short paragraphs summarizing value, who it's for, and key takeaways.
+Include placeholder timestamps section if relevant (0:00 Intro).
+End with subscribe/CTA and 3-5 relevant hashtags.
+Length: 200-500 words. Plain text, no markdown.`,
+  },
 ];

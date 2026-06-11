@@ -828,6 +828,7 @@ export type QueueJobStatus = {
     name: string;
     state: string;
     progress?: number;
+    data?: unknown;
     returnvalue?: unknown;
     failedReason?: string;
     attemptsMade?: number;
@@ -847,7 +848,41 @@ export const queueJobsApi = {
 
     listQueues: () =>
         request<{ queues: string[]; enabled: boolean }>('/api/v1/queues/queues'),
+
+    getStats: (queue: string) =>
+        request<Record<string, number>>(`/api/v1/queues/${encodeURIComponent(queue)}/stats`),
+
+    listJobs: (
+        queue: string,
+        params?: { state?: string; start?: number; end?: number },
+    ) => {
+        const search = new URLSearchParams();
+        if (params?.state) search.set('state', params.state);
+        if (params?.start != null) search.set('start', String(params.start));
+        if (params?.end != null) search.set('end', String(params.end));
+        const qs = search.toString();
+        return request<QueueJobStatus[]>(
+            `/api/v1/queues/${encodeURIComponent(queue)}/jobs${qs ? `?${qs}` : ''}`,
+        );
+    },
+
+    retryJob: (queue: string, jobId: string | number) =>
+        request<QueueJobStatus>(
+            `/api/v1/queues/${encodeURIComponent(queue)}/jobs/${encodeURIComponent(String(jobId))}/retry`,
+            { method: 'POST' },
+        ),
+
+    retryAllFailed: (queue: string, limit = 100) =>
+        request<{ retried: number }>(
+            `/api/v1/queues/${encodeURIComponent(queue)}/retry-failed?limit=${limit}`,
+            { method: 'POST' },
+        ),
 };
+
+export async function retryQueueJob(queue: string, jobId: string | number) {
+    await queueJobsApi.retryJob(queue, jobId);
+    return waitForQueueJob(queue, jobId);
+}
 
 export async function waitForQueueJob(
     queue: string,

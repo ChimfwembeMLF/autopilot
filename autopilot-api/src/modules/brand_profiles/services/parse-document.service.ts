@@ -1,14 +1,12 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { PDFParse } from 'pdf-parse';
+import mammoth from 'mammoth';
 import { MistralChatService } from '../../ai/services/mistral-chat.service';
 import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
 import {
   brandExtractionSystemPrompt,
   normalizeBrandExtraction,
 } from '../../ai/prompts/brand-fields';
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse');
-import mammoth from 'mammoth';
 
 @Injectable()
 export class ParseDocumentService {
@@ -55,8 +53,7 @@ export class ParseDocumentService {
   private async extractText(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
     const lower = fileName.toLowerCase();
     if (mimeType === 'application/pdf' || lower.endsWith('.pdf')) {
-      const parsed = await pdfParse(buffer);
-      return parsed.text ?? '';
+      return this.extractPdfText(buffer);
     }
     if (
       mimeType.includes('wordprocessingml') ||
@@ -70,5 +67,15 @@ export class ParseDocumentService {
       return buffer.toString('utf8');
     }
     throw new BadRequestException('Unsupported file type. Use PDF, DOCX, or TXT.');
+  }
+
+  private async extractPdfText(buffer: Buffer): Promise<string> {
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const result = await parser.getText();
+      return result.text ?? '';
+    } finally {
+      await parser.destroy();
+    }
   }
 }

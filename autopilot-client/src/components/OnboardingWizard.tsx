@@ -59,7 +59,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
             <div className="text-left">
               <SheetTitle className="text-sm">What's your company called?</SheetTitle>
               <SheetDescription className="text-xs">
-                One quick step — you can add more details later in Brand Brain.
+                One quick step — add your website or upload a brand doc later in Brand Brain.
               </SheetDescription>
             </div>
           </div>

@@ -831,6 +831,497 @@
         ]
       }
     },
+    "/api/v1/auto-reply-rules": {
+      "post": {
+        "operationId": "AutoReplyRulesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoReplyRulesCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      },
+      "get": {
+        "operationId": "AutoReplyRulesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      }
+    },
+    "/api/v1/auto-reply-rules/{id}": {
+      "get": {
+        "operationId": "AutoReplyRulesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      },
+      "patch": {
+        "operationId": "AutoReplyRulesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoReplyRulesUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      },
+      "delete": {
+        "operationId": "AutoReplyRulesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auto Reply Rules"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles/scrape-website": {
+      "post": {
+        "operationId": "BrandProfilesController_scrape",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScrapeWebsiteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles/parse-document": {
+      "post": {
+        "operationId": "BrandProfilesController_parse",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles": {
+      "post": {
+        "operationId": "BrandProfilesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandProfilesCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      },
+      "get": {
+        "operationId": "BrandProfilesController_findAll",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles/mine": {
+      "get": {
+        "operationId": "BrandProfilesController_findMine",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/brand-profiles/{id}": {
+      "get": {
+        "operationId": "BrandProfilesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      },
+      "patch": {
+        "operationId": "BrandProfilesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandProfilesUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      },
+      "delete": {
+        "operationId": "BrandProfilesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Brand Profiles"
+        ]
+      }
+    },
+    "/api/v1/ai/health": {
+      "get": {
+        "operationId": "AiController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/form-suggestions": {
+      "post": {
+        "operationId": "AiController_suggestions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormSuggestionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai-usage": {
+      "post": {
+        "operationId": "AiUsageController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiUsageCreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      },
+      "get": {
+        "operationId": "AiUsageController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      }
+    },
+    "/api/v1/ai-usage/{id}": {
+      "get": {
+        "operationId": "AiUsageController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      },
+      "patch": {
+        "operationId": "AiUsageController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiUsageUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      },
+      "delete": {
+        "operationId": "AiUsageController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      }
+    },
     "/api/v1/tenant-members/invite": {
       "post": {
         "operationId": "TenantMembersController_invite",
@@ -1966,386 +2457,6 @@
         ]
       }
     },
-    "/api/v1/brand-profiles/scrape-website": {
-      "post": {
-        "operationId": "BrandProfilesController_scrape",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScrapeWebsiteDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      }
-    },
-    "/api/v1/brand-profiles/parse-document": {
-      "post": {
-        "operationId": "BrandProfilesController_parse",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      }
-    },
-    "/api/v1/brand-profiles": {
-      "post": {
-        "operationId": "BrandProfilesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BrandProfilesCreateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      },
-      "get": {
-        "operationId": "BrandProfilesController_findAll",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      }
-    },
-    "/api/v1/brand-profiles/mine": {
-      "get": {
-        "operationId": "BrandProfilesController_findMine",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      }
-    },
-    "/api/v1/brand-profiles/{id}": {
-      "get": {
-        "operationId": "BrandProfilesController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      },
-      "patch": {
-        "operationId": "BrandProfilesController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BrandProfilesUpdateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      },
-      "delete": {
-        "operationId": "BrandProfilesController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Brand Profiles"
-        ]
-      }
-    },
-    "/api/v1/ai/health": {
-      "get": {
-        "operationId": "AiController_health",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "AI"
-        ]
-      }
-    },
-    "/api/v1/ai/form-suggestions": {
-      "post": {
-        "operationId": "AiController_suggestions",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FormSuggestionsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "AI"
-        ]
-      }
-    },
-    "/api/v1/ai-usage": {
-      "post": {
-        "operationId": "AiUsageController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AiUsageCreateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      },
-      "get": {
-        "operationId": "AiUsageController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      }
-    },
-    "/api/v1/ai-usage/{id}": {
-      "get": {
-        "operationId": "AiUsageController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      },
-      "patch": {
-        "operationId": "AiUsageController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AiUsageUpdateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      },
-      "delete": {
-        "operationId": "AiUsageController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AiUsage"
-        ]
-      }
-    },
     "/api/v1/content-items": {
       "post": {
         "operationId": "ContentItemsController_create",
@@ -3267,117 +3378,6 @@
         ]
       }
     },
-    "/api/v1/auto-reply-rules": {
-      "post": {
-        "operationId": "AutoReplyRulesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AutoReplyRulesCreateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      },
-      "get": {
-        "operationId": "AutoReplyRulesController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      }
-    },
-    "/api/v1/auto-reply-rules/{id}": {
-      "get": {
-        "operationId": "AutoReplyRulesController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      },
-      "patch": {
-        "operationId": "AutoReplyRulesController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AutoReplyRulesUpdateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      },
-      "delete": {
-        "operationId": "AutoReplyRulesController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Auto Reply Rules"
-        ]
-      }
-    },
     "/api/v1/whatsapp/flows/config": {
       "get": {
         "operationId": "WhatsappController_getFlowConfig",
@@ -3769,6 +3769,86 @@
         ]
       }
     },
+    "/api/v1/queues/{queue}/stats": {
+      "get": {
+        "operationId": "QueueJobsController_getQueueStats",
+        "parameters": [
+          {
+            "name": "queue",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Queue Jobs"
+        ]
+      }
+    },
+    "/api/v1/queues/{queue}/jobs": {
+      "get": {
+        "operationId": "QueueJobsController_listJobs",
+        "parameters": [
+          {
+            "name": "queue",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Queue Jobs"
+        ]
+      }
+    },
     "/api/v1/queues/{queue}/jobs/{jobId}": {
       "get": {
         "operationId": "QueueJobsController_getJob",
@@ -3792,6 +3872,78 @@
         ],
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Queue Jobs"
+        ]
+      }
+    },
+    "/api/v1/queues/{queue}/jobs/{jobId}/retry": {
+      "post": {
+        "operationId": "QueueJobsController_retryJob",
+        "parameters": [
+          {
+            "name": "queue",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Queue Jobs"
+        ]
+      }
+    },
+    "/api/v1/queues/{queue}/retry-failed": {
+      "post": {
+        "operationId": "QueueJobsController_retryAllFailed",
+        "parameters": [
+          {
+            "name": "queue",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -5852,6 +6004,38 @@
         "type": "object",
         "properties": {}
       },
+      "AutoReplyRulesCreateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AutoReplyRulesUpdateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ScrapeWebsiteDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BrandProfilesCreateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BrandProfilesUpdateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "FormSuggestionsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AiUsageCreateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AiUsageUpdateDto": {
+        "type": "object",
+        "properties": {}
+      },
       "InviteMemberDto": {
         "type": "object",
         "properties": {}
@@ -5909,30 +6093,6 @@
         "properties": {}
       },
       "UserPermissionsUpdateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "ScrapeWebsiteDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "BrandProfilesCreateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "BrandProfilesUpdateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "FormSuggestionsDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AiUsageCreateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AiUsageUpdateDto": {
         "type": "object",
         "properties": {}
       },
@@ -6026,14 +6186,6 @@
           "setupToken",
           "phoneNumberId"
         ]
-      },
-      "AutoReplyRulesCreateDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AutoReplyRulesUpdateDto": {
-        "type": "object",
-        "properties": {}
       },
       "WhatsappMenuItemDto": {
         "type": "object",

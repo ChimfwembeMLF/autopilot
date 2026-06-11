@@ -69,6 +69,7 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`Application listening on http://localhost:${port}`);
   console.log(`Documentation on http://localhost:${port}/documentation`);
+  console.log(`Bull Board on http://localhost:${port}/admin/queues`);
 
 
 }

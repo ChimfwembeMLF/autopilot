@@ -14,11 +14,15 @@ import { ApprovalWorkflows } from '../approval_workflows/entities/approval_workf
 import { UserEntity } from '../user/user.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TemplatesModule } from '../templates/templates.module';
+import { AutoReplyRulesModule } from '../auto_reply_rules/auto_reply_rules.module';
+import { BrandProfilesModule } from '../brand_profiles/brand_profiles.module';
 
 @Module({
   imports: [
     SubscriptionsModule,
     TemplatesModule,
+    AutoReplyRulesModule,
+    BrandProfilesModule,
     TypeOrmModule.forFeature([
       Tenants,
       Profiles,

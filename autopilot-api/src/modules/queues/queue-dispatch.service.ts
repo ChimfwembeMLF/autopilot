@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -127,11 +127,90 @@ export class QueueDispatchService {
   }
 
   async getJobStatus(queueName: string, jobId: string) {
+    const job = await this.getJob(queueName, jobId);
+    if (!job) return null;
+    return this.serializeJob(queueName, job);
+  }
+
+  private static readonly JOB_LIST_TYPES = [
+    'active',
+    'completed',
+    'delayed',
+    'failed',
+    'paused',
+    'prioritized',
+    'waiting',
+    'waiting-children',
+  ] as const;
+
+  async getJobCounts(queueName: string): Promise<Record<string, number>> {
+    const queue = this.queueByName(queueName);
+    if (!queue) return {};
+
+    const counts = await queue.getJobCounts(
+      ...QueueDispatchService.JOB_LIST_TYPES,
+    );
+    const total = Object.values(counts).reduce((sum, n) => sum + (n ?? 0), 0);
+    return { ...counts, all: total };
+  }
+
+  async listJobs(
+    queueName: string,
+    state:
+      | 'all'
+      | 'failed'
+      | 'completed'
+      | 'active'
+      | 'waiting'
+      | 'delayed'
+      | 'paused' = 'all',
+    start = 0,
+    end = 49,
+  ) {
+    const queue = this.queueByName(queueName);
+    if (!queue) return [];
+
+    const types =
+      state === 'all'
+        ? [...QueueDispatchService.JOB_LIST_TYPES]
+        : [state];
+    const jobs = await queue.getJobs(types, start, end);
+    const rows = await Promise.all(
+      jobs.map((job) => this.serializeJob(queueName, job)),
+    );
+    return rows.filter((row): row is NonNullable<typeof row> => row != null);
+  }
+
+  async retryJob(queueName: string, jobId: string) {
+    const job = await this.getJob(queueName, jobId);
+    if (!job) {
+      throw new NotFoundException(`Job ${jobId} not found in queue ${queueName}`);
+    }
+    await job.retry();
+    return this.serializeJob(queueName, job);
+  }
+
+  async retryAllFailed(queueName: string, limit = 100) {
+    const queue = this.queueByName(queueName);
+    if (!queue) return { retried: 0 };
+
+    const jobs = await queue.getJobs(['failed'], 0, limit - 1);
+    let retried = 0;
+    for (const job of jobs) {
+      await job.retry();
+      retried += 1;
+    }
+    return { retried };
+  }
+
+  private async getJob(queueName: string, jobId: string) {
     const queue = this.queueByName(queueName);
     if (!queue) return null;
-    const job = await queue.getJob(jobId);
-    if (!job) return null;
+    return queue.getJob(jobId);
+  }
 
+  private async serializeJob(queueName: string, job: Awaited<ReturnType<Queue['getJob']>>) {
+    if (!job) return null;
     const state = await job.getState();
     return {
       id: job.id,
@@ -139,6 +218,7 @@ export class QueueDispatchService {
       name: job.name,
       state,
       progress: job.progress,
+      data: job.data,
       returnvalue: job.returnvalue,
       failedReason: job.failedReason,
       attemptsMade: job.attemptsMade,

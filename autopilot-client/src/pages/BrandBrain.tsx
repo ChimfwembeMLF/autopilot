@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Brain, Building2, Users, Megaphone, MessageCircle, ShieldCheck, Save, Globe, Loader2 } from "lucide-react";
+import { Brain, Building2, Users, Megaphone, MessageCircle, ShieldCheck, Save, Globe, Loader2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useFormSuggestions } from "@/hooks/useFormSuggestions";
 import { SuggestedField } from "@/components/form/SuggestedField";
 import { brandProfilesApi } from "@/lib/api";
+import { DocumentUpload } from "@/components/DocumentUpload";
 
 interface BrandData {
   companyName: string;
@@ -230,6 +231,18 @@ const BrandBrain = () => {
     (Object.values(data).filter((v) => v.trim().length > 0).length / Object.keys(data).length) * 100
   );
 
+  const handleParsedDocument = (parsed: Record<string, string>) => {
+    setData((prev) => applyScrapedResult(prev, parsed, prev.websiteUrl));
+    const filledCount = BRAND_FIELD_KEYS.filter((k) => coerceScrapedValue(parsed[k])).length;
+    toast({
+      title: "Auto-fill complete",
+      description: filledCount
+        ? `Populated ${filledCount} field${filledCount === 1 ? "" : "s"} from your document. Review and save.`
+        : "No fields could be extracted — try a different file or fill in manually.",
+      variant: filledCount ? "default" : "destructive",
+    });
+  };
+
   const handleScrape = async () => {
     if (!scrapeUrl.trim() || !tenant) return;
     setScraping(true);
@@ -322,26 +335,38 @@ const BrandBrain = () => {
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 border-dashed">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Auto-fill from Website</span>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              placeholder="https://yourcompany.com"
-              value={scrapeUrl}
-              onChange={(e) => setScrapeUrl(e.target.value)}
-              disabled={scraping}
-            />
-            <Button onClick={handleScrape} disabled={scraping || !scrapeUrl.trim()} variant="outline" className="shrink-0">
-              {scraping ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</> : "Auto-fill"}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">Paste your website URL to auto-populate fields using AI.</p>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-border/50 border-dashed">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Globe className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Auto-fill from Website</span>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://yourcompany.com"
+                value={scrapeUrl}
+                onChange={(e) => setScrapeUrl(e.target.value)}
+                disabled={scraping}
+              />
+              <Button onClick={handleScrape} disabled={scraping || !scrapeUrl.trim()} variant="outline" className="shrink-0">
+                {scraping ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</> : "Auto-fill"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Paste your website URL to auto-populate fields using AI.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 border-dashed">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Auto-fill from Document</span>
+            </div>
+            <DocumentUpload onResult={handleParsedDocument} disabled={scraping} />
+          </CardContent>
+        </Card>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start overflow-x-auto bg-card border">

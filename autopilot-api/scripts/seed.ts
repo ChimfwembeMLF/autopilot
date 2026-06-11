@@ -115,14 +115,26 @@ async function bootstrap() {
     }
   }
 
-  console.log('Seeding content templates for all tenants...');
+  console.log('Seeding tenant defaults for all tenants...');
   const allTenants = await tenantsRepo.find({ select: ['id', 'ownerId'] });
+  const { AutoReplySeedService } = await import('../src/modules/auto_reply_rules/auto-reply-seed.service');
+  const autoReplySeeds = app.get(AutoReplySeedService);
+  const { UserEntity } = await import('../src/modules/user/user.entity');
+  const usersRepo = dataSource.getRepository(UserEntity);
+
   for (const tenant of allTenants) {
     if (tenant.ownerId) {
       await templateSeeds.ensureSeededForTenant(tenant.id, tenant.ownerId);
+      await autoReplySeeds.ensureSeededForTenant(tenant.id);
+      const owner = await usersRepo.findOne({ where: { id: tenant.ownerId } });
+      if (owner) {
+        const { BrandProfileSeedService } = await import('../src/modules/brand_profiles/brand-profile-seed.service');
+        const brandProfileSeeds = app.get(BrandProfileSeedService);
+        await brandProfileSeeds.ensureStarterForUser(tenant.id, owner);
+      }
     }
   }
-  console.log(`Content templates seeded for ${allTenants.length} tenant(s).`);
+  console.log(`Tenant defaults seeded for ${allTenants.length} tenant(s).`);
 
   console.log('\nSeed complete.');
   console.log('Demo accounts (password: password123):');

@@ -18,6 +18,8 @@ import {
 } from '../auth/rbac/rbac.constants';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TemplateSeedService } from '../templates/template-seed.service';
+import { AutoReplySeedService } from '../auto_reply_rules/auto-reply-seed.service';
+import { BrandProfileSeedService } from '../brand_profiles/brand-profile-seed.service';
 
 @Injectable()
 export class TenantBootstrapService {
@@ -34,6 +36,8 @@ export class TenantBootstrapService {
     @InjectRepository(ApprovalWorkflows) private readonly workflowsRepo: Repository<ApprovalWorkflows>,
     private readonly subscriptions: SubscriptionsService,
     private readonly templateSeeds: TemplateSeedService,
+    private readonly autoReplySeeds: AutoReplySeedService,
+    private readonly brandProfileSeeds: BrandProfileSeedService,
   ) {}
 
   async ensurePermissionsSeeded(): Promise<void> {
@@ -56,7 +60,7 @@ export class TenantBootstrapService {
       const tenant = await this.tenantsRepo.findOneOrFail({
         where: { id: existingMember.tenantId },
       });
-      await this.templateSeeds.ensureSeededForTenant(tenant.id, user.id);
+      await this.seedTenantDefaults(tenant.id, user);
       return tenant;
     }
 
@@ -143,8 +147,15 @@ export class TenantBootstrapService {
 
     this.logger.log(`Bootstrapped tenant ${tenant.id} for user ${user.id}`);
     await this.subscriptions.ensureForTenant(tenant.id, 'free');
-    await this.templateSeeds.ensureSeededForTenant(tenant.id, user.id);
+    await this.seedTenantDefaults(tenant.id, user);
     return tenant;
+  }
+
+  /** Idempotent starter data for new and returning tenants. */
+  async seedTenantDefaults(tenantId: string, user: UserEntity): Promise<void> {
+    await this.templateSeeds.ensureSeededForTenant(tenantId, user.id);
+    await this.autoReplySeeds.ensureSeededForTenant(tenantId);
+    await this.brandProfileSeeds.ensureStarterForUser(tenantId, user);
   }
 
   async ensureSubscriptionForExistingTenant(tenantId: string) {

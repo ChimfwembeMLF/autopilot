@@ -2,7 +2,7 @@ import {
   Brain, Pen, CalendarClock, MessageSquare, BarChart3, Zap, Settings,
   Rocket, Link2, Image, LayoutTemplate, MessageSquareReply, Megaphone,
   GitPullRequestArrow, Users, ClipboardList, ShieldCheck, Activity,
-  ChevronsUpDown, Building2, CreditCard, Download,
+  ChevronsUpDown, Building2, CreditCard, Download, ListOrdered,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +145,7 @@ export function AppSidebar() {
               {isSuperAdmin && (
                 <>
                   <NavItem title="Platform Backoffice" url="/admin/backoffice" icon={Activity} />
+                  <NavItem title="Job Queues" url="/admin/queues" icon={ListOrdered} />
                   <NavItem title="System Settings" url="/admin/system" icon={Settings} />
                 </>
               )}

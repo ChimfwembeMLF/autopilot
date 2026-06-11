@@ -233,6 +233,9 @@ function BackofficeContent() {
         <Button variant="outline" size="sm" asChild>
           <Link to="/admin/system"><Settings className="h-4 w-4 mr-2" /> System settings</Link>
         </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/admin/queues"><Activity className="h-4 w-4 mr-2" /> Job queues</Link>
+        </Button>
       </div>
 
       <Tabs defaultValue="overview">

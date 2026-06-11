@@ -1,9 +1,15 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { BullBoardModule } from '@bull-board/nestjs';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { ExpressAdapter } from '@bull-board/express';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import {
-  ALL_QUEUES,
-} from './queue.constants';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ALL_QUEUES } from './queue.constants';
+import { createBullBoardAuthMiddleware } from './bull-board-auth.middleware';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
+import { UserEntity } from '../user/user.entity';
+import { Profiles } from '../profiles/entities/profiles.entity';
 import { QueueDispatchService } from './queue-dispatch.service';
 import { QueueJobsController } from './queue-jobs.controller';
 import { ContentPublishProcessor } from './processors/content-publish.processor';
@@ -19,6 +25,7 @@ import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([UserEntity, Profiles]),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -30,8 +37,26 @@ import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
         },
       }),
     }),
+    BullBoardModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        route: '/admin/queues',
+        adapter: ExpressAdapter,
+        middleware: createBullBoardAuthMiddleware(
+          config.get<string>('BULL_BOARD_USER') ?? 'admin',
+          config.get<string>('BULL_BOARD_PASSWORD'),
+        ),
+      }),
+    }),
     BullModule.registerQueue(
       ...ALL_QUEUES.map((name) => ({ name })),
+    ),
+    BullBoardModule.forFeature(
+      ...ALL_QUEUES.map((name) => ({
+        name,
+        adapter: BullMQAdapter,
+      })),
     ),
     forwardRef(() => ContentItemsModule),
     forwardRef(() => ContentPublishingModule),
@@ -42,6 +67,7 @@ import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
   controllers: [QueueJobsController],
   providers: [
     QueueDispatchService,
+    SuperAdminGuard,
     ContentPublishProcessor,
     CommentsProcessor,
     WebhooksProcessor,

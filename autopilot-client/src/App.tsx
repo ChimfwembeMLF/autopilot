@@ -34,6 +34,7 @@ import RolesPage from "./pages/admin/RolesPage";
 import MakerCheckerConfigPage from "./pages/admin/MakerCheckerConfigPage";
 import SystemSettingsPage from "./pages/admin/SystemSettingsPage";
 import BackofficePage from "./pages/admin/BackofficePage";
+import QueueJobsPage from "./pages/admin/QueueJobsPage";
 import TeamPage from "./pages/team/TeamPage";
 import UserPermissionsPage from "./pages/team/UserPermissionsPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
@@ -164,6 +165,7 @@ const App = () => (
                   {/* Platform backoffice — Super Admin only */}
                   <Route path="/admin/system" element={<SuperAdminRoute><SystemSettingsPage /></SuperAdminRoute>} />
                   <Route path="/admin/backoffice" element={<BackofficePage />} />
+                  <Route path="/admin/queues" element={<QueueJobsPage />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
