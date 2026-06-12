@@ -4,11 +4,13 @@ import { Repository } from 'typeorm';
 import { SystemSettings } from './entities/system_settings.entity';
 import { SystemSettingsUpsertDto } from './dto/upsert-system_settings.dto';
 
+import { MAKO_THEME } from '../../constants/mako-brand.constants';
+
 export const DEFAULT_THEME = {
-  primary: '15 90% 55%',
-  secondary: '220 60% 50%',
-  accent: '280 70% 55%',
-  radius: '0.75rem',
+  primary: MAKO_THEME.primary,
+  secondary: MAKO_THEME.secondary,
+  accent: MAKO_THEME.accent,
+  radius: MAKO_THEME.radius,
   mode: 'light',
 };
 

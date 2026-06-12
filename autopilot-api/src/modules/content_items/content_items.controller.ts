@@ -15,6 +15,7 @@ import { ContentItemsService } from './content_items.service';
 import { ContentItems } from './entities/content_items.entity';
 import { ContentItemsCreateDto } from './dto/create-content_items.dto';
 import { ContentItemsUpdateDto } from './dto/update-content_items.dto';
+import { ListContentItemsQueryDto } from './dto/list-content-items.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MediaService } from '../media/media.service';
 import { BrandProfilesService } from '../brand_profiles/brand_profiles.service';
@@ -46,8 +47,21 @@ export class ContentItemsController {
   }
 
   @Get()
-  findAll(@Query('tenantId') tenantId?: string): Promise<ContentItems[]> {
-    return this.service.findAll(tenantId);
+  findAll(
+    @Req() req: { user: JwtUser },
+    @Query() query: ListContentItemsQueryDto,
+  ) {
+    if (query.page != null || query.limit != null || query.search || query.platform) {
+      return this.service.findPaginated({
+        tenantId: query.tenantId,
+        userId: String(req.user.sub),
+        page: query.page,
+        limit: query.limit,
+        search: query.search,
+        platform: query.platform,
+      });
+    }
+    return this.service.findAll(query.tenantId);
   }
 
   @Get(':id/details')

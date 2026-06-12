@@ -1,5 +1,6 @@
 import PDFDocument = require('pdfkit');
 import { InvoiceData, buildInvoiceNumber } from './invoice.template';
+import { INVOICE_LOGO_HEIGHT_PX, invoiceLogoWidth, resolveInvoiceLogoPath } from './invoice-logo.util';
 
 type PdfDoc = PDFKit.PDFDocument;
 
@@ -45,15 +46,21 @@ export async function renderInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
   let y = MARGIN;
 
-  // Logo circle + brand
-  doc.circle(MARGIN + 18, y + 18, 16).lineWidth(2).strokeColor('#6366f1').stroke();
-  doc.fontSize(14).fillColor('#6366f1').font('Helvetica-Bold')
-    .text('A', MARGIN + 12, y + 10, { width: 20, align: 'center' });
+  const logoPath = resolveInvoiceLogoPath();
+  let brandTextX = MARGIN + 44;
+  if (logoPath) {
+    doc.image(logoPath, MARGIN, y, { height: INVOICE_LOGO_HEIGHT_PX });
+    brandTextX = MARGIN + invoiceLogoWidth() + 12;
+  } else {
+    doc.circle(MARGIN + 18, y + 18, 16).lineWidth(2).strokeColor('#6366f1').stroke();
+    doc.fontSize(14).fillColor('#6366f1').font('Helvetica-Bold')
+      .text('M', MARGIN + 12, y + 10, { width: 20, align: 'center' });
+  }
 
   doc.fontSize(22).fillColor('#111').font('Helvetica-Bold')
-    .text(data.companyName.toUpperCase(), MARGIN + 44, y);
+    .text(data.companyName.toUpperCase(), brandTextX, y);
   doc.fontSize(7).fillColor('#333').font('Helvetica-Bold')
-    .text(data.companyTagline, MARGIN + 44, y + 26, { characterSpacing: 1 });
+    .text(data.companyTagline, brandTextX, y + 26, { characterSpacing: 1 });
 
   // Company block (right)
   doc.fontSize(10).fillColor('#111').font('Helvetica-Bold')
@@ -65,7 +72,7 @@ export async function renderInvoicePdf(data: InvoiceData): Promise<Buffer> {
       .text(`TPIN: ${data.companyTpin}`, MARGIN, y + 28, { width: CONTENT_W, align: 'right' });
   }
 
-  y += 52;
+  y += logoPath ? INVOICE_LOGO_HEIGHT_PX + 8 : 52;
 
   // TAX INVOICE title
   doc.fontSize(32).fillColor('#dc2626').font('Helvetica-Bold')

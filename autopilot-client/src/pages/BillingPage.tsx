@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TenantBillingRecords } from '@/components/TenantBillingRecords';
-import { subscriptionsApi, paymentsApi, tenantMembersApi } from '@/lib/api';
+import { subscriptionsApi, paymentsApi, tenantMembersApi, plansApi, type PublicPlan } from '@/lib/api';
+import { formatPriceZmw, planFeatureBullets } from '@/lib/plans';
 import { useTenant } from '@/hooks/useTenant';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
@@ -28,12 +29,6 @@ interface Subscription {
   dailyWorkflowEnabled: boolean;
 }
 
-const PLANS = [
-  { key: 'free',    label: 'Free',    price: 'ZMW 0',   aiLimit: 100, seats: 2,    tenants: 1,  highlight: false },
-  { key: 'starter', label: 'Starter', price: 'ZMW 375', aiLimit: 500, seats: 10,   tenants: 3,  highlight: true  },
-  { key: 'pro',     label: 'Pro',     price: 'ZMW 875', aiLimit: '∞', seats: '∞',  tenants: '∞',highlight: false },
-];
-
 export default function BillingPage() {
   const { tenant, isOwner, loading: tenantLoading } = useTenant();
   const { can, isSuperAdmin, loading: permLoading } = usePermissions();
@@ -43,6 +38,7 @@ export default function BillingPage() {
   const [aiUsed, setAiUsed]   = useState(0);
   const [seats, setSeats]     = useState(0);
   const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
 
   // Mobile money dialog state
   const [mmOpen, setMmOpen]           = useState(false);
@@ -51,6 +47,10 @@ export default function BillingPage() {
   const [mmNetwork, setMmNetwork]     = useState('MTN_MOMO_ZMB');
   const [mmSubmitting, setMmSubmitting] = useState(false);
   const [mmDepositId, setMmDepositId] = useState<string | null>(null);
+
+  useEffect(() => {
+    plansApi.list().then(setPlans).catch(() => setPlans([]));
+  }, []);
 
   useEffect(() => { if (tenant) load(); }, [tenant]);
 
@@ -122,13 +122,14 @@ export default function BillingPage() {
   }
 
   const currentPlan = sub?.plan ?? 'free';
-  const planConfig = PLANS.find(p => p.key === currentPlan);
-  const aiLimit = sub?.aiCallsLimit ?? (planConfig ? planConfig.aiLimit : 100);
-  const aiPct = aiLimit === Infinity || aiLimit === null ? 0 : Math.min((aiUsed / aiLimit) * 100, 100);
-  const seatLimit = sub?.seatLimit ?? (planConfig && planConfig.seats !== '∞' ? planConfig.seats : 2);
-  const seatPct = seatLimit === '∞' ? 0 : Math.min((seats / Number(seatLimit)) * 100, 100);
-  const isAtAiLimit = aiLimit !== Infinity && aiLimit !== null && aiUsed >= aiLimit;
-  const isAtSeatLimit = seatLimit !== '∞' && seats >= Number(seatLimit);
+  const planConfig = plans.find(p => p.key === currentPlan);
+  const aiLimit = sub?.aiCallsLimit ?? planConfig?.aiCallsLimit ?? 100;
+  const aiPct = aiLimit === null ? 0 : Math.min((aiUsed / aiLimit) * 100, 100);
+  const seatLimit = sub?.seatLimit ?? planConfig?.seatLimit ?? 2;
+  const seatPct = seatLimit === null ? 0 : Math.min((seats / seatLimit) * 100, 100);
+  const isAtAiLimit = aiLimit !== null && aiUsed >= aiLimit;
+  const isAtSeatLimit = seatLimit !== null && seats >= seatLimit;
+  const mmPlanConfig = plans.find(p => p.key === mmPlan);
 
   if (tenantLoading || permLoading) {
     return (
@@ -171,9 +172,9 @@ export default function BillingPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{aiUsed} used</span>
-                  <span>{aiLimit === Infinity ? 'Unlimited' : `${aiLimit} limit`}</span>
+                  <span>{aiLimit === null ? 'Unlimited' : `${aiLimit} limit`}</span>
                 </div>
-                {aiLimit !== Infinity && (
+                {aiLimit !== null && (
                   <Progress value={aiPct} className={`h-2 ${isAtAiLimit ? '[&>div]:bg-destructive' : aiPct > 80 ? '[&>div]:bg-amber-500' : ''}`} />
                 )}
               </div>
@@ -193,7 +194,7 @@ export default function BillingPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{seats} used</span>
-                  <span>{seatLimit} seats</span>
+                  <span>{seatLimit === null ? 'Unlimited' : `${seatLimit} seats`}</span>
                 </div>
                 <Progress value={seatPct} className={`h-2 ${isAtSeatLimit ? '[&>div]:bg-destructive' : ''}`} />
               </div>
@@ -208,7 +209,7 @@ export default function BillingPage() {
         <div>
           <h2 className="text-base font-semibold mb-4">Plans</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {PLANS.map(plan => {
+            {plans.map(plan => {
               const isCurrent = currentPlan === plan.key;
               return (
                 <div key={plan.key}
@@ -221,17 +222,10 @@ export default function BillingPage() {
                       {isCurrent && <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">Current</Badge>}
                       {plan.highlight && !isCurrent && <Badge className="text-[10px]">Popular</Badge>}
                     </div>
-                    <p className="text-2xl font-bold mt-1">{plan.price}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                    <p className="text-2xl font-bold mt-1">{formatPriceZmw(plan.priceZmw)}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
                   </div>
                   <ul className="space-y-2 text-sm flex-1">
-                    {[
-                      `${aiLimit === null || aiLimit === Infinity ? 'Unlimited' : aiLimit} AI generations/month`,
-                      `${plan.seats} team seats`,
-                      plan.key === 'free'
-                        ? 'Manual content only (no daily auto-generate)'
-                        : 'Daily auto-generate at 08:00',
-                      `${plan.tenants} workspace${plan.tenants === 1 ? '' : 's'}`,
-                    ].map(f => (
+                    {planFeatureBullets(plan).map(f => (
                       <li key={f} className="flex items-center gap-2">
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
                         <span className="text-muted-foreground">{f}</span>
@@ -289,7 +283,7 @@ export default function BillingPage() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Smartphone className="h-5 w-5 text-primary" />
-              Mobile Money — {PLANS.find(p => p.key === mmPlan)?.label}
+              Mobile Money — {mmPlanConfig?.label ?? mmPlan}
             </SheetTitle>
             <SheetDescription>
               Enter your mobile number and we'll send a payment prompt to your phone.
@@ -333,7 +327,7 @@ export default function BillingPage() {
                 <p className="text-xs text-muted-foreground">Include country code, no + (e.g. 260971234567)</p>
               </div>
               <p className="text-sm font-medium">
-                Amount: <span className="text-primary">{PLANS.find(p => p.key === mmPlan)?.price}/month</span>
+                Amount: <span className="text-primary">{mmPlanConfig ? `${formatPriceZmw(mmPlanConfig.priceZmw)}/month` : '—'}</span>
               </p>
               <Button
                 className="w-full"

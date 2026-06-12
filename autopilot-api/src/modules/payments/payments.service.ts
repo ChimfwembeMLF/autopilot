@@ -7,7 +7,8 @@ import { Deposits } from '../deposits/entities/deposits.entity';
 import { Tenants } from '../tenants/entities/tenants.entity';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantMembersService } from '../tenant_members/tenant_members.service';
-import { normalizePlanKey, PlanKey, PLAN_CONFIG } from '../subscriptions/plan.constants';
+import { normalizePlanKey, PlanKey } from '../subscriptions/plan.constants';
+import { PlansService } from '../subscriptions/plans.service';
 import { buildInvoiceNumber, invoiceDataFromDeposit, renderInvoiceHtml, InvoiceData } from './invoice.template';
 import { getInvoicePdfFilename, renderInvoicePdf } from './invoice.pdf';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -37,6 +38,7 @@ export class PaymentsService {
     @InjectRepository(Tenants)
     private readonly tenantsRepo: Repository<Tenants>,
     private readonly subscriptions: SubscriptionsService,
+    private readonly plans: PlansService,
     private readonly tenantMembers: TenantMembersService,
     private readonly config: ConfigService,
     @Optional() private readonly notifications?: NotificationsService,
@@ -62,7 +64,7 @@ export class PaymentsService {
     }
 
     const depositId = randomUUID();
-    const amount = String(PLAN_CONFIG[plan].priceZmw);
+    const amount = String(this.plans.getPlanPriceZmw(plan));
 
     const deposit = await this.depositsRepo.save(
       this.depositsRepo.create({
@@ -162,7 +164,10 @@ export class PaymentsService {
     });
     if (!tenant) throw new NotFoundException('Tenant not found');
 
-    return invoiceDataFromDeposit(deposit, tenant, tenant.owner?.email);
+    return invoiceDataFromDeposit(deposit, tenant, tenant.owner?.email, {
+      label: this.plans.getPlan(deposit.plan ?? 'free').label,
+      priceZmw: this.plans.getPlanPriceZmw(deposit.plan ?? 'free'),
+    });
   }
 
   private async assertTenantAccess(userId: string, tenantId: string) {

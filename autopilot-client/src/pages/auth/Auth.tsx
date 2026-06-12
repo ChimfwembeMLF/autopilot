@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSocialLoginUrl } from "@/lib/api";
 import { Field, FormInput } from "@/components/forms";
 import { Rocket, Mail, Lock, User, ArrowLeft, Facebook, Linkedin, Instagram } from "lucide-react";
+import Logo from "@/components/Logo";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -79,12 +80,8 @@ const Auth = () => {
           <ArrowLeft className="h-3 w-3" /> Back to home
         </Link>
 
-        <div className="text-center space-y-2">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary shadow-glow">
-            <Rocket className="h-7 w-7 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold font-display">Mako</h1>
-          <p className="text-sm text-muted-foreground">AI Marketing Mako for Growing Brands</p>
+        <div className="flex justify-center">
+        <Logo className="h-36 w-auto" />
         </div>
 
         <Card className="shadow-card border-border/50 rounded-xl">

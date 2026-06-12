@@ -12,11 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Palette, ShieldCheck, Plus, Trash2, Save, ChevronDown, ChevronUp } from 'lucide-react';
 
+import { MAKO_THEME } from '@/lib/mako-brand';
+
 const THEME_FIELDS: { key: keyof ThemeConfig; label: string; placeholder: string }[] = [
-  { key: 'primary', label: 'Primary', placeholder: '15 90% 55%' },
-  { key: 'secondary', label: 'Secondary', placeholder: '220 60% 50%' },
-  { key: 'accent', label: 'Accent', placeholder: '280 70% 55%' },
-  { key: 'radius', label: 'Border radius', placeholder: '0.75rem' },
+  { key: 'primary', label: 'Primary', placeholder: MAKO_THEME.primary },
+  { key: 'secondary', label: 'Secondary', placeholder: MAKO_THEME.secondary },
+  { key: 'accent', label: 'Accent', placeholder: MAKO_THEME.accent },
+  { key: 'radius', label: 'Border radius', placeholder: MAKO_THEME.radius },
 ];
 
 export default function SystemSettingsPage() {

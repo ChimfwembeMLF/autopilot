@@ -634,6 +634,14 @@ export const backofficeApi = {
                 createdAt: string;
             }>;
         }>(`/api/v1/backoffice/tenants/${id}`),
+
+    getPlans: () => request<PublicPlan[]>('/api/v1/backoffice/plans'),
+
+    updatePlans: (data: Partial<Record<PublicPlan['key'], Partial<Omit<PublicPlan, 'key'>>>>) =>
+        request<PublicPlan[]>('/api/v1/backoffice/plans', {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
 };
 
 export const tenantsApi = {
@@ -1072,6 +1080,22 @@ export const subscriptionsApi = {
         }>(`/api/v1/subscriptions/tenant/${tenantId}`),
 };
 
+export type PublicPlan = {
+    key: 'free' | 'starter' | 'pro';
+    label: string;
+    priceZmw: number;
+    aiCallsLimit: number | null;
+    seatLimit: number | null;
+    tenantLimit: number | null;
+    dailyWorkflowEnabled: boolean;
+    features: string[];
+    highlight: boolean;
+};
+
+export const plansApi = {
+    list: () => request<PublicPlan[]>('/api/v1/plans'),
+};
+
 export const paymentsApi = {
     initiateDeposit: (data: { tenantId: string; plan: string; phone?: string; correspondent?: string }) =>
         request<{ paymentId: string; status: string; message: string; plan?: string; amount?: string }>(
@@ -1170,6 +1194,22 @@ export const templatesApi = {
 };
 
 // ==================== Content Items ====================
+export type PaginatedContentItemsResponse = {
+    items: Record<string, unknown>[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+};
+
+export type ContentItemsListParams = {
+    tenantId?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    platform?: string;
+};
+
 export const contentItemsApi = {
     create: (data: ContentItemsCreateDto) =>
         request<any>('/api/v1/content-items', {
@@ -1177,8 +1217,19 @@ export const contentItemsApi = {
             body: JSON.stringify(data),
         }),
 
-    findAll: (tenantId?: string) =>
-        request<any>(tenantId ? `/api/v1/content-items?tenantId=${tenantId}` : '/api/v1/content-items'),
+    findAll: (tenantId?: string, params?: Omit<ContentItemsListParams, 'tenantId'>) => {
+        const qs = new URLSearchParams();
+        if (tenantId) qs.set('tenantId', tenantId);
+        if (params?.page != null) qs.set('page', String(params.page));
+        if (params?.limit != null) qs.set('limit', String(params.limit));
+        if (params?.search?.trim()) qs.set('search', params.search.trim());
+        if (params?.platform?.trim()) qs.set('platform', params.platform.trim());
+        const query = qs.toString();
+        return request<any>(query ? `/api/v1/content-items?${query}` : '/api/v1/content-items');
+    },
+
+    findPage: (params: ContentItemsListParams = {}) =>
+        contentItemsApi.findAll(params.tenantId, params) as Promise<PaginatedContentItemsResponse>,
 
     findOne: (id: string) => request<any>(`/api/v1/content-items/${id}`),
 

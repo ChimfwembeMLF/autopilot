@@ -23,6 +23,8 @@ import { KnowledgeDocument } from '../chatbot/entities/knowledge-document.entity
 import { KnowledgeChunk } from '../chatbot/entities/knowledge-chunk.entity';
 import { ChatbotApiKey } from '../chatbot/entities/chatbot-api-key.entity';
 import { IsNull, MoreThanOrEqual } from 'typeorm';
+import { PlansService } from '../subscriptions/plans.service';
+import { UpdatePlansDto } from '../subscriptions/dto/update-plans.dto';
 
 @Injectable()
 export class BackofficeService {
@@ -47,6 +49,7 @@ export class BackofficeService {
     @InjectRepository(KnowledgeDocument) private readonly knowledgeDocRepo: Repository<KnowledgeDocument>,
     @InjectRepository(KnowledgeChunk) private readonly knowledgeChunkRepo: Repository<KnowledgeChunk>,
     @InjectRepository(ChatbotApiKey) private readonly chatbotKeyRepo: Repository<ChatbotApiKey>,
+    private readonly plans: PlansService,
   ) {}
 
   async getOverview() {
@@ -445,13 +448,14 @@ export class BackofficeService {
   }
 
   private planMrr(plan: string): number {
-    switch (plan?.toLowerCase()) {
-      case 'starter':
-        return 375;
-      case 'pro':
-        return 875;
-      default:
-        return 0;
-    }
+    return this.plans.getPlanPriceZmw(plan);
+  }
+
+  getPlans() {
+    return this.plans.getPlansList();
+  }
+
+  updatePlans(dto: UpdatePlansDto) {
+    return this.plans.updatePlans(dto);
   }
 }

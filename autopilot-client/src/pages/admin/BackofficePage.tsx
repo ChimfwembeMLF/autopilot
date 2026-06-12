@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/sheet';
 import { SuperAdminRoute } from '@/components/SuperAdminRoute';
 import { backofficeApi } from '@/lib/api';
+import { BackofficePlansTab } from './BackofficePlansTab';
 
 type Overview = Awaited<ReturnType<typeof backofficeApi.getOverview>>;
 type TenantRow = Awaited<ReturnType<typeof backofficeApi.listTenants>>[number];
@@ -219,16 +220,18 @@ function TenantDetailSheet({
 function BackofficeContent() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [tenants, setTenants] = useState<TenantRow[]>([]);
+  const [pricingPlans, setPricingPlans] = useState<Awaited<ReturnType<typeof backofficeApi.getPlans>>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
-    Promise.all([backofficeApi.getOverview(), backofficeApi.listTenants()])
-      .then(([ov, t]) => {
+    Promise.all([backofficeApi.getOverview(), backofficeApi.listTenants(), backofficeApi.getPlans()])
+      .then(([ov, t, plans]) => {
         setOverview(ov);
         setTenants(t);
+        setPricingPlans(plans);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load backoffice'))
       .finally(() => setLoading(false));
@@ -286,6 +289,7 @@ function BackofficeContent() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tenants">Tenants ({stats.tenants})</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="plans">Plans</TabsTrigger>
           <TabsTrigger value="ai">AI Usage</TabsTrigger>
           <TabsTrigger value="chatbot">Chatbot ({stats.chatSessions})</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -430,6 +434,10 @@ function BackofficeContent() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="plans" className="mt-6">
+          <BackofficePlansTab onSaved={setPricingPlans} />
         </TabsContent>
 
         <TabsContent value="ai" className="space-y-6 mt-6">
@@ -644,20 +652,31 @@ function BackofficeContent() {
 
               <div>
                 <h3 className="text-foreground font-semibold mb-2">Compliance & legal URLs</h3>
+                <p className="text-xs mb-2">
+                  The React app serves <Link to="/privacy" className="text-primary hover:underline">/privacy</Link>,{' '}
+                  <Link to="/terms" className="text-primary hover:underline">/terms</Link>, and{' '}
+                  <Link to="/data-deletion" className="text-primary hover:underline">/data-deletion</Link> for users.
+                  Static HTML copies on the API domain ({company.legal.privacy.replace('/privacy', '')}) are required for Meta App Review and stable webhook/legal URLs.
+                </p>
                 <ul className="space-y-1">
-                  <li><Link to={company.legal.privacy} className="text-primary hover:underline">{company.legal.privacy}</Link> — Privacy policy</li>
-                  <li><Link to={company.legal.terms} className="text-primary hover:underline">{company.legal.terms}</Link> — Terms of service</li>
+                  <li><Link to={company.legal.privacy} className="text-primary hover:underline">{company.legal.privacy}</Link> — Privacy policy (API HTML)</li>
+                  <li><Link to={company.legal.terms} className="text-primary hover:underline">{company.legal.terms}</Link> — Terms of service (API HTML)</li>
                   <li><Link to={company.legal.dataDeletion} className="text-primary hover:underline">{company.legal.dataDeletion}</Link> — Data deletion (Meta App Review)</li>
                 </ul>
               </div>
 
               <div>
                 <h3 className="text-foreground font-semibold mb-2">Pricing (ZMW / month)</h3>
+                <p className="text-xs mb-2">Edit live pricing in the <strong>Plans</strong> tab — shown here for reference.</p>
                 <div className="grid sm:grid-cols-3 gap-3">
-                  {[['Free', '0'], ['Starter', '375'], ['Pro', '875']].map(([name, price]) => (
-                    <div key={name} className="rounded-lg border p-3 text-center">
-                      <p className="font-medium text-foreground">{name}</p>
-                      <p className="text-lg font-bold text-foreground">ZMW {price}</p>
+                  {(pricingPlans.length ? pricingPlans : [
+                    { key: 'free', label: 'Free', priceZmw: 0 },
+                    { key: 'starter', label: 'Starter', priceZmw: 375 },
+                    { key: 'pro', label: 'Pro', priceZmw: 875 },
+                  ]).map((p) => (
+                    <div key={p.key} className="rounded-lg border p-3 text-center">
+                      <p className="font-medium text-foreground">{p.label}</p>
+                      <p className="text-lg font-bold text-foreground">ZMW {p.priceZmw}</p>
                     </div>
                   ))}
                 </div>

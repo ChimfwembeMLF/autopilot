@@ -1,4 +1,5 @@
 import type { ThemeConfig } from '@/hooks/useTheme';
+import { MAKO_THEME } from '@/lib/mako-brand';
 
 export type ThemePalette = {
   id: string;
@@ -10,14 +11,25 @@ export type ThemePalette = {
 /** Curated HSL palettes (values without hsl() wrapper — matches CSS variables). */
 export const THEME_PALETTES: ThemePalette[] = [
   {
+    id: 'mako',
+    name: 'Mako Market Co-pilot',
+    description: 'Logo palette — golden orange, vibrant purple, teal accent',
+    theme: {
+      primary: MAKO_THEME.primary,
+      secondary: MAKO_THEME.secondary,
+      accent: MAKO_THEME.accent,
+      radius: MAKO_THEME.radius,
+    },
+  },
+  {
     id: 'autopilot',
     name: 'Mako Co-pilot Orange',
-    description: 'Default brand — warm orange with blue secondary',
+    description: 'Legacy alias — same as Mako Market Co-pilot',
     theme: {
-      primary: '15 90% 55%',
-      secondary: '220 60% 50%',
-      accent: '280 70% 55%',
-      radius: '0.75rem',
+      primary: MAKO_THEME.primary,
+      secondary: MAKO_THEME.secondary,
+      accent: MAKO_THEME.accent,
+      radius: MAKO_THEME.radius,
     },
   },
   {

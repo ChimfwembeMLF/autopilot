@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { plansApi, type PublicPlan } from '@/lib/api';
+import { formatPriceZmw, planFeatureBullets } from '@/lib/plans';
 import {
   Rocket, Brain, Pen, CalendarClock, BarChart3, Zap, CheckCircle2, ArrowRight,
   Star, Menu, X, ChevronDown, MessageSquareReply, Shield, Sparkles, Link2,
-  TrendingUp, Users, Globe,
+  TrendingUp, Users, Globe, Loader2,
 } from 'lucide-react';
 import {
   ScreenshotFrame,
@@ -17,6 +19,7 @@ import {
   MockAnalytics,
   MockReplies,
 } from '@/components/landing/ProductMocks';
+import Logo from '@/components/Logo';
 
 function useInView(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null);
@@ -124,10 +127,7 @@ function Nav() {
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? 'bg-background/85 backdrop-blur-xl border-b shadow-sm' : ''}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
-            <Rocket className="h-4 w-4 text-white" />
-          </div>
-          <span className="font-bold text-lg font-display">Mako Co-pilot</span>
+         <Logo />
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
           {[['#product', 'Product'], ['#features', 'Features'], ['#pricing', 'Pricing']].map(([href, label]) => (
@@ -307,37 +307,48 @@ function FeaturesGrid() {
   );
 }
 
-const PLANS = [
-  { name: 'Free', price: 'ZMW 0', features: ['10 AI gens/mo', '2 seats', '1 workspace'], highlight: false },
-  { name: 'Starter', price: 'ZMW 375', features: ['100 AI gens/mo', '10 seats', 'Approvals & audit'], highlight: true },
-  { name: 'Pro', price: 'ZMW 875', features: ['Unlimited AI', 'Unlimited seats', 'Priority support'], highlight: false },
-];
-
 function Pricing() {
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    plansApi
+      .list()
+      .then(setPlans)
+      .catch(() => setPlans([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <section id="pricing" className="py-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <FadeIn>
           <h2 className="text-3xl sm:text-4xl font-bold font-display text-center mb-12">Simple pricing</h2>
         </FadeIn>
-        <div className="grid md:grid-cols-3 gap-6">
-          {PLANS.map((p, i) => (
-            <FadeIn key={p.name} delay={i * 80}>
-              <div className={`rounded-2xl border p-6 h-full flex flex-col ${p.highlight ? 'border-primary ring-2 ring-primary/20 bg-primary/5 scale-[1.02]' : 'bg-card'}`}>
-                <h3 className="font-bold text-xl">{p.name}</h3>
-                <p className="text-3xl font-bold mt-2">{p.price}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-                <ul className="space-y-2 mt-6 flex-1">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />{f}</li>
-                  ))}
-                </ul>
-                <Button className={`mt-6 w-full ${p.highlight ? 'gradient-primary border-0 text-white' : ''}`} variant={p.highlight ? 'default' : 'outline'} asChild>
-                  <Link to="/auth?mode=signup">Get started</Link>
-                </Button>
-              </div>
-            </FadeIn>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex justify-center py-12 text-muted-foreground gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" /> Loading plans…
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6">
+            {plans.map((p, i) => (
+              <FadeIn key={p.key} delay={i * 80}>
+                <div className={`rounded-2xl border p-6 h-full flex flex-col ${p.highlight ? 'border-primary ring-2 ring-primary/20 bg-primary/5 scale-[1.02]' : 'bg-card'}`}>
+                  <h3 className="font-bold text-xl">{p.label}</h3>
+                  <p className="text-3xl font-bold mt-2">{formatPriceZmw(p.priceZmw)}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                  <ul className="space-y-2 mt-6 flex-1">
+                    {planFeatureBullets(p).map((f) => (
+                      <li key={f} className="flex gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />{f}</li>
+                    ))}
+                  </ul>
+                  <Button className={`mt-6 w-full ${p.highlight ? 'gradient-primary border-0 text-white' : ''}`} variant={p.highlight ? 'default' : 'outline'} asChild>
+                    <Link to="/auth?mode=signup">Get started</Link>
+                  </Button>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -366,7 +377,7 @@ function Footer() {
     <footer className="border-t py-12 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row justify-between gap-8">
         <div>
-          <div className="flex items-center gap-2 font-display font-bold"><Rocket className="h-5 w-5 text-primary" /> Mako Co-pilot</div>
+          <Logo />
           <p className="text-sm text-muted-foreground mt-2 max-w-xs">AI marketing autopilot by Tekrem Innvation Solutions. Built in Zambia.</p>
         </div>
         <div className="flex gap-8 text-sm text-muted-foreground">

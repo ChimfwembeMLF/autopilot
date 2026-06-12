@@ -4,10 +4,10 @@ import { Repository, Between, MoreThanOrEqual } from 'typeorm';
 import { TenantSubscriptions } from './entities/tenant_subscriptions.entity';
 import { AiUsage } from '../ai_usage/entities/ai_usage.entity';
 import {
-  PLAN_CONFIG,
   PlanKey,
   normalizePlanKey,
 } from './plan.constants';
+import { PlansService } from './plans.service';
 
 export interface SubscriptionSummary {
   tenantId: string;
@@ -29,6 +29,7 @@ export class SubscriptionsService {
     private readonly subRepo: Repository<TenantSubscriptions>,
     @InjectRepository(AiUsage)
     private readonly usageRepo: Repository<AiUsage>,
+    private readonly plans: PlansService,
   ) {}
 
   private periodBounds(): { start: Date; end: Date } {
@@ -45,7 +46,7 @@ export class SubscriptionsService {
     if (sub) return sub;
 
     const { start, end } = this.periodBounds();
-    const cfg = PLAN_CONFIG[plan];
+    const cfg = this.plans.getPlan(plan);
     sub = await this.subRepo.save(
       this.subRepo.create({
         tenantId,
@@ -62,7 +63,7 @@ export class SubscriptionsService {
   async getSummary(tenantId: string): Promise<SubscriptionSummary> {
     const sub = await this.ensureForTenant(tenantId);
     const plan = normalizePlanKey(sub.plan);
-    const cfg = PLAN_CONFIG[plan];
+    const cfg = this.plans.getPlan(plan);
     const used = await this.countAiCalls(tenantId, sub.billingPeriodStart, sub.billingPeriodEnd);
     const limit = cfg.aiCallsLimit;
     return {
@@ -94,7 +95,7 @@ export class SubscriptionsService {
       return { allowed: false, reason: 'Subscription is not active. Please renew your plan.' };
     }
     const plan = normalizePlanKey(sub.plan);
-    const limit = PLAN_CONFIG[plan].aiCallsLimit;
+    const limit = this.plans.getPlan(plan).aiCallsLimit;
     if (limit === null) return { allowed: true };
     const used = await this.countAiCalls(tenantId, sub.billingPeriodStart, sub.billingPeriodEnd);
     if (used >= limit) {
@@ -139,7 +140,7 @@ export class SubscriptionsService {
     if (plan === 'free') {
       throw new ForbiddenException('Cannot activate free plan via payment');
     }
-    const cfg = PLAN_CONFIG[plan];
+    const cfg = this.plans.getPlan(plan);
     const { start, end } = this.periodBounds();
     await this.ensureForTenant(tenantId);
     return this.subRepo.save({

@@ -60,13 +60,14 @@ async function bootstrap() {
   app.use(passport.session());
 
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
 
   setupSwagger(app);
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  // await app.listen(`0.0.0.0:${port}`);
+  await app.listen(4000, '0.0.0.0');
   console.log(`Application listening on http://localhost:${port}`);
   console.log(`Documentation on http://localhost:${port}/documentation`);
   console.log(`Bull Board on http://localhost:${port}/admin/queues`);

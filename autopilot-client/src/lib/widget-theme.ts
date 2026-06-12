@@ -1,6 +1,8 @@
-export const DEFAULT_WIDGET_GRADIENT_FROM = "#6366f1";
-export const DEFAULT_WIDGET_GRADIENT_TO = "#a855f7";
-export const DEFAULT_WIDGET_GRADIENT_ANGLE = 135;
+import { MAKO_BRAND, MAKO_WIDGET_GRADIENT } from "./mako-brand";
+
+export const DEFAULT_WIDGET_GRADIENT_FROM = MAKO_WIDGET_GRADIENT.from;
+export const DEFAULT_WIDGET_GRADIENT_TO = MAKO_WIDGET_GRADIENT.to;
+export const DEFAULT_WIDGET_GRADIENT_ANGLE = MAKO_WIDGET_GRADIENT.angle;
 
 export type WidgetThemeColors = {
   primaryColor?: string;
@@ -22,6 +24,7 @@ export function resolveWidgetColors(theme: WidgetThemeColors = {}) {
 }
 
 export const GRADIENT_PRESETS: { label: string; from: string; to: string; angle?: number }[] = [
+  { label: "Mako", from: MAKO_BRAND.purple.hex, to: MAKO_BRAND.orange.hex },
   { label: "Indigo", from: "#6366f1", to: "#a855f7" },
   { label: "Sunset", from: "#f97316", to: "#ec4899" },
   { label: "Ocean", from: "#0ea5e9", to: "#6366f1" },

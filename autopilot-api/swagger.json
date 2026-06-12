@@ -682,6 +682,123 @@
         ]
       }
     },
+    "/api/v1/plans": {
+      "get": {
+        "operationId": "PlansController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Plans"
+        ]
+      }
+    },
+    "/api/v1/system-settings/theme": {
+      "get": {
+        "operationId": "SystemSettingsController_getTheme",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SystemSettings"
+        ]
+      }
+    },
+    "/api/v1/system-settings": {
+      "get": {
+        "operationId": "SystemSettingsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SystemSettings"
+        ]
+      }
+    },
+    "/api/v1/system-settings/{key}": {
+      "get": {
+        "operationId": "SystemSettingsController_findOne",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SystemSettings"
+        ]
+      },
+      "put": {
+        "operationId": "SystemSettingsController_upsert",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemSettingsUpsertDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SystemSettings"
+        ]
+      },
+      "delete": {
+        "operationId": "SystemSettingsController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SystemSettings"
+        ]
+      }
+    },
     "/api/v1/templates": {
       "get": {
         "operationId": "TemplatesController_findAll",
@@ -2487,16 +2604,7 @@
       },
       "get": {
         "operationId": "ContentItemsController_findAll",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -6292,74 +6400,33 @@
         ]
       }
     },
-    "/api/v1/system-settings/theme": {
+    "/api/v1/backoffice/plans": {
       "get": {
-        "operationId": "SystemSettingsController_getTheme",
+        "operationId": "BackofficeController_plans",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
-        "tags": [
-          "SystemSettings"
-        ]
-      }
-    },
-    "/api/v1/system-settings": {
-      "get": {
-        "operationId": "SystemSettingsController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "SystemSettings"
-        ]
-      }
-    },
-    "/api/v1/system-settings/{key}": {
-      "get": {
-        "operationId": "SystemSettingsController_findOne",
-        "parameters": [
+        "security": [
           {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
+            "bearer": []
           }
         ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
         "tags": [
-          "SystemSettings"
+          "Backoffice"
         ]
       },
-      "put": {
-        "operationId": "SystemSettingsController_upsert",
-        "parameters": [
-          {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+      "patch": {
+        "operationId": "BackofficeController_updatePlans",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SystemSettingsUpsertDto"
+                "$ref": "#/components/schemas/UpdatePlansDto"
               }
             }
           }
@@ -6369,29 +6436,13 @@
             "description": ""
           }
         },
-        "tags": [
-          "SystemSettings"
-        ]
-      },
-      "delete": {
-        "operationId": "SystemSettingsController_remove",
-        "parameters": [
+        "security": [
           {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
+            "bearer": []
           }
         ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
         "tags": [
-          "SystemSettings"
+          "Backoffice"
         ]
       }
     },
@@ -7456,6 +7507,10 @@
         "type": "object",
         "properties": {}
       },
+      "SystemSettingsUpsertDto": {
+        "type": "object",
+        "properties": {}
+      },
       "AutoReplyRulesCreateDto": {
         "type": "object",
         "properties": {}
@@ -7789,7 +7844,7 @@
         "type": "object",
         "properties": {}
       },
-      "SystemSettingsUpsertDto": {
+      "UpdatePlansDto": {
         "type": "object",
         "properties": {}
       },

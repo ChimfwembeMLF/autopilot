@@ -1,8 +1,9 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Body, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { BackofficeService } from './backoffice.service';
+import { UpdatePlansDto } from '../subscriptions/dto/update-plans.dto';
 
 @ApiTags('Backoffice')
 @Controller('api/v1/backoffice')
@@ -24,5 +25,15 @@ export class BackofficeController {
   @Get('tenants/:id')
   tenantDetail(@Param('id') id: string) {
     return this.backoffice.getTenantDetail(id);
+  }
+
+  @Get('plans')
+  plans() {
+    return this.backoffice.getPlans();
+  }
+
+  @Patch('plans')
+  updatePlans(@Body() dto: UpdatePlansDto) {
+    return this.backoffice.updatePlans(dto);
   }
 }

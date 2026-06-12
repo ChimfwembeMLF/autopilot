@@ -36,6 +36,11 @@ async function bootstrap() {
   });
   console.log('Default theme seeded.');
 
+  const { PlansSeedService } = await import('../src/modules/subscriptions/plans-seed.service');
+  const plansSeed = app.get(PlansSeedService);
+  const plansResult = await plansSeed.ensureSeeded();
+  console.log(`Billing plans ${plansResult}.`);
+
   const demoUsers: {
     email: string;
     password: string;

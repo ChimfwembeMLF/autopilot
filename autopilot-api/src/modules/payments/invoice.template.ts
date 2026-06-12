@@ -1,4 +1,7 @@
-import { PLAN_CONFIG, PlanKey, normalizePlanKey } from '../subscriptions/plan.constants';
+import { normalizePlanKey, PlanKey } from '../subscriptions/plan.constants';
+import { renderInvoiceLogoHtml } from './invoice-logo.util';
+
+export type InvoicePlanMeta = { label: string; priceZmw: number };
 
 export interface InvoiceData {
   invoiceNumber: string;
@@ -84,11 +87,13 @@ export function invoiceDataFromDeposit(
   },
   tenant: { name: string },
   ownerEmail?: string,
+  planMeta?: InvoicePlanMeta,
 ): InvoiceData {
   const planKey = normalizePlanKey(deposit.plan) as PlanKey;
-  const planLabel = PLAN_CONFIG[planKey]?.label ?? deposit.plan ?? 'Subscription';
+  const planLabel = planMeta?.label ?? deposit.plan ?? 'Subscription';
   const isPaid = (deposit.status ?? '').toUpperCase() === 'COMPLETED';
-  const grandTotalNum = parseFloat(deposit.amount ?? String(PLAN_CONFIG[planKey]?.priceZmw ?? 0)) || 0;
+  const fallbackPrice = planMeta?.priceZmw ?? 0;
+  const grandTotalNum = parseFloat(deposit.amount ?? String(fallbackPrice)) || 0;
   const { subTotal, vatAmount, grandTotal } = splitVatInclusive(grandTotalNum);
 
   return {
@@ -98,7 +103,7 @@ export function invoiceDataFromDeposit(
     customerEmail: ownerEmail,
     plan: planKey,
     planLabel,
-    amount: deposit.amount ?? String(PLAN_CONFIG[planKey]?.priceZmw ?? 0),
+    amount: deposit.amount ?? String(fallbackPrice),
     currency: deposit.currency ?? 'ZMW',
     status: formatStatus(deposit.status),
     paymentMethod: 'Mobile Money',
@@ -123,18 +128,6 @@ export function invoiceDataFromDeposit(
     grandTotal,
   };
 }
-
-const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="72" height="72">
-  <defs>
-    <linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6366f1"/>
-      <stop offset="50%" style="stop-color:#a855f7"/>
-      <stop offset="100%" style="stop-color:#ec4899"/>
-    </linearGradient>
-  </defs>
-  <circle cx="40" cy="40" r="38" fill="none" stroke="url(#lg)" stroke-width="3"/>
-  <path d="M28 52 L40 22 L52 52 M32 44 H48" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
 
 const WATERMARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="280" height="280" opacity="0.06">
   <defs>
@@ -191,6 +184,17 @@ export function renderInvoiceHtml(data: InvoiceData): string {
       margin-bottom: 8px;
     }
     .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { height: 96px; width: auto; display: block; object-fit: contain; }
+    .brand-logo-fallback {
+      height: 96px;
+      min-width: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #6366f1;
+    }
     .brand-name { font-size: 26px; font-weight: 800; letter-spacing: 0.04em; line-height: 1; }
     .brand-tagline { font-size: 9px; letter-spacing: 0.12em; color: #333; margin-top: 4px; font-weight: 600; }
     .company-block { text-align: right; font-size: 12px; line-height: 1.55; max-width: 320px; }
@@ -338,7 +342,7 @@ export function renderInvoiceHtml(data: InvoiceData): string {
   <div class="page">
     <div class="top-row">
       <div class="brand">
-        ${LOGO_SVG}
+        ${renderInvoiceLogoHtml()}
         <div>
           <div class="brand-name">${escapeHtml(data.companyName.toUpperCase())}</div>
           <div class="brand-tagline">${escapeHtml(data.companyTagline)}</div>

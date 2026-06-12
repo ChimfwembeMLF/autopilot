@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BackofficeService } from './backoffice.service';
 import { BackofficeController } from './backoffice.controller';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { Tenants } from '../tenants/entities/tenants.entity';
 import { UserEntity } from '../user/user.entity';
 import { Profiles } from '../profiles/entities/profiles.entity';
@@ -27,6 +28,7 @@ import { ChatbotApiKey } from '../chatbot/entities/chatbot-api-key.entity';
 
 @Module({
   imports: [
+    SubscriptionsModule,
     TypeOrmModule.forFeature([
       Tenants,
       UserEntity,

@@ -4,85 +4,86 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mako Market Co-pilot — palette from mako-logo.png */
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 10%;
+    --background: 270 25% 97%;
+    --foreground: 270 100% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 30% 10%;
+    --card-foreground: 270 100% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 10%;
+    --popover-foreground: 270 100% 13%;
 
-    --primary: 15 90% 55%;
+    --primary: 40 79% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 60% 50%;
+    --secondary: 278 100% 29%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 270 18% 92%;
+    --muted-foreground: 270 15% 40%;
 
-    --accent: 280 70% 55%;
+    --accent: 162 100% 32%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 15 90% 55%;
+    --border: 270 15% 88%;
+    --input: 270 15% 88%;
+    --ring: 40 79% 52%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 220 25% 12%;
-    --sidebar-foreground: 220 10% 85%;
-    --sidebar-primary: 15 90% 55%;
+    --sidebar-background: 270 100% 13%;
+    --sidebar-foreground: 270 15% 88%;
+    --sidebar-primary: 40 79% 52%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 18%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 220 20% 20%;
-    --sidebar-ring: 15 90% 55%;
+    --sidebar-accent: 278 60% 18%;
+    --sidebar-accent-foreground: 270 10% 92%;
+    --sidebar-border: 278 50% 22%;
+    --sidebar-ring: 40 79% 52%;
   }
 
   .dark {
-    --background: 220 25% 8%;
-    --foreground: 220 10% 92%;
+    --background: 270 35% 7%;
+    --foreground: 270 10% 92%;
 
-    --card: 220 25% 12%;
-    --card-foreground: 220 10% 92%;
+    --card: 270 30% 11%;
+    --card-foreground: 270 10% 92%;
 
-    --popover: 220 25% 12%;
-    --popover-foreground: 220 10% 92%;
+    --popover: 270 30% 11%;
+    --popover-foreground: 270 10% 92%;
 
-    --primary: 15 90% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 40 79% 52%;
+    --primary-foreground: 270 100% 13%;
 
-    --secondary: 220 60% 50%;
+    --secondary: 278 100% 29%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 20% 18%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 278 35% 16%;
+    --muted-foreground: 270 10% 58%;
 
-    --accent: 280 70% 55%;
+    --accent: 162 100% 32%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 20%;
-    --input: 220 20% 20%;
-    --ring: 15 90% 55%;
+    --border: 278 35% 20%;
+    --input: 278 35% 20%;
+    --ring: 40 79% 52%;
 
-    --sidebar-background: 220 25% 6%;
-    --sidebar-foreground: 220 10% 85%;
-    --sidebar-primary: 15 90% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 12%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 220 20% 14%;
-    --sidebar-ring: 15 90% 55%;
+    --sidebar-background: 270 100% 8%;
+    --sidebar-foreground: 270 10% 85%;
+    --sidebar-primary: 40 79% 52%;
+    --sidebar-primary-foreground: 270 100% 13%;
+    --sidebar-accent: 278 50% 14%;
+    --sidebar-accent-foreground: 270 10% 90%;
+    --sidebar-border: 278 40% 16%;
+    --sidebar-ring: 40 79% 52%;
   }
 }
 
@@ -103,19 +104,19 @@
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(15 90% 55%), hsl(35 95% 55%));
+    background: linear-gradient(135deg, hsl(40 79% 52%), hsl(36 79% 43%));
   }
   .gradient-accent {
-    background: linear-gradient(135deg, hsl(280 70% 55%), hsl(320 80% 55%));
+    background: linear-gradient(135deg, hsl(278 100% 29%), hsl(270 100% 13%));
   }
   .gradient-secondary {
-    background: linear-gradient(135deg, hsl(220 60% 50%), hsl(250 70% 55%));
+    background: linear-gradient(135deg, hsl(162 100% 32%), hsl(278 100% 29%));
   }
   .shadow-glow {
-    box-shadow: 0 0 30px -5px hsl(15 90% 55% / 0.3);
+    box-shadow: 0 0 30px -5px hsl(40 79% 52% / 0.35);
   }
   .shadow-card {
-    box-shadow: 0 4px 24px -4px hsl(220 30% 10% / 0.08);
+    box-shadow: 0 4px 24px -4px hsl(270 100% 13% / 0.08);
   }
 }
 

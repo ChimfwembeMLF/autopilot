@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import {
   Pen, Sparkles, Copy, Check, Trash2, Loader2, RefreshCw, Pencil,
-  ChevronDown, ChevronUp, Send, Eye,
+  ChevronDown, ChevronUp, Send, Eye, Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
@@ -14,10 +15,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
 import { brandProfilesApi, contentItemsApi } from '@/lib/api';
 import { invokeEdgeFunction } from '@/lib/edgeFunctions';
-import { platformOf } from '@/lib/platforms';
+import { PLATFORMS, platformOf } from '@/lib/platforms';
 import { ContentItem } from '@/components/content/types';
 import { ContentEditor } from '@/components/content/ContentEditor';
 import { PublishPanel } from '@/components/content/PublishPanel';
+
+const PAGE_SIZE = 6;
 
 function plainText(html: string): string {
   return html
@@ -186,6 +189,13 @@ const ContentEngine = () => {
   const [repurposingId, setRepurposingId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<ContentItem | null>(null);
   const [publishItem, setPublishItem] = useState<ContentItem | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [platformFilter, setPlatformFilter] = useState('all');
   const { toast } = useToast();
 
   const mapContentItem = (item: Record<string, unknown>): ContentItem => ({
@@ -200,27 +210,44 @@ const ContentEngine = () => {
     created_at: String(item.created_at ?? ''),
   });
 
-  const loadContent = async () => {
+  const loadContent = useCallback(async (opts?: { page?: number }) => {
     if (!user) return;
+    const requestPage = opts?.page ?? page;
+    setLoadingContent(true);
     try {
-      const all = await contentItemsApi.findAll(tenant?.id);
-      const list = (Array.isArray(all) ? all : [])
-        .filter((item: Record<string, unknown>) =>
-          item.userId === user.id && (!tenant?.id || item.tenantId === tenant.id),
-        )
-        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-        .slice(0, 30);
-      setGeneratedContent(list.map(mapContentItem));
+      const result = await contentItemsApi.findPage({
+        tenantId: tenant?.id,
+        page: requestPage,
+        limit: PAGE_SIZE,
+        search: searchQuery || undefined,
+        platform: platformFilter !== 'all' ? platformFilter : undefined,
+      });
+      setGeneratedContent((result.items ?? []).map(mapContentItem));
+      setTotal(result.total ?? 0);
+      setTotalPages(result.totalPages ?? 1);
     } catch {
       setGeneratedContent([]);
+      setTotal(0);
+      setTotalPages(1);
+    } finally {
+      setLoadingContent(false);
     }
-  };
+  }, [user, tenant?.id, page, searchQuery, platformFilter]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, platformFilter]);
 
   useEffect(() => {
     if (!user) return;
-    loadContent();
+    void loadContent();
     checkBrandBrain();
-  }, [user, tenant?.id]);
+  }, [user, tenant?.id, loadContent]);
 
   useEffect(() => {
     const editId = searchParams.get('edit');
@@ -283,7 +310,11 @@ const ContentEngine = () => {
 
   const deleteContent = async (id: string) => {
     await contentItemsApi.remove(id);
-    setGeneratedContent((prev) => prev.filter((c) => c.id !== id));
+    if (generatedContent.length === 1 && page > 1) {
+      setPage((p) => p - 1);
+    } else {
+      void loadContent();
+    }
     if (activeItem?.id === id) resetDraft();
     if (publishItem?.id === id) closePublish();
   };
@@ -296,7 +327,8 @@ const ContentEngine = () => {
       const result = data as { error?: string; repurposed?: number } | null;
       if (result?.error) throw new Error(result.error);
       toast({ title: 'Repurposed!', description: `${result?.repurposed ?? 0} new versions created.` });
-      loadContent();
+      setPage(1);
+      void loadContent({ page: 1 });
     } catch (err: unknown) {
       toast({
         title: 'Repurpose failed',
@@ -309,14 +341,18 @@ const ContentEngine = () => {
   };
 
   const handleSaved = () => {
-    loadContent();
+    setPage(1);
+    void loadContent({ page: 1 });
     resetDraft();
   };
 
   const handlePublished = () => {
-    loadContent();
+    void loadContent();
     closePublish();
   };
+
+  const showingFrom = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(page * PAGE_SIZE, total);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-10">
@@ -378,35 +414,101 @@ const ContentEngine = () => {
         </div>
 
         <div className="lg:col-span-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Content library</h2>
-            <span className="text-xs text-muted-foreground">
-              {generatedContent.length} item{generatedContent.length !== 1 ? 's' : ''}
-            </span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Content library</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {total === 0
+                  ? 'No items'
+                  : `Showing ${showingFrom}–${showingTo} of ${total}`}
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search by title…"
+                  className="h-9 pl-8"
+                />
+              </div>
+              <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <SelectTrigger className="h-9 w-full sm:w-[160px]">
+                  <SelectValue placeholder="Platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All platforms</SelectItem>
+                  {PLATFORMS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {generatedContent.length === 0 ? (
+          {loadingContent ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" /> Loading content…
+            </div>
+          ) : generatedContent.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-muted/20 p-10 text-center">
-              <p className="text-sm text-muted-foreground">No saved drafts yet.</p>
-              <p className="text-xs text-muted-foreground mt-1">Compose on the left and hit Save draft.</p>
+              <p className="text-sm text-muted-foreground">
+                {searchQuery || platformFilter !== 'all'
+                  ? 'No content matches your filters.'
+                  : 'No saved drafts yet.'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {searchQuery || platformFilter !== 'all'
+                  ? 'Try a different title or platform.'
+                  : 'Compose on the left and hit Save draft.'}
+              </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {generatedContent.map((item) => (
-                <ContentCard
-                  key={item.id}
-                  item={item}
-                  isActive={activeItem?.id === item.id}
-                  onCopy={copyContent}
-                  onDelete={deleteContent}
-                  onEdit={openEdit}
-                  onPublish={openPublish}
-                  onRepurpose={handleRepurpose}
-                  copiedId={copiedId}
-                  repurposingId={repurposingId}
-                />
-              ))}
-            </div>
+            <>
+              <div className="flex flex-col gap-3">
+                {generatedContent.map((item) => (
+                  <ContentCard
+                    key={item.id}
+                    item={item}
+                    isActive={activeItem?.id === item.id}
+                    onCopy={copyContent}
+                    onDelete={deleteContent}
+                    onEdit={openEdit}
+                    onPublish={openPublish}
+                    onRepurpose={handleRepurpose}
+                    copiedId={copiedId}
+                    repurposingId={repurposingId}
+                  />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

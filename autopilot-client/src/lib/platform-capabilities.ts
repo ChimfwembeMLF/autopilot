@@ -123,8 +123,8 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     comments: false,
     messaging: false,
     oauth: false,
-    status: 'coming_soon',
-    notes: 'Copy generation only.',
+    status: 'available',
+    notes: 'Generate headlines and primary text for Meta, LinkedIn, and Google Ads.',
   },
   {
     id: 'content',

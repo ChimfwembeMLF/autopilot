@@ -23,6 +23,17 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        mako: {
+          purple: {
+            DEFAULT: "#5D0096",
+            deep: "#220044",
+          },
+          orange: {
+            DEFAULT: "#E5A024",
+            dark: "#C47F17",
+          },
+          teal: "#00A372",
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",

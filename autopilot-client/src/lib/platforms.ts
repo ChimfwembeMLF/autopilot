@@ -162,6 +162,27 @@ const ALL_PLATFORM_DEFS: PlatformDef[] = [
       mediaNotes: 'One MP4 video per post (9:16 recommended). Caption supports hashtags.',
     },
   },
+  {
+    value: 'ad_copy',
+    label: 'Ad Copy',
+    icon: Megaphone,
+    color: '#6366f1',
+    maxChars: 500,
+    previewType: 'ad',
+    media: {
+      maxAttachments: 1,
+      maxImages: 1,
+      maxVideos: 0,
+      maxImageSizeMB: 30,
+      maxVideoSizeMB: 0,
+      maxVideoDurationSec: 0,
+      recommendedImageSize: '1200×628 px',
+      aspectRatio: '1.91:1',
+      supportsVideo: false,
+      supportsCarousel: false,
+      mediaNotes: 'Export copy to Meta Ads Manager or LinkedIn Campaign Manager. One hero image optional.',
+    },
+  },
 ];
 
 /** Platforms available for publishing in Content Engine */
