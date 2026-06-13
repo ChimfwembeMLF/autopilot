@@ -4,7 +4,7 @@ db:
   username: 'mako'
   password: 'Mako@2026'
   host: 'localhost'
-  synchronize: false
+  synchronize: true
   database: 'mako_prod'
   env: "production"
 

@@ -89,11 +89,11 @@ const SHOWCASE: Array<{
     badge: 'Multi-Platform Publish',
     title: 'Preview, attach media, publish everywhere',
     desc: 'Per-platform carousel previews, AI-adapted copy, and attachments sent to each social API.',
-    img: '/screenshots/mako-publisher-phone.webp',
+    img: '/screenshots/mako-publishing-desktop.webp',
     mock: <MockPublish />,
     icon: Globe,
     color: 'from-teal-500 to-emerald-500',
-    device: 'phone',
+    device: 'desktop',
     reverse: true,
   },
   {
