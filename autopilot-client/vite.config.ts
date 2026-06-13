@@ -16,10 +16,12 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
+      // Don't fail production builds when a chunk exceeds Workbox precache limit
+      showMaximumFileSizeToCacheInBytesWarning: true,
       includeAssets: ["favicon.ico", "icons/*.png"],
       workbox: {
-        // Main bundle can exceed Workbox default 2 MiB after minification
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Allow large vendor chunks in the service worker precache (default is 2 MiB)
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         // Cache strategy: app shell + API responses
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
