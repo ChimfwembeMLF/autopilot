@@ -2,21 +2,25 @@ import { SnakeNamingStrategy } from '../snake-naming.strategy';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { UserSubscriber } from 'src/entity-subscribers';
 import { ConfigService } from '@nestjs/config';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
+
+function resolveDbSsl(configService: ConfigService): false | { ca: Buffer } {
+  if (configService.get<string>('DB_SSL') !== 'true') return false;
+  const certPath = configService.get<string>('CERTIFICATE_PATH')?.trim();
+  const certName = configService.get<string>('CERTIFICATE_NAME')?.trim();
+  if (!certPath || !certName) return false;
+  const fullPath = path.join(process.cwd(), certPath, certName);
+  if (!existsSync(fullPath)) {
+    console.warn(`DB_SSL=true but certificate missing at ${fullPath} — using non-SSL connection`);
+    return false;
+  }
+  return { ca: readFileSync(fullPath) };
+}
 
 export function typeOrmConfigFactory(
   configService: ConfigService,
 ): TypeOrmModuleOptions {
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  const certPath = configService.get<string>('CERTIFICATE_PATH')?.trim();
-  const certName = configService.get<string>('CERTIFICATE_NAME')?.trim();
-  const ssl =
-    isProduction && certPath && certName
-      ? { ca: readFileSync(path.join(process.cwd(), certPath, certName)) }
-      : false;
-
   return {
     type: 'postgres',
     host: configService.get<string>('DB_HOST') || 'localhost',
@@ -29,6 +33,6 @@ export function typeOrmConfigFactory(
     cache: false,
     namingStrategy: new SnakeNamingStrategy(),
     subscribers: [UserSubscriber],
-    ssl,
+    ssl: resolveDbSsl(configService),
   };
 }

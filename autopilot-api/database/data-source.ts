@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { DataSource } from 'typeorm';
 import { SnakeNamingStrategy } from '../src/snake-naming.strategy';
@@ -29,7 +29,15 @@ function loadEnvFile() {
 
 loadEnvFile();
 
-const isProduction = process.env.NODE_ENV === 'production';
+function resolveMigrationSsl(): false | { ca: Buffer } {
+  if (process.env.DB_SSL !== 'true') return false;
+  const certPath = process.env.CERTIFICATE_PATH?.trim();
+  const certName = process.env.CERTIFICATE_NAME?.trim();
+  if (!certPath || !certName) return false;
+  const fullPath = path.join(process.cwd(), certPath, certName);
+  if (!existsSync(fullPath)) return false;
+  return { ca: readFileSync(fullPath) };
+}
 
 export default new DataSource({
   type: 'postgres',
@@ -41,15 +49,5 @@ export default new DataSource({
   entities: [path.join(__dirname, '../src/**/*.entity.{ts,js}')],
   migrations: [path.join(__dirname, './migrations/*.{ts,js}')],
   namingStrategy: new SnakeNamingStrategy(),
-  ssl: isProduction
-    ? {
-        ca: readFileSync(
-          path.join(
-            process.cwd(),
-            process.env.CERTIFICATE_PATH || '',
-            process.env.CERTIFICATE_NAME || '',
-          ),
-        ),
-      }
-    : false,
+  ssl: resolveMigrationSsl(),
 });
