@@ -11,6 +11,7 @@ export interface ContentToPublish {
   title?: string;
   userId: string;
   tenantId: string;
+  workspaceId?: string;
 }
 
 export interface MediaAttachment {

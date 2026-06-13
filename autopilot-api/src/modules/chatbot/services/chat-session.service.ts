@@ -11,6 +11,7 @@ import { ChatMessage } from '../entities/chat-message.entity';
 import { ChatbotConfig } from '../entities/chatbot-config.entity';
 import { ChatbotConfigService } from './chatbot-config.service';
 import { RagOrchestratorService } from './rag-orchestrator.service';
+import { scopeWhere } from '../../../common/workspace-scope.util';
 import {
   MistralWorkflowsService,
   WorkflowExecutionRef,
@@ -28,8 +29,16 @@ export class ChatSessionService {
     private readonly workflows: MistralWorkflowsService,
   ) {}
 
-  async listSessions(tenantId: string, channel?: ChatChannel): Promise<ChatSession[]> {
-    const where: { tenantId: string; channel?: ChatChannel } = { tenantId };
+  async listSessions(
+    tenantId: string,
+    channel?: ChatChannel,
+    workspaceId?: string,
+  ): Promise<ChatSession[]> {
+    const where = scopeWhere<ChatSession>(tenantId, workspaceId) as {
+      tenantId: string;
+      workspaceId?: string;
+      channel?: ChatChannel;
+    };
     if (channel) where.channel = channel;
     return this.sessionRepo.find({
       where,
@@ -81,6 +90,7 @@ export class ChatSessionService {
   }): Promise<ChatSession> {
     const session = this.sessionRepo.create({
       tenantId: params.tenantId,
+      workspaceId: params.config.workspaceId,
       configId: params.config.id,
       channel: params.channel,
       userId: params.userId,

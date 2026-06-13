@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
 import { templatesApi } from '@/lib/api';
@@ -40,19 +41,22 @@ function templatePlatform(t: Template): string {
 
 export default function TemplatesPage() {
   const { tenant }        = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { can }           = usePermissions();
   const { toast }         = useToast();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filterPlatform, setFilter] = useState<string>('all');
 
-  useEffect(() => { if (tenant) load(); }, [tenant]);
+  useEffect(() => {
+    if (tenant && activeWorkspace) load();
+  }, [tenant?.id, activeWorkspace, workspaceVersion]);
 
   async function load() {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoading(true);
     try {
-      const rows = await templatesApi.findAll(tenant.id);
+      const rows = await templatesApi.findAll(tenant.id, activeWorkspace);
       setTemplates(Array.isArray(rows) ? rows : []);
     } catch {
       setTemplates([]);
@@ -61,9 +65,9 @@ export default function TemplatesPage() {
   }
 
   async function toggleActive(tmpl: Template) {
-    if (!can(P.templates.activate) || !tenant) return;
+    if (!can(P.templates.activate) || !tenant || !activeWorkspace) return;
     try {
-      await templatesApi.update(tmpl.id, tenant.id, { isActive: !tmpl.isActive });
+      await templatesApi.update(tmpl.id, tenant.id, { isActive: !tmpl.isActive }, activeWorkspace);
       await load();
     } catch (e: unknown) {
       toast({
@@ -75,10 +79,11 @@ export default function TemplatesPage() {
   }
 
   async function cloneTemplate(tmpl: Template) {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
       await templatesApi.create({
         tenantId: tenant.id,
+        workspaceId: activeWorkspace,
         name: `${tmpl.name} (copy)`,
         description: tmpl.description,
         contentType: tmpl.contentType,
@@ -98,9 +103,9 @@ export default function TemplatesPage() {
   }
 
   async function deleteTemplate(tmpl: Template) {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
-      await templatesApi.remove(tmpl.id, tenant.id);
+      await templatesApi.remove(tmpl.id, tenant.id, activeWorkspace);
       toast({ title: 'Template deleted' });
       await load();
     } catch (e: unknown) {

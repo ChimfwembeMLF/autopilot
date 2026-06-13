@@ -35,6 +35,8 @@ import { formatScheduledAt } from '@/lib/schedule';
 import { PostCommentCard } from '@/components/replies/PostCommentCard';
 import { PostMediaGallery } from '@/components/replies/PostMediaGallery';
 import { mergePublicationWithInbox, plainText } from '@/components/replies/postInboxUtils';
+import { RichTextContent } from '@/components/RichTextContent';
+import { normalizeRichContent } from '@/lib/rich-text';
 
 type Publication = {
   id: string;
@@ -154,9 +156,7 @@ function DraftPlatformSection({
         </div>
       )}
       {draft.title && <p className="text-sm font-medium">{draft.title}</p>}
-      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-        {plainText(draft.content ?? '')}
-      </p>
+      <RichTextContent html={normalizeRichContent(draft.content ?? '')} />
       <PostMediaGallery items={draft.media ?? []} variant="full" />
     </div>
   );
@@ -373,7 +373,7 @@ export default function ContentDetailPage() {
       const raw = await commentRepliesApi.fetch(tenant.id);
       const result = (await resolveQueued(raw)) as { fetched?: number; autoReplied?: number };
       try {
-        await contentPublicationsApi.syncEngagement(tenant.id);
+        await contentPublicationsApi.syncEngagement(tenant.id, activeWorkspace ?? undefined);
       } catch {
         /* best-effort */
       }
@@ -609,7 +609,7 @@ export default function ContentDetailPage() {
         {item.campaignTheme && (
           <p className="text-sm text-muted-foreground">{plainText(item.campaignTheme)}</p>
         )}
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{plainText(item.content ?? '')}</p>
+        <RichTextContent html={normalizeRichContent(item.content ?? '')} />
         {media.length > 0 && (
           <PostMediaGallery
             items={media.map((m) => ({

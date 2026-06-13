@@ -12,6 +12,8 @@ import { SocialCommentAutoReplyService } from './social-comment-auto-reply.servi
 import { PublicationEngagementService } from './publication-engagement.service';
 import { SocialPublishAccountService } from './social-publish-account.service';
 import { summarizeAxiosError } from './publish-error.util';
+import { logOnce } from '../../common/throttled-log.util';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 type FetchedComment = {
   externalCommentId: string;
@@ -45,10 +47,14 @@ export class FetchCommentsService {
   async fetchForTenant(params: {
     tenantId: string;
     userId: string;
+    workspaceId?: string;
     runAutoReply?: boolean;
   }): Promise<{ fetched: number; autoReplied: number; engagementSynced: number }> {
     const publications = await this.publicationsRepo.find({
-      where: { tenantId: params.tenantId, status: 'published' },
+      where: {
+        ...scopeWhere<ContentPublications>(params.tenantId, params.workspaceId),
+        status: 'published',
+      },
       order: { publishedAt: 'DESC' },
     });
 
@@ -93,7 +99,10 @@ export class FetchCommentsService {
           newCommentIds.push(saved.id);
         }
       } catch (err) {
-        this.logger.warn(
+        logOnce(
+          this.logger,
+          'debug',
+          `comment-fetch:${pub.platform}:${pub.externalPostId}`,
           `Comment fetch failed for ${pub.platform} post ${pub.externalPostId}: ${summarizeAxiosError(err)}`,
         );
       }
@@ -109,6 +118,7 @@ export class FetchCommentsService {
       const backlog = await this.autoReply.processPendingForTenant(
         params.tenantId,
         params.userId,
+        params.workspaceId,
       );
       autoReplied += backlog.sent;
     }
@@ -116,6 +126,7 @@ export class FetchCommentsService {
     const engagementSynced = await this.engagement.syncForTenant(
       params.tenantId,
       params.userId,
+      params.workspaceId,
     );
 
     return { fetched, autoReplied, engagementSynced };
@@ -197,8 +208,10 @@ export class FetchCommentsService {
     }
 
     if (!account?.connected) return [];
+    if (this.hasRecentAuthFailure(account)) return [];
 
     account = await this.publishAccounts.prepareAccount(account);
+    if (!account.connected) return [];
 
     switch (pub.platform.toLowerCase()) {
       case 'facebook':
@@ -220,8 +233,11 @@ export class FetchCommentsService {
   ): Promise<FetchedComment[]> {
     const token = this.publishAccounts.getFacebookPageToken(account);
     if (!token?.trim()) {
-      this.logger.warn(
-        `Facebook comment fetch skipped for post ${postId}: missing page access token — reconnect Facebook in Publisher Connect`,
+      logOnce(
+        this.logger,
+        'debug',
+        `fb-token:${account.id}`,
+        `Facebook comment fetch skipped: missing page token (${account.id})`,
       );
       return [];
     }
@@ -267,8 +283,11 @@ export class FetchCommentsService {
   ): Promise<FetchedComment[]> {
     const token = this.publishAccounts.getInstagramToken(account);
     if (!token?.trim()) {
-      this.logger.warn(
-        `Instagram comment fetch skipped for media ${mediaId}: missing page access token — reconnect Instagram in Publisher Connect`,
+      logOnce(
+        this.logger,
+        'debug',
+        `ig-token:${account.id}`,
+        `Instagram comment fetch skipped: missing page token (${account.id})`,
       );
       return [];
     }
@@ -343,10 +362,13 @@ export class FetchCommentsService {
       const liMessage =
         axios.isAxiosError(err) &&
         (err.response?.data as { message?: string; status?: number })?.message;
-      this.logger.warn(
+      logOnce(
+        this.logger,
+        'debug',
+        `li-comments:${account.id}`,
         `LinkedIn comment fetch failed (${status ?? 'error'}): ${
           liMessage ??
-          'requires r_member_social — LinkedIn only grants this to Marketing API / partner-approved apps. Publishing works with w_member_social; comment sync does not.'
+          'requires r_member_social — LinkedIn only grants this to Marketing API / partner-approved apps.'
         }`,
       );
       return [];
@@ -406,9 +428,21 @@ export class FetchCommentsService {
       }
       return out;
     } catch (err) {
-      this.logger.warn('YouTube comment fetch failed', err);
+      logOnce(
+        this.logger,
+        'debug',
+        `yt-comments:${account.id}`,
+        `YouTube comment fetch failed: ${summarizeAxiosError(err)}`,
+      );
       return [];
     }
+  }
+
+  private hasRecentAuthFailure(account: SocialAccounts): boolean {
+    const at = account.metadata?.auth_error_at;
+    if (!at || typeof at !== 'string') return false;
+    const age = Date.now() - new Date(at).getTime();
+    return age >= 0 && age < 24 * 60 * 60 * 1000;
   }
 
   private youtubeChannelId(

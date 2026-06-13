@@ -1,21 +1,25 @@
+import { Link } from "react-router-dom";
 import {
   Brain, Pen, CalendarClock, MessageSquare, BarChart3, Zap, Settings,
   Rocket, Link2, Image, LayoutTemplate, MessageSquareReply, Megaphone,
   GitPullRequestArrow, Users, ClipboardList, ShieldCheck, Activity,
-  ChevronsUpDown, Building2, CreditCard, Download, ListOrdered,
+  ChevronsUpDown, Building2, CreditCard, Download, ListOrdered, Layers,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Badge } from "@/components/ui/badge";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
   SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTenant } from "@/hooks/useTenant";
+import { cn } from "@/lib/utils";
 
 function NavItem({ title, url, icon: Icon, exact = false, badge }: {
   title: string; url: string; icon: React.ComponentType<{ className?: string }>;
@@ -47,11 +51,13 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { tenant, tenants, switchTenant } = useTenant();
   const { isSuperAdmin } = usePermissions();
+  const { workspaces, activeWorkspace, setActiveWorkspace, loading: workspacesLoading } = useWorkspace();
+  const activeWorkspaceName =
+    workspaces.find((w: { id: string }) => w.id === activeWorkspace)?.name ?? "Workspace";
 
   return (
-    <Sidebar collapsible="icon">
-      {/* Brand / Tenant switcher */}
-      <SidebarHeader className="p-3 border-b border-sidebar-border">
+    <Sidebar collapsible="icon" className="min-h-0">
+      <SidebarHeader className="shrink-0 p-3 border-b border-sidebar-border space-y-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 w-full rounded-md hover:bg-sidebar-accent px-1 py-1.5 transition-colors">
@@ -81,9 +87,63 @@ export function AppSidebar() {
             </DropdownMenuContent>
           )}
         </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={cn(
+                "flex items-center gap-2 w-full rounded-md hover:bg-sidebar-accent px-1 py-1.5 transition-colors",
+                collapsed && "justify-center px-0",
+              )}
+              title={collapsed ? activeWorkspaceName : undefined}
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-accent">
+                <Layers className="h-3.5 w-3.5 text-sidebar-foreground/80" />
+              </div>
+              {!collapsed && (
+                <>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-[10px] text-sidebar-foreground/50 uppercase tracking-wider">Workspace</p>
+                    <p className="text-xs font-medium truncate text-sidebar-foreground">
+                      {workspacesLoading ? "Loading…" : activeWorkspaceName}
+                    </p>
+                  </div>
+                  {workspaces.length > 0 && (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-sidebar-foreground/40 shrink-0" />
+                  )}
+                </>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Switch workspace
+            </DropdownMenuLabel>
+            {workspaces.length === 0 ? (
+              <DropdownMenuItem asChild className="text-xs">
+                <Link to="/workspaces">Create a workspace</Link>
+              </DropdownMenuItem>
+            ) : (
+              workspaces.map((ws: { id: string; name: string }) => (
+                <DropdownMenuItem
+                  key={ws.id}
+                  onClick={() => setActiveWorkspace(ws.id)}
+                  className={cn("text-xs", ws.id === activeWorkspace && "font-semibold")}
+                >
+                  <Layers className="h-3.5 w-3.5 mr-2 shrink-0" />
+                  <span className="truncate">{ws.name}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="text-xs">
+              <Link to="/workspaces">Manage workspaces</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto">
+      <SidebarContent className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {/* Core */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/40 uppercase text-[10px] tracking-wider">Core</SidebarGroupLabel>
@@ -154,7 +214,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="shrink-0 border-t border-sidebar-border">
         <SidebarMenu>
           <NavItem title="Export Data" url="/export" icon={Download} />
           <NavItem title="Billing" url="/billing" icon={CreditCard} />

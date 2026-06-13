@@ -30,17 +30,16 @@ export class CommentsProcessor extends WorkerHost {
   }
 
   private async handleSyncTenant(job: Job<SyncTenantCommentsJobData>) {
-    const { tenantId, userId, runAutoReply } = job.data;
-    this.logger.log(`Syncing comments for tenant ${tenantId}`);
+    const { tenantId, userId, workspaceId, runAutoReply } = job.data;
     return this.fetchComments.fetchForTenant({
       tenantId,
       userId,
+      workspaceId,
       runAutoReply: runAutoReply !== false,
     });
   }
 
   private async handleSyncAll() {
-    this.logger.log('Syncing comments for all tenants');
     return this.fetchComments.fetchAllTenants();
   }
 }

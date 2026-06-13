@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { WhatsappContacts } from './entities/whatsapp_contacts.entity';
 import { WhatsappContactsCreateDto } from './dto/create-whatsapp_contacts.dto';
 import { WhatsappContactsUpdateDto } from './dto/update-whatsapp_contacts.dto';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 @Injectable()
 export class WhatsappContactsService {
@@ -25,9 +26,9 @@ export class WhatsappContactsService {
     return this.repo.save(ent as WhatsappContacts);
   }
 
-  async findByTenant(tenantId: string): Promise<WhatsappContacts[]> {
+  async findByTenant(tenantId: string, workspaceId?: string): Promise<WhatsappContacts[]> {
     return this.repo.find({
-      where: { tenantId },
+      where: scopeWhere<WhatsappContacts>(tenantId, workspaceId),
       order: { created_at: 'DESC' },
     });
   }

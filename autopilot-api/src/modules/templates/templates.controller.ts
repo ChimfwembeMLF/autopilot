@@ -26,8 +26,11 @@ export class TemplatesController {
   constructor(private readonly templates: TemplatesService) {}
 
   @Get()
-  findAll(@Query('tenantId') tenantId: string) {
-    return this.templates.findByTenant(tenantId);
+  findAll(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.templates.findByTenant(tenantId, workspaceId);
   }
 
   @Post()
@@ -39,8 +42,12 @@ export class TemplatesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Query('tenantId') tenantId: string) {
-    return this.templates.findOne(id, tenantId);
+  findOne(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.templates.findOne(id, tenantId, workspaceId);
   }
 
   @Patch(':id')
@@ -48,12 +55,17 @@ export class TemplatesController {
     @Param('id') id: string,
     @Query('tenantId') tenantId: string,
     @Body() body: Record<string, unknown>,
+    @Query('workspaceId') workspaceId?: string,
   ) {
-    return this.templates.update(id, body as any, tenantId);
+    return this.templates.update(id, body as any, tenantId, workspaceId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Query('tenantId') tenantId: string) {
-    return this.templates.remove(id, tenantId);
+  remove(
+    @Param('id') id: string,
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.templates.remove(id, tenantId, workspaceId);
   }
 }

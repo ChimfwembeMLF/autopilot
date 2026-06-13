@@ -38,10 +38,11 @@ export class KnowledgeController {
   async list(
     @Req() req: { user: JwtUser },
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.view');
-    return this.documents.list(tenantId);
+    return this.documents.list(tenantId, workspaceId);
   }
 
   @Post('documents')
@@ -51,6 +52,7 @@ export class KnowledgeController {
     @Req() req: { user: JwtUser },
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.manage');
@@ -58,6 +60,7 @@ export class KnowledgeController {
       tenantId,
       userId: String(req.user.sub),
       file,
+      workspaceId,
     });
   }
 
@@ -69,7 +72,7 @@ export class KnowledgeController {
   ) {
     if (!dto.tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), dto.tenantId, 'chatbot.manage');
-    return this.documents.rename(dto.tenantId, id, dto.title);
+    return this.documents.rename(dto.tenantId, id, dto.title, dto.workspaceId);
   }
 
   @Delete('documents/:id')
@@ -77,10 +80,11 @@ export class KnowledgeController {
     @Req() req: { user: JwtUser },
     @Param('id') id: string,
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.manage');
-    await this.documents.delete(tenantId, id);
+    await this.documents.delete(tenantId, id, workspaceId);
     return { success: true };
   }
 

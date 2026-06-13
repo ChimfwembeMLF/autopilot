@@ -5,6 +5,7 @@ import { WhatsappMessages } from '../whatsapp/entities/whatsapp_messages.entity'
 import { WhatsappMessagingService } from '../whatsapp/whatsapp-messaging.service';
 import { SocialMessages } from './entities/social_messages.entity';
 import { CommentRepliesInboxService } from '../comment_replies/comment-replies-inbox.service';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 export type UnifiedConversation = {
   id: string;
@@ -53,11 +54,12 @@ export class UnifiedInboxService {
   async listConversations(
     tenantId: string,
     channel?: 'post_comment' | 'dm' | 'all',
+    workspaceId?: string,
   ): Promise<UnifiedConversation[]> {
     const conversations: UnifiedConversation[] = [];
 
     if (!channel || channel === 'all' || channel === 'post_comment') {
-      const { posts } = await this.commentInbox.getInbox(tenantId);
+      const { posts } = await this.commentInbox.getInbox(tenantId, undefined, workspaceId);
       for (const post of posts) {
         const latest = this.latestCommentTime(post.comments);
         conversations.push({
@@ -76,9 +78,9 @@ export class UnifiedInboxService {
     }
 
     if (!channel || channel === 'all' || channel === 'dm') {
-      conversations.push(...(await this.dmConversations(tenantId, 'whatsapp')));
-      conversations.push(...(await this.dmConversations(tenantId, 'facebook')));
-      conversations.push(...(await this.dmConversations(tenantId, 'instagram')));
+      conversations.push(...(await this.dmConversations(tenantId, 'whatsapp', workspaceId)));
+      conversations.push(...(await this.dmConversations(tenantId, 'facebook', workspaceId)));
+      conversations.push(...(await this.dmConversations(tenantId, 'instagram', workspaceId)));
     }
 
     conversations.sort(
@@ -90,6 +92,7 @@ export class UnifiedInboxService {
   async listMessages(
     tenantId: string,
     conversationId: string,
+    workspaceId?: string,
   ): Promise<UnifiedMessage[]> {
     if (conversationId.startsWith('post:')) {
       return [];
@@ -97,7 +100,7 @@ export class UnifiedInboxService {
     if (conversationId.startsWith('wa:')) {
       const phone = this.waMessaging.normalizePhone(conversationId.slice(3));
       const rows = await this.waRepo.find({
-        where: { tenantId, phone },
+        where: { ...scopeWhere<WhatsappMessages>(tenantId, workspaceId), phone },
         order: { created_at: 'ASC' },
         take: 200,
       });
@@ -118,7 +121,7 @@ export class UnifiedInboxService {
     if (!platform || !threadId) return [];
 
     const rows = await this.socialRepo.find({
-      where: { tenantId, platform, threadId },
+      where: { ...scopeWhere<SocialMessages>(tenantId, workspaceId), platform, threadId },
       order: { created_at: 'ASC' },
       take: 200,
     });
@@ -140,9 +143,10 @@ export class UnifiedInboxService {
   private async dmConversations(
     tenantId: string,
     platform: string,
+    workspaceId?: string,
   ): Promise<UnifiedConversation[]> {
     if (platform === 'whatsapp') {
-      const rows = await this.waRepo
+      const qb = this.waRepo
         .createQueryBuilder('m')
         .select('m.phone', 'phone')
         .addSelect('MAX(m.created_at)', 'last_at')
@@ -154,7 +158,13 @@ export class UnifiedInboxService {
           `SUM(CASE WHEN m.direction = 'inbound' THEN 1 ELSE 0 END)`,
           'inbound_count',
         )
-        .where('m.tenantId = :tenantId', { tenantId })
+        .where('m.tenantId = :tenantId', { tenantId });
+
+      if (workspaceId) {
+        qb.andWhere('m.workspaceId = :workspaceId', { workspaceId });
+      }
+
+      const rows = await qb
         .groupBy('m.phone')
         .orderBy('last_at', 'DESC')
         .getRawMany<{
@@ -178,7 +188,7 @@ export class UnifiedInboxService {
       }));
     }
 
-    const rows = await this.socialRepo
+    const socialQb = this.socialRepo
       .createQueryBuilder('m')
       .select('m.threadId', 'thread_id')
       .addSelect('m.platform', 'platform')
@@ -194,7 +204,13 @@ export class UnifiedInboxService {
         'unread_count',
       )
       .where('m.tenantId = :tenantId', { tenantId })
-      .andWhere('m.platform = :platform', { platform })
+      .andWhere('m.platform = :platform', { platform });
+
+    if (workspaceId) {
+      socialQb.andWhere('m.workspaceId = :workspaceId', { workspaceId });
+    }
+
+    const rows = await socialQb
       .groupBy('m.threadId')
       .addGroupBy('m.platform')
       .orderBy('last_at', 'DESC')

@@ -15,6 +15,9 @@ export class ChatbotConfig {
   tenantId: string;
 
   @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
+
+  @Column({ type: 'uuid', nullable: true })
   brandProfileId?: string;
 
   @Column({ type: 'varchar', length: 120, default: 'Website Assistant' })

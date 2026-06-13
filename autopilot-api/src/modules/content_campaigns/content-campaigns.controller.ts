@@ -41,8 +41,11 @@ export class ContentCampaignsController {
   }
 
   @Get()
-  list(@Query('tenantId') tenantId: string) {
-    return this.campaigns.findByTenant(tenantId);
+  list(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.campaigns.findByTenant(tenantId, workspaceId);
   }
 
   @Get(':id')

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { leadsApi, contentItemsApi, auditLogsApi, chatbotApi, knowledgeApi } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
 import { logAudit } from '@/lib/audit';
@@ -90,12 +91,13 @@ function download(csv: string, filename: string) {
 
 export default function ExportPage() {
   const { tenant } = useTenant();
+  const { activeWorkspace } = useWorkspace();
   const { can }    = usePermissions();
   const { toast }  = useToast();
   const [status, setStatus] = useState<Record<string, ExportStatus>>({});
 
   async function runExport(key: string) {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setStatus(s => ({ ...s, [key]: 'loading' }));
     try {
       let rows: Record<string, unknown>[] = [];
@@ -133,7 +135,7 @@ export default function ExportPage() {
           metadata: JSON.stringify(r.metadata), created_at: r.created_at,
         }));
       } else if (key === 'chatbot-sessions') {
-        const list = await chatbotApi.listSessions(tenant.id);
+        const list = await chatbotApi.listSessions(tenant.id, undefined, activeWorkspace);
         rows = list.map((s) => ({
           id: s.id,
           channel: s.channel,
@@ -142,7 +144,7 @@ export default function ExportPage() {
           created_at: s.created_at,
         }));
       } else if (key === 'chatbot-knowledge') {
-        const list = await knowledgeApi.list(tenant.id);
+        const list = await knowledgeApi.list(tenant.id, activeWorkspace);
         rows = list.map((d) => ({
           id: d.id,
           title: d.title,

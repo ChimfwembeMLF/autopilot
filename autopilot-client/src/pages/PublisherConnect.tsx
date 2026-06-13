@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { socialAccountsApi, platformsApi, SocialAccount } from "@/lib/api";
 import { capabilityOf } from "@/lib/platform-capabilities";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "youtube" | "whatsapp" | "tiktok";
+// type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "youtube" | "whatsapp" | "tiktok";
+type OAuthPlatform = "facebook" | "linkedin" | "instagram" | "whatsapp";
 type ManualPlatform = "twitter";
 type PlatformId = OAuthPlatform | ManualPlatform;
 
@@ -31,8 +33,8 @@ type FacebookPageOption = {
   category?: string;
 };
 
-const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "youtube", "whatsapp", "tiktok"];
-
+// const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "youtube", "whatsapp", "tiktok"];
+const oauthPlatforms: OAuthPlatform[] = ["facebook", "linkedin", "instagram", "whatsapp"];
 const platforms: {
   id: PlatformId;
   name: string;
@@ -154,12 +156,15 @@ const PublisherConnect = () => {
 
   const { toast } = useToast();
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaces, workspaceVersion } = useWorkspace();
+  const activeWorkspaceName =
+    workspaces.find((w: { id: string }) => w.id === activeWorkspace)?.name;
 
   const loadAccounts = async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoadingAccounts(true);
     try {
-      const data = await socialAccountsApi.findByTenant(tenant.id);
+      const data = await socialAccountsApi.findByTenant(tenant.id, activeWorkspace);
       setAccounts(Array.isArray(data) ? data : []);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to load accounts";
@@ -185,8 +190,8 @@ const PublisherConnect = () => {
   }, []);
 
   useEffect(() => {
-    if (tenant) loadAccounts();
-  }, [tenant?.id]);
+    if (tenant && activeWorkspace) loadAccounts();
+  }, [tenant?.id, activeWorkspace, workspaceVersion]);
 
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -337,7 +342,7 @@ const PublisherConnect = () => {
   }, [whatsappSetupToken]);
 
   const startOAuthConnect = async (platform: OAuthPlatform) => {
-    if (!tenant) {
+    if (!tenant || !activeWorkspace) {
       toast({ title: "No workspace", description: "Select or create a workspace before connecting accounts.", variant: "destructive" });
       return;
     }
@@ -345,7 +350,7 @@ const PublisherConnect = () => {
     setConnectingOAuth(platform);
     try {
       const returnUrl = `${window.location.origin}/publisher`;
-      const { redirectUrl } = await socialAccountsApi.startOAuth(platform, tenant.id, returnUrl);
+      const { redirectUrl } = await socialAccountsApi.startOAuth(platform, tenant.id, returnUrl, activeWorkspace);
       window.location.href = redirectUrl;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to start OAuth";
@@ -355,7 +360,7 @@ const PublisherConnect = () => {
   };
 
   const startWhatsappConnect = async () => {
-    if (!tenant) {
+    if (!tenant || !activeWorkspace) {
       toast({ title: "No workspace", description: "Select or create a workspace before connecting accounts.", variant: "destructive" });
       return;
     }
@@ -363,7 +368,7 @@ const PublisherConnect = () => {
     if (whatsappPlatformMode) {
       setConnectingOAuth("whatsapp");
       try {
-        await socialAccountsApi.enablePlatformWhatsapp(tenant.id);
+        await socialAccountsApi.enablePlatformWhatsapp(tenant.id, activeWorkspace);
         toast({
           title: "WhatsApp enabled",
           description: "This workspace can send broadcasts and receive replies — add contacts in Lead Agent.",
@@ -380,7 +385,7 @@ const PublisherConnect = () => {
 
     setConnectingOAuth("whatsapp");
     try {
-      const result = await socialAccountsApi.setupWhatsappFromMeta(tenant.id);
+      const result = await socialAccountsApi.setupWhatsappFromMeta(tenant.id, activeWorkspace);
 
       if (result.ready) {
         setWhatsappPhones(result.phones);
@@ -417,7 +422,7 @@ const PublisherConnect = () => {
   };
 
   const handleManualConnect = async (platformId: ManualPlatform | "whatsapp") => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
 
     const accessToken = formValues.access_token;
     if (!accessToken) {
@@ -434,11 +439,12 @@ const PublisherConnect = () => {
     try {
       await socialAccountsApi.connect({
         tenantId: tenant.id,
+        workspaceId: activeWorkspace ?? undefined,
         platform: platformId,
         accountName: accountName || platformId,
         accessToken,
         metadata: { ...formValues },
-      });
+      } as Parameters<typeof socialAccountsApi.connect>[0] & { workspaceId?: string });
       toast({ title: "Connected!", description: `${platformId} account connected to this workspace.` });
       setConnectDialog(null);
       setFormValues({});
@@ -555,7 +561,9 @@ const PublisherConnect = () => {
         <div>
           <h1 className="text-2xl font-bold font-display">Publisher Connect</h1>
           <p className="text-muted-foreground text-sm">
-            Connect social accounts for <strong>{tenant?.name ?? "your workspace"}</strong>
+            {activeWorkspaceName
+              ? `Publisher connections for “${activeWorkspaceName}”. Switch workspace in the top navbar.`
+              : "Select a workspace to connect social accounts."}
           </p>
         </div>
       </div>

@@ -34,6 +34,7 @@ export class TiktokPublishingService {
         content.tenantId,
         content.userId,
         'tiktok',
+        content.workspaceId,
       );
 
       if (!account?.accessToken) {

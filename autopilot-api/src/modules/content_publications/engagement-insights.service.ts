@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContentPublications } from './entities/content_publications.entity';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 export type TopPerformingPost = {
   id: string;
@@ -24,9 +25,13 @@ export class EngagementInsightsService {
     private readonly repo: Repository<ContentPublications>,
   ) {}
 
-  async getTopPerforming(tenantId: string, limit = 5): Promise<TopPerformingPost[]> {
+  async getTopPerforming(
+    tenantId: string,
+    limit = 5,
+    workspaceId?: string,
+  ): Promise<TopPerformingPost[]> {
     const rows = await this.repo.find({
-      where: { tenantId, status: 'published' },
+      where: { ...scopeWhere<ContentPublications>(tenantId, workspaceId), status: 'published' },
       order: { engagementScore: 'DESC', publishedAt: 'DESC' },
       take: Math.min(limit, 20),
     });

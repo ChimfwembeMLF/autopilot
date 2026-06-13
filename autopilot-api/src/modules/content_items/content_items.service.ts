@@ -26,20 +26,30 @@ export class ContentItemsService {
   ) {}
 
   async create(dto: ContentItemsCreateDto): Promise<ContentItems> {
-    const ent = this.repo.create(dto);
-    return this.repo.save(ent as ContentItems);
+    const patch: ContentItemsCreateDto = { ...dto };
+    if (patch.platformPayloads != null && typeof patch.platformPayloads === 'string') {
+      try {
+        patch.platformPayloads = JSON.parse(patch.platformPayloads) as Record<string, unknown>;
+      } catch {
+        patch.platformPayloads = undefined;
+      }
+    }
+    const ent = this.repo.create(patch as Partial<ContentItems>);
+    const saved = await this.repo.save(ent as ContentItems);
+    return this.normalizePlatformPayloads(saved);
   }
 
-  async findAll(tenantId?: string): Promise<ContentItems[]> {
-    if (tenantId) {
-      return this.repo.find({ where: { tenantId }, order: { created_at: 'DESC' } });
-    }
-    return this.repo.find({ order: { created_at: 'DESC' } });
+  async findAll(tenantId?: string, workspaceId?: string): Promise<ContentItems[]> {
+    const where: { tenantId?: string; workspaceId?: string } = {};
+    if (tenantId) where.tenantId = tenantId;
+    if (workspaceId) where.workspaceId = workspaceId;
+    return this.repo.find({ where, order: { created_at: 'DESC' } });
   }
 
   async findPaginated(params: {
     tenantId?: string;
     userId?: string;
+    workspaceId?: string;
     page?: number;
     limit?: number;
     search?: string;
@@ -56,6 +66,9 @@ export class ContentItemsService {
     }
     if (params.userId) {
       qb.andWhere('item.userId = :userId', { userId: params.userId });
+    }
+    if (params.workspaceId) {
+      qb.andWhere('item.workspaceId = :workspaceId', { workspaceId: params.workspaceId });
     }
     if (params.search?.trim()) {
       qb.andWhere('item.title ILIKE :search', { search: `%${params.search.trim()}%` });
@@ -80,7 +93,20 @@ export class ContentItemsService {
   async findOne(id: string): Promise<ContentItems> {
     const ent = await this.repo.findOne({ where: { id } });
     if (!ent) throw new NotFoundException('ContentItems not found');
-    return ent;
+    return this.normalizePlatformPayloads(ent);
+  }
+
+  private normalizePlatformPayloads(item: ContentItems): ContentItems {
+    const raw = item.platformPayloads;
+    if (raw == null) return item;
+    if (typeof raw === 'string') {
+      try {
+        item.platformPayloads = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        item.platformPayloads = undefined;
+      }
+    }
+    return item;
   }
 
   async getDetails(id: string): Promise<ContentItemDetails> {
@@ -91,21 +117,19 @@ export class ContentItemsService {
       order: { created_at: 'ASC' },
     });
 
-    if (typeof item.platformPayloads === 'string') {
-      try {
-        (item as { platformPayloads?: unknown }).platformPayloads = JSON.parse(
-          item.platformPayloads,
-        );
-      } catch {
-        item.platformPayloads = undefined;
-      }
-    }
-
     return { item, publications, media };
   }
 
   async update(id: string, dto: ContentItemsUpdateDto): Promise<ContentItems> {
-    await this.repo.update(id, dto as any);
+    const patch: ContentItemsUpdateDto = { ...dto };
+    if (patch.platformPayloads != null && typeof patch.platformPayloads === 'string') {
+      try {
+        patch.platformPayloads = JSON.parse(patch.platformPayloads) as Record<string, unknown>;
+      } catch {
+        patch.platformPayloads = undefined;
+      }
+    }
+    await this.repo.update(id, patch as Partial<ContentItems>);
     return this.findOne(id);
   }
 

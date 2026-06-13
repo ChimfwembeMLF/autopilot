@@ -14,7 +14,9 @@ import { ConfigService } from '@nestjs/config';
 import { SocialAccounts } from './entities/social_accounts.entity';
 import { SocialAccountsCreateDto } from './dto/create-social_accounts.dto';
 import { TenantMembersService } from '../tenant_members/tenant_members.service';
-import { summarizeAxiosError } from '../content-publishing/publish-error.util';
+import { summarizeAxiosError, isTokenAuthError } from '../content-publishing/publish-error.util';
+import { isRecoverableMetaTokenError, logOnce } from '../../common/throttled-log.util';
+import { scopeWhere } from '../../common/workspace-scope.util';
 import {
   SocialAccountsOAuthService,
   WhatsAppPhoneOption,
@@ -80,7 +82,7 @@ export class SocialAccountsService {
 
     const existing = await this.repo.findOne({
       where: {
-        tenantId: dto.tenantId,
+        ...scopeWhere<SocialAccounts>(dto.tenantId, dto.workspaceId),
         platform: dto.platform,
         externalId: dto.externalId ? dto.externalId : IsNull(),
       },
@@ -103,11 +105,26 @@ export class SocialAccountsService {
   }
 
   async refreshAccessTokenIfNeeded(account: SocialAccounts) {
+    if (!account.connected) return account;
+    if (this.hasRecentAuthFailure(account)) return account;
+
     const bufferMs = 5 * 60 * 1000;
     const expiresSoon =
       account.expiresAt && account.expiresAt.getTime() - Date.now() <= bufferMs;
 
-    if (!expiresSoon && account.expiresAt) {
+    if (account.expiresAt && !expiresSoon) {
+      return account;
+    }
+
+    // Meta page tokens are enough for comment sync / publish — avoid refreshing user token every cron tick
+    if (
+      (account.platform === 'facebook' || account.platform === 'instagram') &&
+      account.metadata?.page_token?.trim()
+    ) {
+      return account;
+    }
+
+    if (!account.expiresAt) {
       return account;
     }
 
@@ -116,6 +133,9 @@ export class SocialAccountsService {
 
   /** Refresh even when expiry is unknown or still in the future (e.g. before publish). */
   async forceRefreshToken(account: SocialAccounts): Promise<SocialAccounts> {
+    if (!account.connected) return account;
+    if (this.hasRecentAuthFailure(account)) return account;
+
     if (
       !account.refreshToken &&
       account.platform !== 'facebook' &&
@@ -134,18 +154,32 @@ export class SocialAccountsService {
       Object.assign(account, refreshed);
       return this.repo.save(account);
     } catch (error) {
-      this.logger.warn('Unable to refresh social account token', {
-        id: account.id,
-        platform: account.platform,
-        error: summarizeAxiosError(error),
-      });
+      if (isTokenAuthError(error) || isRecoverableMetaTokenError(error)) {
+        return this.markDisconnectedAuth(account, summarizeAxiosError(error));
+      }
+      logOnce(
+        this.logger,
+        'debug',
+        `token-refresh:${account.id}`,
+        `Unable to refresh ${account.platform} token (${account.id}): ${summarizeAxiosError(error)}`,
+      );
       return account;
     }
   }
 
+  private hasRecentAuthFailure(account: SocialAccounts): boolean {
+    const at = account.metadata?.auth_error_at;
+    if (!at || typeof at !== 'string') return false;
+    const age = Date.now() - new Date(at).getTime();
+    return age >= 0 && age < 24 * 60 * 60 * 1000;
+  }
+
   async markDisconnectedAuth(account: SocialAccounts, reason?: string): Promise<SocialAccounts> {
     this.clearStoredCredentials(account, reason);
-    this.logger.warn(
+    logOnce(
+      this.logger,
+      'debug',
+      `disconnected:${account.id}`,
       `Disconnected ${account.platform} account ${account.id}: ${reason ?? 'auth failure'}`,
     );
     return this.repo.save(account);
@@ -317,10 +351,10 @@ export class SocialAccountsService {
     };
   }
 
-  async findByTenant(tenantId: string, userId: string) {
+  async findByTenant(tenantId: string, userId: string, workspaceId?: string) {
     await this.assertTenantAccess(userId, tenantId);
     const accounts = await this.repo.find({
-      where: { tenantId, connected: true },
+      where: { ...scopeWhere<SocialAccounts>(tenantId, workspaceId), connected: true },
       order: { created_at: 'DESC' },
     });
     const refreshed = await Promise.all(

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import {
   contentItemsApi,
   socialAccountsApi,
@@ -15,8 +16,10 @@ import {
   resolveQueued,
 } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { plainToHtml } from '@/lib/rich-text';
 import {
   buildPlatformPayloads,
+  formatPublishText,
   platformOf,
   PlatformPayload,
   trimMediaForPlatform,
@@ -24,6 +27,10 @@ import {
   PlatformMediaAttachment,
   platformRequiresMedia,
   instagramHasMedia,
+  payloadsAreDuplicates,
+  contentNeedsFormatting,
+  formatPlainPostText,
+  formatContentForPlatform,
 } from '@/lib/platforms';
 import { normalizeMediaAsset, type MediaAsset } from '@/lib/mediaUrl';
 import { PlatformPickerCarousel } from './PlatformPickerCarousel';
@@ -74,6 +81,8 @@ function normalizePayloadsForPublish(
 export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps) {
   const { toast } = useToast();
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
+  const workspaceId = item.workspaceId ?? item.workspace_id ?? activeWorkspace ?? undefined;
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [platformPayloads, setPlatformPayloads] = useState<Record<string, PlatformPayload>>({});
@@ -86,9 +95,9 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
   const [waDefaultTemplate, setWaDefaultTemplate] = useState('hello_world');
 
   const loadLibrary = useCallback(async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id || !workspaceId) return;
     try {
-      const rows = await mediaApi.findAll(tenant.id);
+      const rows = await mediaApi.findAll(tenant.id, workspaceId);
       const all = (Array.isArray(rows) ? rows : []).map((r) =>
         normalizeMediaAsset(r as Record<string, unknown>),
       );
@@ -98,15 +107,15 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
     } catch {
       setLibraryAssets([]);
     }
-  }, [tenant?.id, item.id]);
+  }, [tenant?.id, item.id, workspaceId]);
 
   useEffect(() => {
-    if (!tenant?.id || !selectedPlatforms.includes('whatsapp')) {
+    if (!tenant?.id || !workspaceId || !selectedPlatforms.includes('whatsapp')) {
       setWaTemplates([]);
       return;
     }
     whatsappApi
-      .listTemplates(tenant.id)
+      .listTemplates(tenant.id, workspaceId)
       .then((res) => {
         setWaTemplates(res.templates ?? []);
         if (res.defaultTemplate) setWaDefaultTemplate(res.defaultTemplate);
@@ -125,16 +134,16 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
         });
       })
       .catch(() => setWaTemplates([]));
-  }, [tenant?.id, selectedPlatforms.includes('whatsapp')]);
+  }, [tenant?.id, workspaceId, selectedPlatforms.includes('whatsapp')]);
 
   useEffect(() => {
-    if (!tenant?.id) return;
+    if (!tenant?.id || !workspaceId) return;
     socialAccountsApi
-      .findByTenant(tenant.id)
+      .findByTenant(tenant.id, workspaceId)
       .then((data) => setConnectedAccounts(Array.isArray(data) ? data : []))
       .catch(() => setConnectedAccounts([]));
     void loadLibrary();
-  }, [tenant?.id, loadLibrary]);
+  }, [tenant?.id, workspaceId, workspaceVersion, loadLibrary]);
 
   useEffect(() => {
     const existing = item.platforms?.length ? item.platforms : [];
@@ -165,10 +174,11 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
         if (saved) {
           next[p] = {
             ...next[p],
-            content: saved.content ?? next[p].content,
+            content: formatPlainPostText(saved.content ?? next[p].content),
             title: saved.title ?? next[p].title,
             media: saved.media !== undefined ? saved.media : next[p].media,
           };
+          next[p].content = formatContentForPlatform(p, next[p].content);
         }
       }
     }
@@ -234,20 +244,24 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
           platforms: selectedPlatforms,
           title: item.title,
           content: item.content ?? '',
+          workspaceId,
         }),
-      )) as { payloads: Record<string, { title: string; content: string }> };
+      )) as { payloads?: Record<string, { title: string; content: string }> } | null;
+      if (!adapted?.payloads) {
+        throw new Error('AI adapt returned no platform copy. Restart the API and try again.');
+      }
       const { payloads } = adapted;
       setPlatformPayloads((prev) => {
         const next = { ...prev };
         for (const p of selectedPlatforms) {
-          if (payloads[p]) {
-            next[p] = {
-              ...next[p],
-              title: payloads[p].title,
-              content: payloads[p].content,
-              media: next[p]?.media,
-            };
-          }
+        if (payloads[p]) {
+          next[p] = {
+            ...next[p],
+            title: payloads[p].title,
+            content: plainToHtml(payloads[p].content),
+            media: next[p]?.media,
+          };
+        }
         }
         return next;
       });
@@ -327,10 +341,58 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
 
     setPublishing(true);
     try {
-      const rawPayloads =
-        Object.keys(platformPayloads).length > 0
-          ? platformPayloads
-          : buildPlatformPayloads(item.content ?? '', item.title ?? '', platformsToPublish);
+      let payloadsToUse = { ...platformPayloads };
+
+      const shouldAdaptWithAi =
+        tenant &&
+        platformsToPublish.length > 1 &&
+        (payloadsAreDuplicates(platformsToPublish, payloadsToUse) ||
+          contentNeedsFormatting(item.content ?? '') ||
+          platformsToPublish.some((p) => contentNeedsFormatting(payloadsToUse[p]?.content ?? '')));
+
+      if (shouldAdaptWithAi) {
+        toast({
+          title: 'Adapting copy',
+          description: 'Generating platform-specific versions with AI…',
+        });
+        const adapted = (await resolveQueued(
+          await contentAiApi.adaptPlatforms({
+            tenantId: tenant.id,
+            platforms: platformsToPublish,
+            title: item.title,
+            content: item.content ?? '',
+            workspaceId,
+          }),
+        )) as { payloads?: Record<string, { title: string; content: string }> } | null;
+        if (!adapted?.payloads) {
+          throw new Error('AI adapt returned no platform copy. Restart the API and try again.');
+        }
+        for (const p of platformsToPublish) {
+          if (adapted.payloads[p]) {
+            payloadsToUse[p] = {
+              ...payloadsToUse[p],
+              title: adapted.payloads[p].title,
+              content: plainToHtml(adapted.payloads[p].content),
+            };
+          }
+        }
+        setPlatformPayloads((prev) => ({ ...prev, ...payloadsToUse }));
+      } else {
+        for (const p of platformsToPublish) {
+          payloadsToUse[p] = {
+            ...payloadsToUse[p],
+            content: plainToHtml(
+              formatPublishText(p, payloadsToUse[p]?.content ?? item.content ?? ''),
+            ),
+          };
+        }
+      }
+
+      const rawPayloads: Record<string, PlatformPayload> = {};
+      const fallback = buildPlatformPayloads(item.content ?? '', item.title ?? '', platformsToPublish);
+      for (const p of platformsToPublish) {
+        rawPayloads[p] = payloadsToUse[p] ?? fallback[p];
+      }
       const publishPayloads = normalizePayloadsForPublish(rawPayloads);
 
       const mediaByUrl = new Map<string, { url: string; type: string; assetId?: string }>();
@@ -351,29 +413,21 @@ export function PublishPanel({ item, onCancel, onPublished }: PublishPanelProps)
         );
       }
 
-      await contentItemsApi.update(item.id, {
-        platforms: platformsToPublish,
-        platformPayloads: rawPayloads,
-        contentType: platformsToPublish[0],
-        status: 'approved',
-      } as any);
+      const { submitPublish } = await import('@/lib/publishContent');
+      const result = await submitPublish(
+        item.id,
+        platformsToPublish,
+        publishPayloads,
+        (t) => toast(t),
+        {
+          waitInForeground: true,
+          contentType: platformsToPublish[0],
+        },
+      );
 
-      try {
-        const { submitPublish } = await import('@/lib/publishContent');
-        await submitPublish(
-          item.id,
-          platformsToPublish,
-          publishPayloads,
-          (t) => toast(t),
-        );
-      } catch (err: unknown) {
-        toast({
-          title: 'Publish issue',
-          description: err instanceof Error ? err.message : 'Saved targets — check platform connections and public media URLs.',
-          variant: 'destructive',
-        });
+      if (result?.published) {
+        onPublished();
       }
-      onPublished();
     } catch (err: unknown) {
       toast({
         title: 'Publish failed',

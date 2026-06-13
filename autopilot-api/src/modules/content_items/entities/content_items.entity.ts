@@ -43,7 +43,7 @@ export class ContentItems {
   @Column({ type: 'text', array: true, nullable: true })
   platforms?: string[];
   @Column({ type: 'jsonb', nullable: true })
-  platformPayloads?: string;
+  platformPayloads?: Record<string, unknown>;
   @Column({ type: 'date', nullable: true })
   scheduledDate?: Date;
   @Column({ type: 'timetz', nullable: true })

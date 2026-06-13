@@ -12,6 +12,7 @@ import {
 } from '@/lib/api';
 import { platformOf } from '@/lib/platforms';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +29,7 @@ type ChannelFilter = 'all' | 'post_comment' | 'dm';
 
 export function UnifiedSocialInbox() {
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { can } = usePermissions();
   const { toast } = useToast();
 
@@ -43,10 +45,14 @@ export function UnifiedSocialInbox() {
   const [sending, setSending] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoading(true);
     try {
-      const rows = await inboxApi.conversations(tenant.id, filter === 'all' ? 'all' : filter);
+      const rows = await inboxApi.conversations(
+        tenant.id,
+        filter === 'all' ? 'all' : filter,
+        activeWorkspace,
+      );
       setConversations(rows);
       setSelectedId((prev) => prev ?? rows[0]?.id ?? null);
     } catch {
@@ -54,7 +60,7 @@ export function UnifiedSocialInbox() {
     } finally {
       setLoading(false);
     }
-  }, [tenant, filter]);
+  }, [tenant, activeWorkspace, filter]);
 
   const selected = useMemo(
     () => conversations.find((c) => c.id === selectedId) ?? null,
@@ -69,7 +75,7 @@ export function UnifiedSocialInbox() {
     }
 
     if (selected.channel === 'post_comment' && selected.contentId) {
-      const { posts } = await commentRepliesApi.inbox(tenant.id, selected.contentId);
+      const { posts } = await commentRepliesApi.inbox(tenant.id, selected.contentId, activeWorkspace);
       const match =
         posts.find((p) => p.key === selected.postKey) ??
         posts.find((p) => p.platform === selected.platform) ??
@@ -82,28 +88,28 @@ export function UnifiedSocialInbox() {
 
     setPostGroup(null);
     try {
-      const rows = await inboxApi.messages(tenant.id, selected.id);
+      const rows = await inboxApi.messages(tenant.id, selected.id, activeWorkspace);
       setDmMessages(rows);
     } catch {
       setDmMessages([]);
     }
-  }, [tenant, selected]);
+  }, [tenant, activeWorkspace, selected]);
 
   useEffect(() => {
     void loadConversations();
-  }, [loadConversations]);
+  }, [loadConversations, workspaceVersion]);
 
   useEffect(() => {
     void loadDetail();
   }, [loadDetail]);
 
   async function syncAll() {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setSyncing(true);
     try {
       const [dm, raw] = await Promise.all([
-        inboxApi.sync(tenant.id),
-        commentRepliesApi.fetch(tenant.id),
+        inboxApi.sync(tenant.id, activeWorkspace ?? undefined),
+        commentRepliesApi.fetch(tenant.id, activeWorkspace ?? undefined),
       ]);
       await resolveQueued(raw);
       toast({
@@ -127,7 +133,9 @@ export function UnifiedSocialInbox() {
     if (!tenant || !selected || !replyText.trim()) return;
     setSending('dm');
     try {
-      const result = await inboxApi.reply(tenant.id, selected.id, replyText.trim());
+      const result = await inboxApi.reply(tenant.id, selected.id, replyText.trim(), {
+        workspaceId: activeWorkspace ?? undefined,
+      });
       if (!result.sent) throw new Error(result.message ?? 'Send failed');
       setReplyText('');
       await loadDetail();

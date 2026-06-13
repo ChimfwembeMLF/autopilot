@@ -8,11 +8,11 @@ import { Repository } from 'typeorm';
 import { MistralChatService } from '../../ai/services/mistral-chat.service';
 import { PromptBuilderService } from '../../ai/services/prompt-builder.service';
 import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
-import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
 import { Workspaces } from '../../workspaces/entities/workspaces.entity';
 import { ContentItems } from '../entities/content_items.entity';
 import { TemplatesService } from '../../templates/templates.service';
 import { EngagementInsightsService } from '../../content_publications/engagement-insights.service';
+import { BrandProfilesService } from '../../brand_profiles/brand_profiles.service';
 
 @Injectable()
 export class GenerateContentService {
@@ -22,8 +22,7 @@ export class GenerateContentService {
     private readonly usage: AiUsageTrackerService,
     private readonly templates: TemplatesService,
     private readonly engagementInsights: EngagementInsightsService,
-    @InjectRepository(BrandProfiles)
-    private readonly brandRepo: Repository<BrandProfiles>,
+    private readonly brandProfiles: BrandProfilesService,
     @InjectRepository(Workspaces)
     private readonly workspaceRepo: Repository<Workspaces>,
     @InjectRepository(ContentItems)
@@ -47,7 +46,11 @@ export class GenerateContentService {
     const theme = params.theme?.trim() || params.draft?.trim();
     if (!theme) throw new BadRequestException('theme or draft content is required');
 
-    const brand = await this.loadBrand(tenantId, params.userId);
+    const brand = await this.brandProfiles.resolveForContext({
+      tenantId,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+    });
     const brandCtx = this.prompts.brandFromEntity(brand);
     const template = await this.templates.findForGeneration({
       tenantId,
@@ -142,10 +145,6 @@ export class GenerateContentService {
       if (ws?.tenantId) return ws.tenantId;
     }
     throw new BadRequestException('tenantId or workspaceId is required');
-  }
-
-  private async loadBrand(tenantId: string, userId: string): Promise<BrandProfiles | null> {
-    return this.brandRepo.findOne({ where: { tenantId, userId } });
   }
 
   private escapeHtml(s: string): string {

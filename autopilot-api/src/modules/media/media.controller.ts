@@ -27,8 +27,11 @@ export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Get()
-  findAll(@Query('tenantId') tenantId: string) {
-    return this.media.findByTenant(tenantId);
+  findAll(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.media.findByTenant(tenantId, workspaceId);
   }
 
   @Post('upload')
@@ -38,12 +41,14 @@ export class MediaController {
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
     @Query('contentId') contentId?: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     return this.media.upload({
       tenantId,
       userId: String(req.user.sub),
       file,
       contentId,
+      workspaceId,
     });
   }
 

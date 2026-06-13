@@ -14,6 +14,10 @@ export class UpdateChatbotConfigDto {
   tenantId: string;
 
   @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
+  @IsOptional()
   @IsString()
   name?: string;
 

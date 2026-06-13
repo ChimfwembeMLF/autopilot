@@ -13,13 +13,17 @@ DB_SYNCHRONIZE=false
 NODE_ENV=production
 ```
 
-Run TypeORM migrations once:
+**First-time production database** — migrations alone are not enough (they only patch an existing schema; dev relies on `DB_SYNCHRONIZE=true` for base tables):
+
 ```bash
 cd autopilot-api
 # Set DB_* in .env, then:
-npm run db:migrate
-npm run db:migrate:show   # optional — list applied migrations
+npm run db:sync          # creates core tables from entities (content_items, users, …)
+npm run migrations:run   # applies incremental patches
+npm run migrations:show  # optional — list applied migrations
 ```
+
+If crons log `relation "content_items" does not exist`, run `npm run db:sync` then restart the API.
 
 ---
 
@@ -33,6 +37,7 @@ cd autopilot-api
 cp docs/env.mako.production.template .env   # then edit secrets
 npm ci
 npm run build
+npm run db:sync
 npm run migrations:run
 # After first owner signs up (or if tenant already exists):
 npm run seed:prod

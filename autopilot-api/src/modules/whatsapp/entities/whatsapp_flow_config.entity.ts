@@ -4,7 +4,6 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  Index,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
@@ -16,9 +15,11 @@ export class WhatsappFlowConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index({ unique: true })
   @Column({ type: 'uuid' })
   tenantId: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
 
   @Column({ type: 'boolean', default: false })
   enabled: boolean;

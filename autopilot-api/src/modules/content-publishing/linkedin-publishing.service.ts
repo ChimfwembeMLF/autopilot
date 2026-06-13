@@ -26,6 +26,7 @@ export class LinkedInPublishingService {
       content.tenantId,
       content.userId,
       'linkedin',
+      content.workspaceId,
     );
 
     if (!socialAccount) {

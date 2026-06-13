@@ -233,12 +233,14 @@ export class NotificationsService {
     title?: string;
     reason: string;
   }): Promise<void> {
+    const postTitle = this.truncateText(params.title ?? 'Your post', 60);
+    const reason = this.truncateText(params.reason, 140);
     await this.notify({
       tenantId: params.tenantId,
       userId: params.userId,
       type: 'publish_failed',
       title: 'Publish failed',
-      body: `"${params.title ?? 'Your post'}" could not be published. ${params.reason}`,
+      body: `"${postTitle}" could not be published. ${reason}`,
       link: `/content/${params.contentId}`,
       metadata: { contentId: params.contentId },
       email: true,
@@ -724,6 +726,12 @@ export class NotificationsService {
       default:
         return { reportId, error: 'Unknown report type' };
     }
+  }
+
+  private truncateText(text: string, max: number): string {
+    const clean = text.replace(/\s+/g, ' ').trim();
+    if (clean.length <= max) return clean;
+    return `${clean.slice(0, max - 1).trimEnd()}…`;
   }
 
   private async sendEmailToUser(

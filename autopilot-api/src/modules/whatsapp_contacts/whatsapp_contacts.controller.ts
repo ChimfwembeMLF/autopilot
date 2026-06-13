@@ -32,8 +32,11 @@ export class WhatsappContactsController {
   }
 
   @Get()
-  findByTenant(@Query('tenantId') tenantId: string): Promise<WhatsappContacts[]> {
-    return this.service.findByTenant(tenantId);
+  findByTenant(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ): Promise<WhatsappContacts[]> {
+    return this.service.findByTenant(tenantId, workspaceId);
   }
 
   @Get(':id')

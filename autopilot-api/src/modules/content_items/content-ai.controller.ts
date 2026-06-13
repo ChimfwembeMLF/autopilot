@@ -95,8 +95,10 @@ export class ContentAiController {
 
   @Post('adapt-platforms')
   adapt(@Req() req: { user: JwtUser }, @Body() dto: AdaptPlatformsDto) {
+    const workspaceId = dto.workspaceId ?? dto.workspace_id;
     const payload = {
       tenantId: dto.tenantId,
+      workspaceId,
       platforms: dto.platforms,
       title: dto.title,
       content: dto.content,
@@ -170,7 +172,7 @@ export class ContentAiController {
 
   @Post('daily-workflow')
   runDailyWorkflow(@Req() req: { user: JwtUser }, @Body() dto: DailyWorkflowDto) {
-    const payload = { tenantId: dto.tenantId };
+    const payload = { tenantId: dto.tenantId, workspaceId: dto.workspaceId };
     if (this.queueDispatch.isEnabled()) {
       return this.queueDispatch.enqueueAiTask({
         type: 'daily-workflow',
@@ -180,6 +182,7 @@ export class ContentAiController {
     }
     return this.dailyWorkflowService.run({
       tenantId: dto.tenantId,
+      workspaceId: dto.workspaceId,
       userId: String(req.user.sub),
     });
   }
@@ -196,7 +199,10 @@ export class ContentAiController {
     await this.contentRepo.update(contentId, {
       publishAttempts: 0,
       publishFailedReason: undefined,
-      ...(item.status === 'publish_failed' ? { status: 'approved' } : {}),
+      status: 'approved',
+      ...(dto.platforms?.length ? { platforms: dto.platforms } : {}),
+      ...(dto.platformPayloads ? { platformPayloads: dto.platformPayloads as never } : {}),
+      ...(dto.contentType ? { contentType: dto.contentType } : {}),
     });
 
     const data = {

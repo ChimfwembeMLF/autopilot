@@ -16,6 +16,11 @@ export class BrandProfilesCreateDto {
   userId?: string;
 
   @IsOptional()
+  @IsUUID()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  workspaceId?: string;
+
+  @IsOptional()
   @IsString()
   companyName?: string;
 

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { mediaApi } from '@/lib/api';
 import { normalizeMediaAsset, resolveMediaUrl, type MediaAsset } from '@/lib/mediaUrl';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ interface Props {
 
 export function MediaPicker({ value, onChange, accept = 'image/*,video/*' }: Props) {
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [assets, setAssets] = useState<MediaAsset[]>([]);
@@ -25,10 +27,10 @@ export function MediaPicker({ value, onChange, accept = 'image/*,video/*' }: Pro
   const [urlInput, setUrlInput] = useState('');
 
   const loadAssets = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoading(true);
     try {
-      const rows = await mediaApi.findAll(tenant.id);
+      const rows = await mediaApi.findAll(tenant.id, activeWorkspace);
       setAssets(
         (Array.isArray(rows) ? rows : []).map((r) =>
           normalizeMediaAsset(r as Record<string, unknown>),
@@ -38,11 +40,11 @@ export function MediaPicker({ value, onChange, accept = 'image/*,video/*' }: Pro
       setAssets([]);
     }
     setLoading(false);
-  }, [tenant]);
+  }, [tenant, activeWorkspace]);
 
   useEffect(() => {
     void loadAssets();
-  }, [loadAssets]);
+  }, [loadAssets, workspaceVersion]);
 
   const filtered = assets.filter((a) => {
     if (!search.trim()) return true;
@@ -52,10 +54,10 @@ export function MediaPicker({ value, onChange, accept = 'image/*,video/*' }: Pro
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !tenant) return;
+    if (!file || !tenant || !activeWorkspace) return;
     setUploading(true);
     try {
-      const asset = await mediaApi.upload(file, tenant.id);
+      const asset = await mediaApi.upload(file, tenant.id, undefined, activeWorkspace);
       const normalized = normalizeMediaAsset(asset as Record<string, unknown>);
       setAssets((prev) => [normalized, ...prev]);
       onChange(normalized.mediaUrl);

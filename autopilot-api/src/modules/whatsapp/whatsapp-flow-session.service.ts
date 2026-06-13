@@ -5,6 +5,7 @@ import { WhatsappFlowSession } from './entities/whatsapp_flow_session.entity';
 import { WhatsappFlowConfig } from './entities/whatsapp_flow_config.entity';
 import { normalizeMenuItems } from './whatsapp-menu.types';
 import { UpdateWhatsappFlowConfigDto } from './dto/update-whatsapp-flow-config.dto';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -17,8 +18,27 @@ export class WhatsappFlowSessionService {
     private readonly configs: Repository<WhatsappFlowConfig>,
   ) {}
 
-  async getConfig(tenantId: string): Promise<WhatsappFlowConfig> {
-    let config = await this.configs.findOne({ where: { tenantId } });
+  async getConfig(tenantId: string, workspaceId?: string): Promise<WhatsappFlowConfig> {
+    if (workspaceId) {
+      let config = await this.configs.findOne({ where: { workspaceId } });
+      if (!config) {
+        config = await this.configs.save(
+          this.configs.create({
+            tenantId,
+            workspaceId,
+            enabled: false,
+            flowType: 'configurable_menu',
+            menuItems: [],
+          }),
+        );
+      }
+      config.menuItems = normalizeMenuItems(config.menuItems);
+      return config;
+    }
+
+    let config = await this.configs.findOne({
+      where: scopeWhere<WhatsappFlowConfig>(tenantId),
+    });
     if (!config) {
       config = await this.configs.save(
         this.configs.create({
@@ -36,8 +56,9 @@ export class WhatsappFlowSessionService {
   async updateConfig(
     tenantId: string,
     patch: UpdateWhatsappFlowConfigDto,
+    workspaceId?: string,
   ): Promise<WhatsappFlowConfig> {
-    const config = await this.getConfig(tenantId);
+    const config = await this.getConfig(tenantId, workspaceId);
 
     if (patch.enabled !== undefined) config.enabled = patch.enabled;
     if (patch.serviceName !== undefined) config.serviceName = patch.serviceName.trim() || 'MyService';

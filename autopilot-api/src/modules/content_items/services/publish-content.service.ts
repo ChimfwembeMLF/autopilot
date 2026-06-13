@@ -17,6 +17,7 @@ import { ContentPublicationsService } from '../../content_publications/content-p
 import { NotificationsService } from '../../notifications/notifications.service';
 import { QUEUE_JOB_MAX_ATTEMPTS } from '../../queues/queue.constants';
 import { instagramRequiresMedia, hasPublishableMedia } from '../utils/instagram-publish.util';
+import { formatContentForPlatform, formatPlainPostText, htmlToPublishPlainText } from '../../../common/text-format.util';
 
 export const MAX_CONTENT_PUBLISH_ATTEMPTS = QUEUE_JOB_MAX_ATTEMPTS;
 
@@ -93,7 +94,10 @@ export class PublishContentService {
 
     for (const platform of platforms) {
       const pp = platformPayloads[platform];
-      const publishedContent = (pp?.content ?? item.content).replace(/<[^>]*>/g, '').trim();
+      const publishedContent = formatContentForPlatform(
+        platform,
+        htmlToPublishPlainText(pp?.content ?? item.content, platform),
+      );
       const publishedTitle = pp?.title ?? item.title;
 
       const payload: ContentToPublish = {
@@ -102,6 +106,7 @@ export class PublishContentService {
         title: publishedTitle,
         userId: params.userId,
         tenantId: item.tenantId,
+        workspaceId: item.workspaceId,
       };
 
       let media: MediaAttachment[];
@@ -141,6 +146,7 @@ export class PublishContentService {
         results[platform] = { published: false, message };
         await this.publications.record({
           tenantId: item.tenantId,
+          workspaceId: item.workspaceId,
           contentId: item.id,
           userId: params.userId,
           platform,
@@ -154,9 +160,20 @@ export class PublishContentService {
       }
 
       const socialAccount = await this.socialRepo.findOne({
-        where: { tenantId: item.tenantId, userId: params.userId, platform, connected: true },
+        where: {
+          tenantId: item.tenantId,
+          workspaceId: item.workspaceId,
+          userId: params.userId,
+          platform,
+          connected: true,
+        },
       }) ?? await this.socialRepo.findOne({
-        where: { tenantId: item.tenantId, platform, connected: true },
+        where: {
+          tenantId: item.tenantId,
+          workspaceId: item.workspaceId,
+          platform,
+          connected: true,
+        },
       });
 
       const result = await this.dispatch(platform, payload, media, pp);
@@ -168,6 +185,7 @@ export class PublishContentService {
 
       await this.publications.record({
         tenantId: item.tenantId,
+        workspaceId: item.workspaceId,
         contentId: item.id,
         userId: params.userId,
         platform,
@@ -205,9 +223,16 @@ export class PublishContentService {
         platforms: publishedPlatforms,
       });
     } else {
-      const reasons = Object.entries(results)
+      const failed = Object.entries(results).filter(([, r]) => !r.published);
+      const reasons = failed
         .map(([p, r]) => `${p}: ${r.message}`)
         .join('; ');
+      const notifyReason =
+        failed.length === 0
+          ? 'Publish failed'
+          : failed.length === 1
+            ? this.shortenText(failed[0][1].message, 120)
+            : `${failed.length} platforms failed (${failed.map(([p]) => p).join(', ')})`;
       const nextAttempts = (item.publishAttempts ?? 0) + 1;
       const exhausted = nextAttempts >= MAX_CONTENT_PUBLISH_ATTEMPTS;
       await this.contentRepo.update(item.id, {
@@ -222,12 +247,18 @@ export class PublishContentService {
         contentId: item.id,
         title: item.title,
         reason: exhausted
-          ? `${reasons} (stopped after ${MAX_CONTENT_PUBLISH_ATTEMPTS} attempts)`
-          : reasons,
+          ? `${notifyReason} (stopped after ${MAX_CONTENT_PUBLISH_ATTEMPTS} attempts)`
+          : notifyReason,
       });
     }
 
     return { published: anyPublished, results };
+  }
+
+  private shortenText(text: string, max: number): string {
+    const clean = (text ?? '').replace(/\s+/g, ' ').trim();
+    if (clean.length <= max) return clean;
+    return `${clean.slice(0, max - 1).trimEnd()}…`;
   }
 
   private async resolveMediaUrl(

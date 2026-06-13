@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { CommentReplies } from '../comment_replies/entities/comment_replies.entity';
 import { ContentItems } from '../content_items/entities/content_items.entity';
 import { ContentPublications } from '../content_publications/entities/content_publications.entity';
@@ -74,7 +74,7 @@ export class CommentReplyAiService {
 
   private async generateAiReply(comment: CommentReplies, userId: string): Promise<string> {
     const ctx = await this.loadContext(comment);
-    const brandCtx = await this.loadBrand(comment.tenantId);
+    const brandCtx = await this.loadBrand(comment);
 
     const { data, tokensUsed } = await this.mistral.completeJson<{ content?: string }>(
       [
@@ -126,11 +126,18 @@ export class CommentReplyAiService {
     };
   }
 
-  private async loadBrand(tenantId: string) {
-    const tenant = await this.tenantsRepo.findOne({ where: { id: tenantId } });
-    const brand = tenant
-      ? await this.brandRepo.findOne({ where: { tenantId, userId: tenant.ownerId } })
-      : null;
+  private async loadBrand(comment: CommentReplies) {
+    const item = await this.contentRepo.findOne({ where: { id: comment.contentId } });
+    const tenant = await this.tenantsRepo.findOne({ where: { id: comment.tenantId } });
+    if (!tenant) return this.prompts.brandFromEntity(null);
+
+    const brand = item?.workspaceId
+      ? await this.brandRepo.findOne({
+          where: { tenantId: comment.tenantId, workspaceId: item.workspaceId },
+        })
+      : await this.brandRepo.findOne({
+          where: { tenantId: comment.tenantId, userId: tenant.ownerId, workspaceId: IsNull() },
+        });
     return this.prompts.brandFromEntity(brand);
   }
 }

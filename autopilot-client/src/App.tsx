@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
+import { WorkspaceProvider } from "@/hooks/useWorkspace";
 import { BackendStatusProvider } from "@/hooks/useBackendStatus";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { isNetworkError } from "@/lib/api-errors";
@@ -119,6 +120,7 @@ const App = () => (
       <BackendStatusProvider>
         <AuthProvider>
           <TenantProvider>
+            <WorkspaceProvider>
             <ErrorBoundary label="Application">
             <Toaster />
             <Sonner />
@@ -135,10 +137,12 @@ const App = () => (
                 <Route path="/terms" element={<LazyPage><TermsPage /></LazyPage>} />
                 <Route path="/data-deletion" element={<LazyPage><DataDeletionPage /></LazyPage>} />
                 <Route path="/" element={<HomeRoute />} />
+                <Route path="/home" element={<HomeRoute />} />
 
                 {/* Protected app routes */}
                 <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                   <Route path="/dashboard" element={<LazyPage><Index /></LazyPage>} />
+                  <Route path="/index" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/brand-brain" element={<LazyPage><BrandBrain /></LazyPage>} />
                   <Route path="/content" element={<LazyPage><ContentEngine /></LazyPage>} />
                   <Route path="/campaigns" element={<LazyPage><CampaignsPage /></LazyPage>} />
@@ -160,9 +164,9 @@ const App = () => (
 
                   {/* Replies */}
                   <Route path="/replies" element={<LazyPage><RepliesPage /></LazyPage>} />
-                  <Route path="/chatbot" element={<LazyPage><ChatbotPage /></LazyPage>} />
                   <Route path="/chatbot/knowledge" element={<LazyPage><ChatbotKnowledgePage /></LazyPage>} />
                   <Route path="/chatbot/sessions" element={<LazyPage><ChatbotSessionsPage /></LazyPage>} />
+                  <Route path="/chatbot" element={<LazyPage><ChatbotPage /></LazyPage>} />
 
                   {/* Approvals (maker-checker) */}
                   <Route path="/approvals" element={<LazyPage><ApprovalsPage /></LazyPage>} />
@@ -197,6 +201,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </ErrorBoundary>
+            </WorkspaceProvider>
         </TenantProvider>
       </AuthProvider>
       </BackendStatusProvider>

@@ -12,7 +12,7 @@ export function ChatbotWidgetLoader() {
     const key = WIDGET_KEY?.trim();
     if (!key || pathname.startsWith("/chatbot")) return;
 
-    const src = `${window.location.origin}/widget/v1/loader.js?v=4`;
+    const src = `${window.location.origin}/widget/v1/loader.js?v=5`;
     if (document.querySelector(`script[src="${src}"][data-key="${key}"]`)) return;
 
     const script = document.createElement("script");

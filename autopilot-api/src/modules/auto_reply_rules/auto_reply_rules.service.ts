@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AutoReplyRules } from './entities/auto_reply_rules.entity';
 import { AutoReplyRulesCreateDto } from './dto/create-auto_reply_rules.dto';
 import { AutoReplyRulesUpdateDto } from './dto/update-auto_reply_rules.dto';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 @Injectable()
 export class AutoReplyRulesService {
@@ -17,13 +18,24 @@ export class AutoReplyRulesService {
     return this.repo.save(ent as AutoReplyRules);
   }
 
-  async findAll(): Promise<AutoReplyRules[]> {
+  async findAll(tenantId?: string, workspaceId?: string): Promise<AutoReplyRules[]> {
+    if (tenantId) {
+      return this.repo.find({ where: scopeWhere<AutoReplyRules>(tenantId, workspaceId) });
+    }
     return this.repo.find();
   }
 
-  findActiveForPlatform(tenantId: string, platform: string): Promise<AutoReplyRules[]> {
+  findActiveForPlatform(
+    tenantId: string,
+    platform: string,
+    workspaceId?: string,
+  ): Promise<AutoReplyRules[]> {
     return this.repo.find({
-      where: { tenantId, platform, isActive: true },
+      where: {
+        ...scopeWhere<AutoReplyRules>(tenantId, workspaceId),
+        platform,
+        isActive: true,
+      },
       order: { created_at: 'ASC' },
     });
   }

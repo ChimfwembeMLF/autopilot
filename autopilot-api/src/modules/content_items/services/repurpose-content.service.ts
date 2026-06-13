@@ -4,8 +4,8 @@ import { Repository } from 'typeorm';
 import { MistralChatService } from '../../ai/services/mistral-chat.service';
 import { PromptBuilderService } from '../../ai/services/prompt-builder.service';
 import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
-import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
 import { ContentItems } from '../entities/content_items.entity';
+import { BrandProfilesService } from '../../brand_profiles/brand_profiles.service';
 
 const REPURPOSE_PLATFORMS = ['linkedin', 'instagram', 'facebook', 'twitter'] as const;
 
@@ -17,8 +17,7 @@ export class RepurposeContentService {
     private readonly usage: AiUsageTrackerService,
     @InjectRepository(ContentItems)
     private readonly contentRepo: Repository<ContentItems>,
-    @InjectRepository(BrandProfiles)
-    private readonly brandRepo: Repository<BrandProfiles>,
+    private readonly brandProfiles: BrandProfilesService,
   ) {}
 
   async repurpose(params: { contentId: string; userId: string; targetPlatform?: string }) {
@@ -27,8 +26,10 @@ export class RepurposeContentService {
 
     await this.usage.assertWithinLimit(source.tenantId, params.userId);
 
-    const brand = await this.brandRepo.findOne({
-      where: { tenantId: source.tenantId, userId: params.userId },
+    const brand = await this.brandProfiles.resolveForContext({
+      tenantId: source.tenantId,
+      userId: params.userId,
+      workspaceId: source.workspaceId,
     });
     const brandCtx = this.prompts.brandFromEntity(brand);
 

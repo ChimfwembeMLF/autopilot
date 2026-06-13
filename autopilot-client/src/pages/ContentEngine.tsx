@@ -181,7 +181,7 @@ function ContentCard({
 const ContentEngine = () => {
   const { user } = useAuth();
   const { tenant } = useTenant();
-  const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspace(user?.id);
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
   const [generatedContent, setGeneratedContent] = useState<ContentItem[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -217,6 +217,7 @@ const ContentEngine = () => {
     try {
       const result = await contentItemsApi.findPage({
         tenantId: tenant?.id,
+        workspaceId: activeWorkspace ?? undefined,
         page: requestPage,
         limit: PAGE_SIZE,
         search: searchQuery || undefined,
@@ -232,7 +233,7 @@ const ContentEngine = () => {
     } finally {
       setLoadingContent(false);
     }
-  }, [user, tenant?.id, page, searchQuery, platformFilter]);
+  }, [user, tenant?.id, activeWorkspace, page, searchQuery, platformFilter]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
@@ -241,13 +242,21 @@ const ContentEngine = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, platformFilter]);
+  }, [searchQuery, platformFilter, activeWorkspace]);
 
   useEffect(() => {
     if (!user) return;
+    setPage(1);
+    setActiveItem(null);
+    setPublishItem(null);
+    setSearchParams({}, { replace: true });
+    void checkBrandBrain();
+  }, [user, tenant?.id, activeWorkspace, workspaceVersion]);
+
+  useEffect(() => {
+    if (!user || !activeWorkspace) return;
     void loadContent();
-    checkBrandBrain();
-  }, [user, tenant?.id, loadContent]);
+  }, [page, loadContent, user, activeWorkspace]);
 
   useEffect(() => {
     const editId = searchParams.get('edit');
@@ -284,7 +293,7 @@ const ContentEngine = () => {
   const checkBrandBrain = async () => {
     if (!tenant) return;
     try {
-      const profile = await brandProfilesApi.getMine(tenant.id);
+      const profile = await brandProfilesApi.getMine(tenant.id, activeWorkspace ?? undefined);
       setHasBrandBrain(Boolean(profile?.companyName || profile?.description));
     } catch {
       setHasBrandBrain(false);
@@ -371,18 +380,6 @@ const ContentEngine = () => {
           <Button asChild variant="outline" size="sm" className="h-9">
             <Link to="/campaigns">AI Campaigns</Link>
           </Button>
-          {workspaces.length > 0 && (
-            <Select value={activeWorkspace || ''} onValueChange={setActiveWorkspace}>
-              <SelectTrigger className="w-full sm:w-[180px] h-9">
-                <SelectValue placeholder="Workspace…" />
-              </SelectTrigger>
-              <SelectContent>
-                {workspaces.map((ws) => (
-                  <SelectItem key={ws.id} value={ws.id}>{ws.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
           <span className={`text-xs px-3 py-1.5 rounded-full border font-medium whitespace-nowrap ${
             hasBrandBrain === true ? 'bg-green-500/10 text-green-700 border-green-500/30' :
             hasBrandBrain === false ? 'bg-amber-500/10 text-amber-700 border-amber-500/30' :

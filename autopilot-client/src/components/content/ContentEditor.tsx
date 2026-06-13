@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import RichTextEditor from '@/components/RichTextEditor';
+import { plainToHtml, normalizeRichContent } from '@/lib/rich-text';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -71,7 +73,7 @@ export function ContentEditor({ item, workspaceId, onReset, onSaved }: ContentEd
   useEffect(() => {
     setTheme(stripHtml(item?.campaign_theme ?? ''));
     setTitle(item?.title ?? '');
-    setContent(stripHtml(item?.content ?? ''));
+    setContent(normalizeRichContent(item?.content ?? ''));
     if (!item) {
       setPendingMedia([]);
       setPendingSlides([]);
@@ -85,13 +87,13 @@ export function ContentEditor({ item, workspaceId, onReset, onSaved }: ContentEd
       return;
     }
     templatesApi
-      .findAll(tenant.id)
+      .findAll(tenant.id, workspaceId ?? undefined)
       .then((rows) => {
         const active = (Array.isArray(rows) ? rows : []).filter((t) => t.isActive !== false);
         setTemplates(active.map((t) => ({ id: t.id, name: t.name, isActive: t.isActive })));
       })
       .catch(() => setTemplates([]));
-  }, [tenant?.id]);
+  }, [tenant?.id, workspaceId]);
 
   const handleGenerate = async () => {
     if (!user || !workspaceId) {
@@ -116,7 +118,7 @@ export function ContentEditor({ item, workspaceId, onReset, onSaved }: ContentEd
       if (!error && data) {
         const result = data as { error?: string; content?: string; title?: string };
         if (!result.error) {
-          if (result.content) setContent(stripHtml(result.content));
+          if (result.content) setContent(plainToHtml(result.content));
           if (result.title) setTitle(result.title);
           toast({ title: 'Content generated' });
           return;
@@ -312,13 +314,11 @@ export function ContentEditor({ item, workspaceId, onReset, onSaved }: ContentEd
 
           <div className="space-y-2">
             <Label htmlFor="content-body">Content</Label>
-            <Textarea
-              id="content-body"
+            <RichTextEditor
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={setContent}
               placeholder="Write your content…"
-              rows={8}
-              className="resize-y min-h-[180px]"
+              minHeight="180px"
             />
           </div>
 
@@ -350,6 +350,7 @@ export function ContentEditor({ item, workspaceId, onReset, onSaved }: ContentEd
             </div>
             <MediaUpload
               contentId={item?.id}
+              workspaceId={workspaceId}
               onUpload={(url, type, existingId) => {
                 setPendingMedia((prev) => {
                   if (prev.some((m) => m.url === url)) return prev;

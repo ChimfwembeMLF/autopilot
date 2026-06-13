@@ -34,4 +34,4 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO mako;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO mako;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO mako;
 
-\echo 'Done. Set DB_DATABASE=autopilot_prod and DB_SYNCHRONIZE=false in .env, then run: npm run migrations:run'
+\echo 'Done. Set DB_DATABASE=autopilot_prod and DB_SYNCHRONIZE=false in .env, then run: npm run db:sync && npm run migrations:run'

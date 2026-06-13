@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Leads } from './entities/leads.entity';
 import { LeadsCreateDto } from './dto/create-leads.dto';
 import { LeadsUpdateDto } from './dto/update-leads.dto';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 @Injectable()
 export class LeadsService {
@@ -17,8 +18,12 @@ export class LeadsService {
     return this.repo.save(ent as Leads);
   }
 
-  async findAll(tenantId?: string): Promise<Leads[]> {
-    if (tenantId) return this.repo.find({ where: { tenantId } });
+  async findAll(tenantId?: string, workspaceId?: string): Promise<Leads[]> {
+    if (tenantId) {
+      return this.repo.find({
+        where: scopeWhere<Leads>(tenantId, workspaceId),
+      });
+    }
     return this.repo.find();
   }
 
@@ -43,9 +48,16 @@ export class LeadsService {
     return `wa+${digits}@inbox.autopilot`;
   }
 
-  async findByWhatsappPhone(tenantId: string, phone: string): Promise<Leads | null> {
+  async findByWhatsappPhone(
+    tenantId: string,
+    phone: string,
+    workspaceId?: string,
+  ): Promise<Leads | null> {
     return this.repo.findOne({
-      where: { tenantId, email: this.whatsappEmail(phone) },
+      where: {
+        ...scopeWhere<Leads>(tenantId, workspaceId),
+        email: this.whatsappEmail(phone),
+      },
     });
   }
 

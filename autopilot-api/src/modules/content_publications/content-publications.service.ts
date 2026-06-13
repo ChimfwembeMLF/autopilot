@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContentPublications } from './entities/content_publications.entity';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 export type RecordPublicationParams = {
   tenantId: string;
+  workspaceId?: string;
   contentId: string;
   userId: string;
   platform: string;
@@ -28,6 +30,7 @@ export class ContentPublicationsService {
     return this.repo.save(
       this.repo.create({
         tenantId: params.tenantId,
+        workspaceId: params.workspaceId,
         contentId: params.contentId,
         userId: params.userId,
         platform: params.platform,
@@ -43,9 +46,12 @@ export class ContentPublicationsService {
     );
   }
 
-  async findPublishedForTenant(tenantId: string): Promise<ContentPublications[]> {
+  async findPublishedForTenant(
+    tenantId: string,
+    workspaceId?: string,
+  ): Promise<ContentPublications[]> {
     return this.repo.find({
-      where: { tenantId, status: 'published' },
+      where: { ...scopeWhere<ContentPublications>(tenantId, workspaceId), status: 'published' },
       order: { publishedAt: 'DESC' },
     });
   }

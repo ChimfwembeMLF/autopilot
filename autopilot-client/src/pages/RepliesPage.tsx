@@ -8,6 +8,7 @@ import {
   type PostInboxGroup,
 } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
 import { logAudit } from '@/lib/audit';
@@ -76,9 +77,10 @@ function fromRule(row: Record<string, unknown>): ReplyRule {
   };
 }
 
-function toRulePayload(editing: Partial<ReplyRule>, tenantId: string) {
+function toRulePayload(editing: Partial<ReplyRule>, tenantId: string, workspaceId: string) {
   return {
     tenantId,
+    workspaceId,
     platform: editing.platform,
     name: editing.name,
     triggerKeywords: editing.trigger_keywords,
@@ -95,6 +97,7 @@ function countPending(posts: PostInboxGroup[]) {
 
 export default function RepliesPage() {
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { can } = usePermissions();
   const { toast } = useToast();
 
@@ -109,48 +112,48 @@ export default function RepliesPage() {
   const [loadingInbox, setLoadingInbox] = useState(true);
 
   const loadInbox = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoadingInbox(true);
     try {
-      const { posts: rows } = await commentRepliesApi.inbox(tenant.id);
+      const { posts: rows } = await commentRepliesApi.inbox(tenant.id, undefined, activeWorkspace);
       setPosts(rows);
     } catch {
       setPosts([]);
     } finally {
       setLoadingInbox(false);
     }
-  }, [tenant]);
+  }, [tenant, activeWorkspace]);
 
   const loadRules = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
-      const all = await autoReplyRulesApi.findAll();
+      const all = await autoReplyRulesApi.findAll(tenant.id, activeWorkspace);
       const list = Array.isArray(all) ? all : [];
-      setRules(list.filter((r: Record<string, unknown>) => r.tenantId === tenant.id).map(fromRule));
+      setRules(list.map(fromRule));
     } catch {
       setRules([]);
     }
-  }, [tenant]);
+  }, [tenant, activeWorkspace]);
 
   useEffect(() => {
-    if (tenant) {
+    if (tenant && activeWorkspace) {
       void loadInbox();
       void loadRules();
     }
-  }, [tenant, loadInbox, loadRules]);
+  }, [tenant?.id, activeWorkspace, workspaceVersion, loadInbox, loadRules]);
 
   async function fetchComments() {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setFetching(true);
     try {
-      const raw = await commentRepliesApi.fetch(tenant.id);
+      const raw = await commentRepliesApi.fetch(tenant.id, activeWorkspace);
       const result = (await resolveQueued(raw)) as { fetched?: number; autoReplied?: number };
       const count = result?.fetched ?? 0;
       const autoReplied = result?.autoReplied ?? 0;
 
       let engagementUpdated = 0;
       try {
-        const eng = await contentPublicationsApi.syncEngagement(tenant.id);
+        const eng = await contentPublicationsApi.syncEngagement(tenant.id, activeWorkspace ?? undefined);
         engagementUpdated = eng?.updated ?? 0;
       } catch {
         /* engagement sync is best-effort */
@@ -175,10 +178,10 @@ export default function RepliesPage() {
   }
 
   async function saveRule() {
-    if (!editing?.name?.trim() || !tenant) return;
+    if (!editing?.name?.trim() || !tenant || !activeWorkspace) return;
     setSaving(true);
     try {
-      const payload = toRulePayload(editing, tenant.id);
+      const payload = toRulePayload(editing, tenant.id, activeWorkspace);
       if (editing.id) {
         await autoReplyRulesApi.update(editing.id, payload as any);
         setRules((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...editing } as ReplyRule : r)));
@@ -320,7 +323,7 @@ export default function RepliesPage() {
           </TabsList>
 
           <TabsContent value="inbox" className="mt-4">
-            <UnifiedSocialInbox />
+            <UnifiedSocialInbox key={`${activeWorkspace}-${workspaceVersion}`} />
           </TabsContent>
 
           <TabsContent value="comments" className="mt-4">
@@ -343,7 +346,7 @@ export default function RepliesPage() {
           </TabsContent>
 
           <TabsContent value="messages" className="mt-4">
-            <WhatsAppInbox />
+            <WhatsAppInbox key={`${activeWorkspace}-${workspaceVersion}`} />
           </TabsContent>
 
           <TabsContent value="rules" className="space-y-4 mt-4">

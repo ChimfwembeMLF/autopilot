@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { BrandProfiles } from './entities/brand_profiles.entity';
+import { Workspaces } from '../workspaces/entities/workspaces.entity';
 import { BrandProfilesCreateDto } from './dto/create-brand_profiles.dto';
 import { BrandProfilesUpdateDto } from './dto/update-brand_profiles.dto';
 
@@ -10,6 +11,8 @@ export class BrandProfilesService {
   constructor(
     @InjectRepository(BrandProfiles)
     private readonly repo: Repository<BrandProfiles>,
+    @InjectRepository(Workspaces)
+    private readonly workspaceRepo: Repository<Workspaces>,
   ) {}
 
   async create(dto: BrandProfilesCreateDto): Promise<BrandProfiles> {
@@ -23,11 +26,29 @@ export class BrandProfilesService {
     if (!dto.userId) {
       throw new BadRequestException('userId is required');
     }
-    const existing = await this.findForTenantUser(dto.tenantId, dto.userId);
-      if (existing) {
-        await this.repo.update(existing.id, dto as BrandProfilesUpdateDto);
-        return this.findOne(existing.id);
+
+    if (dto.workspaceId) {
+      const workspace = await this.workspaceRepo.findOne({
+        where: { id: dto.workspaceId, tenantId: dto.tenantId },
+      });
+      if (!workspace) {
+        throw new BadRequestException('workspaceId does not belong to this tenant');
       }
+    }
+
+    const existing = dto.workspaceId
+      ? await this.findForWorkspace(dto.workspaceId, dto.tenantId)
+      : await this.findForTenantUser(dto.tenantId, dto.userId);
+
+    if (existing) {
+      if (dto.workspaceId && existing.workspaceId !== dto.workspaceId) {
+        throw new BadRequestException('Brand profile belongs to a different workspace');
+      }
+      const { userId: _uid, tenantId: _tid, workspaceId: _ws, ...patch } = dto;
+      await this.repo.update(existing.id, patch as BrandProfilesUpdateDto);
+      return this.findOne(existing.id);
+    }
+
     const ent = this.repo.create(dto);
     return this.repo.save(ent as BrandProfiles);
   }
@@ -42,7 +63,53 @@ export class BrandProfilesService {
   }
 
   async findForTenantUser(tenantId: string, userId: string): Promise<BrandProfiles | null> {
-    return this.repo.findOne({ where: { tenantId, userId } });
+    return this.repo.findOne({
+      where: { tenantId, userId, workspaceId: IsNull() },
+    });
+  }
+
+  async findForWorkspace(workspaceId: string, tenantId?: string): Promise<BrandProfiles | null> {
+    return this.repo.findOne({
+      where: tenantId ? { workspaceId, tenantId } : { workspaceId },
+    });
+  }
+
+  /** Workspace profile only when workspaceId is set; legacy tenant+user profile otherwise. */
+  async resolveForContext(params: {
+    tenantId: string;
+    userId: string;
+    workspaceId?: string;
+  }): Promise<BrandProfiles | null> {
+    if (params.workspaceId) {
+      return this.findForWorkspace(params.workspaceId, params.tenantId);
+    }
+    return this.findForTenantUser(params.tenantId, params.userId);
+  }
+
+  /** Create an empty brand profile shell when a workspace is created. */
+  async ensureForWorkspace(
+    tenantId: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<BrandProfiles | null> {
+    const existing = await this.findForWorkspace(workspaceId, tenantId);
+    if (existing) return existing;
+
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId, tenantId },
+    });
+    if (!workspace) return null;
+
+    return this.repo.save(
+      this.repo.create({
+        tenantId,
+        userId,
+        workspaceId,
+        companyName: workspace.name,
+        toneOfVoice: 'Professional, clear, and friendly',
+        brandPersonality: 'Helpful and trustworthy',
+      }),
+    );
   }
 
   async findOne(id: string): Promise<BrandProfiles> {

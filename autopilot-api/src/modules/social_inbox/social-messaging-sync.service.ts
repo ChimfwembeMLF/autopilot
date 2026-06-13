@@ -5,6 +5,7 @@ import axios from 'axios';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { SocialMessages, InboxAttachment, InboxReaction } from './entities/social_messages.entity';
 import { SocialDmAutoReplyService } from './social-dm-auto-reply.service';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 @Injectable()
 export class SocialMessagingSyncService {
@@ -18,12 +19,17 @@ export class SocialMessagingSyncService {
     private readonly autoReply: SocialDmAutoReplyService,
   ) {}
 
-  async syncForTenant(tenantId: string, userId: string): Promise<{ synced: number }> {
+  async syncForTenant(
+    tenantId: string,
+    userId: string,
+    workspaceId?: string,
+  ): Promise<{ synced: number }> {
     const accounts = await this.accountsRepo.find({
-      where: { tenantId, connected: true },
+      where: scopeWhere<SocialAccounts>(tenantId, workspaceId),
     });
+    const connected = accounts.filter((a) => a.connected);
     let synced = 0;
-    for (const account of accounts) {
+    for (const account of connected) {
       if (!['facebook', 'instagram'].includes(account.platform)) continue;
       try {
         synced += await this.syncAccount(account, userId);
@@ -77,6 +83,7 @@ export class SocialMessagingSyncService {
         const saved = await this.messagesRepo.save(
           this.messagesRepo.create({
             tenantId: account.tenantId,
+            workspaceId: account.workspaceId,
             platform: account.platform,
             threadId,
             externalMessageId: externalId,

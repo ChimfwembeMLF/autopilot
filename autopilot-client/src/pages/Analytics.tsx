@@ -9,6 +9,7 @@ import { platformOf } from "@/lib/platforms";
 import { Link } from "react-router-dom";
 import { invokeEdgeFunction } from "@/lib/edgeFunctions";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -26,6 +27,7 @@ const channelLabels: Record<string, string> = {
 const Analytics = () => {
   const { user } = useAuth();
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { toast } = useToast();
   const [contentStats, setContentStats] = useState({ total: 0, published: 0, draft: 0, approved: 0 });
   const [channelBreakdown, setChannelBreakdown] = useState<{ name: string; value: number }[]>([]);
@@ -39,9 +41,9 @@ const Analytics = () => {
   const [syncingEngagement, setSyncingEngagement] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeWorkspace) return;
     loadAllData();
-  }, [user, tenant?.id]);
+  }, [user, tenant?.id, activeWorkspace, workspaceVersion]);
 
   const loadAllData = async () => {
     if (!user) return;
@@ -51,9 +53,9 @@ const Analytics = () => {
   };
 
   const loadTopPosts = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id || !activeWorkspace) return;
     try {
-      const posts = await contentPublicationsApi.topPerforming(tenant.id, 5);
+      const posts = await contentPublicationsApi.topPerforming(tenant.id, 5, activeWorkspace);
       setTopPosts(Array.isArray(posts) ? posts : []);
     } catch {
       setTopPosts([]);
@@ -61,10 +63,10 @@ const Analytics = () => {
   };
 
   const syncEngagement = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id || !activeWorkspace) return;
     setSyncingEngagement(true);
     try {
-      const { updated } = await contentPublicationsApi.syncEngagement(tenant.id);
+      const { updated } = await contentPublicationsApi.syncEngagement(tenant.id, activeWorkspace);
       await loadTopPosts();
       toast({
         title: "Engagement synced",
@@ -82,12 +84,11 @@ const Analytics = () => {
   };
 
   const loadContentStats = async () => {
-    if (!user) return;
+    if (!user || !activeWorkspace) return;
     try {
-      const all = await contentItemsApi.findAll();
+      const all = await contentItemsApi.findAll(tenant?.id, { workspaceId: activeWorkspace });
       const list = (Array.isArray(all) ? all : []).filter(
-        (d: Record<string, unknown>) =>
-          d.userId === user.id && (!tenant?.id || d.tenantId === tenant.id),
+        (d: Record<string, unknown>) => d.userId === user.id,
       );
       setContentStats({
         total: list.length,
@@ -116,12 +117,11 @@ const Analytics = () => {
   };
 
   const loadLeadStats = async () => {
-    if (!user) return;
+    if (!user || !activeWorkspace) return;
     try {
-      const all = await leadsApi.findAll();
+      const all = await leadsApi.findAll(tenant?.id, activeWorkspace);
       const list = (Array.isArray(all) ? all : []).filter(
-        (d: Record<string, unknown>) =>
-          d.userId === user.id && (!tenant?.id || d.tenantId === tenant.id),
+        (d: Record<string, unknown>) => d.userId === user.id,
       );
       setLeadStats({
         total: list.length,
@@ -135,13 +135,11 @@ const Analytics = () => {
   };
 
   const loadWeeklyTrend = async () => {
-    if (!user) return;
+    if (!user || !activeWorkspace) return;
     try {
-      const all = await contentItemsApi.findAll();
+      const all = await contentItemsApi.findAll(tenant?.id, { workspaceId: activeWorkspace });
       const data = (Array.isArray(all) ? all : [])
-        .filter((d: Record<string, unknown>) =>
-          d.userId === user.id && (!tenant?.id || d.tenantId === tenant.id),
-        )
+        .filter((d: Record<string, unknown>) => d.userId === user.id)
         .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 
     if (data.length > 0) {

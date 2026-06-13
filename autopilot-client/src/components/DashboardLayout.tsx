@@ -20,7 +20,7 @@ export function DashboardLayout() {
       <AppNavbar />
       <BackendStatusBanner />
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto m-4 md:m-6">
         <Outlet />
       </main>
 

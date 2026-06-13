@@ -8,9 +8,10 @@ import { useTenant } from "@/hooks/useTenant";
 interface DocumentUploadProps {
   onResult: (data: Record<string, string>) => void;
   disabled?: boolean;
+  workspaceId?: string | null;
 }
 
-export function DocumentUpload({ onResult, disabled }: DocumentUploadProps) {
+export function DocumentUpload({ onResult, disabled, workspaceId }: DocumentUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -27,7 +28,7 @@ export function DocumentUpload({ onResult, disabled }: DocumentUploadProps) {
 
     setUploading(true);
     try {
-      const data = await brandProfilesApi.parseDocument(selectedFile, tenant.id);
+      const data = await brandProfilesApi.parseDocument(selectedFile, tenant.id, workspaceId ?? undefined);
       onResult(data);
       toast({
         title: "Document parsed",

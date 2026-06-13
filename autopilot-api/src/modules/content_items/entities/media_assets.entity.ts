@@ -21,6 +21,9 @@ export class MediaAssets {
   tenantId: string;
 
   @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
+
+  @Column({ type: 'uuid', nullable: true })
   contentId?: string;
 
   @Column({ type: 'text' })

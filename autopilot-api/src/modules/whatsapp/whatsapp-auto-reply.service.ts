@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { AutoReplyRulesService } from '../auto_reply_rules/auto_reply_rules.service';
 import { BrandProfiles } from '../brand_profiles/entities/brand_profiles.entity';
 import { Tenants } from '../tenants/entities/tenants.entity';
@@ -37,11 +37,20 @@ export class WhatsappAutoReplyService {
     contactId?: string;
     leadId?: string;
   }): Promise<boolean> {
-    const activeRules = await this.rules.findActiveForPlatform(params.tenantId, 'whatsapp');
+    const activeRules = await this.rules.findActiveForPlatform(
+      params.tenantId,
+      'whatsapp',
+      params.account.workspaceId,
+    );
     const rule = this.rules.matchKeywordRule(activeRules, params.inboundText);
     if (!rule) return false;
 
-    const replyText = await this.buildReplyText(params.tenantId, rule, params.inboundText);
+    const replyText = await this.buildReplyText(
+      params.tenantId,
+      rule,
+      params.inboundText,
+      params.account.workspaceId,
+    );
     if (!replyText?.trim()) return false;
 
     const result = await this.waAuth.sendSessionText(
@@ -57,6 +66,7 @@ export class WhatsappAutoReplyService {
     await this.messagesRepo.save(
       this.messagesRepo.create({
         tenantId: params.tenantId,
+        workspaceId: params.account.workspaceId,
         contactId: params.contactId,
         leadId: params.leadId,
         phone: this.messaging.normalizePhone(params.phone),
@@ -75,11 +85,16 @@ export class WhatsappAutoReplyService {
     tenantId: string,
     rule: { responseTemplate?: string; aiGenerate: boolean },
     inboundText: string,
+    workspaceId?: string,
   ): Promise<string> {
     if (rule.aiGenerate) {
       const tenant = await this.tenantsRepo.findOne({ where: { id: tenantId } });
       const brand = tenant
-        ? await this.brandRepo.findOne({ where: { tenantId, userId: tenant.ownerId } })
+        ? workspaceId
+          ? await this.brandRepo.findOne({ where: { tenantId, workspaceId } })
+          : await this.brandRepo.findOne({
+              where: { tenantId, userId: tenant.ownerId, workspaceId: IsNull() },
+            })
         : null;
       const brandCtx = this.prompts.brandFromEntity(brand);
       const { data } = await this.mistral.completeJson<{ content?: string }>(

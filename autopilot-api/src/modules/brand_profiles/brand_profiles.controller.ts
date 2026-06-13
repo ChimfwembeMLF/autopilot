@@ -107,11 +107,16 @@ export class BrandProfilesController {
   findMine(
     @Req() req: { user: JwtUser },
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ): Promise<BrandProfiles | null> {
     if (!tenantId) {
       throw new BadRequestException('tenantId is required');
     }
-    return this.service.findForTenantUser(tenantId, String(req.user.sub));
+    return this.service.resolveForContext({
+      tenantId,
+      userId: String(req.user.sub),
+      workspaceId: workspaceId || undefined,
+    });
   }
 
   @Get(':id')

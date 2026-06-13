@@ -1,13 +1,15 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { MistralChatService } from '../../ai/services/mistral-chat.service';
 import { PromptBuilderService } from '../../ai/services/prompt-builder.service';
 import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
-import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
 import { platformPublishGuide } from '../platform-publish.constants';
+import {
+  formatContentForPlatform,
+  formatPlainPostText,
+} from '../../../common/text-format.util';
 import { TemplatesService } from '../../templates/templates.service';
 import { ContentTemplates } from '../../templates/entities/content_templates.entity';
+import { BrandProfilesService } from '../../brand_profiles/brand_profiles.service';
 
 export type AdaptedPlatformPayload = {
   title: string;
@@ -21,13 +23,13 @@ export class AdaptPlatformsService {
     private readonly prompts: PromptBuilderService,
     private readonly usage: AiUsageTrackerService,
     private readonly templates: TemplatesService,
-    @InjectRepository(BrandProfiles)
-    private readonly brandRepo: Repository<BrandProfiles>,
+    private readonly brandProfiles: BrandProfilesService,
   ) {}
 
   async adapt(params: {
     tenantId: string;
     userId: string;
+    workspaceId?: string;
     platforms: string[];
     title?: string;
     content: string;
@@ -38,16 +40,22 @@ export class AdaptPlatformsService {
 
     await this.usage.assertWithinLimit(params.tenantId, params.userId);
 
-    const brand = await this.brandRepo.findOne({
-      where: { tenantId: params.tenantId, userId: params.userId },
+    const brand = await this.brandProfiles.resolveForContext({
+      tenantId: params.tenantId,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
     });
     const brandCtx = this.prompts.brandFromEntity(brand);
-    const plainSource = params.content.replace(/<[^>]*>/g, '').trim();
+    const plainSource = formatPlainPostText(params.content);
 
     const templateByPlatform = new Map<string, ContentTemplates>();
     const platformGuides = await Promise.all(
       params.platforms.map(async (platform) => {
-        const template = await this.templates.findActiveForPlatform(params.tenantId, platform);
+        const template = await this.templates.findActiveForPlatform(
+          params.tenantId,
+          platform,
+          params.workspaceId,
+        );
         if (template) templateByPlatform.set(platform, template);
         const base = platformPublishGuide(platform);
         const guide = template?.body?.trim()
@@ -216,7 +224,8 @@ export class AdaptPlatformsService {
     fallbackContent?: string,
   ): AdaptedPlatformPayload {
     const guide = platformPublishGuide(platform);
-    let content = (data.content ?? fallbackContent ?? '').replace(/<[^>]*>/g, '').trim();
+    let content = formatPlainPostText(data.content ?? fallbackContent ?? '');
+    content = formatContentForPlatform(platform, content);
     if (content.length > guide.maxChars) {
       content = content.slice(0, guide.maxChars - 1).trimEnd() + '…';
     }

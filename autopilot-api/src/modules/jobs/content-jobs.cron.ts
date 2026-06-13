@@ -28,10 +28,9 @@ export class CommentSyncCron {
       if (!tenants.length) return;
 
       if (this.queueDispatch.isEnabled()) {
-        const result = await this.queueDispatch.fanOutCommentSync(
+        await this.queueDispatch.fanOutCommentSync(
           tenants.map((t) => ({ tenantId: t.tenantId, userId: t.userId, runAutoReply: true })),
         );
-        this.logger.log(`Comment sync enqueued for ${result.enqueued} tenant(s)`);
         return;
       }
 

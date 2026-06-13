@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
 } from '@nestjs/common';
 import { AutoReplyRulesService } from './auto_reply_rules.service';
 import { AutoReplyRules } from './entities/auto_reply_rules.entity';
@@ -24,8 +25,11 @@ export class AutoReplyRulesController {
   }
 
   @Get()
-  findAll(): Promise<AutoReplyRules[]> {
-    return this.service.findAll();
+  findAll(
+    @Query('tenantId') tenantId?: string,
+    @Query('workspaceId') workspaceId?: string,
+  ): Promise<AutoReplyRules[]> {
+    return this.service.findAll(tenantId, workspaceId);
   }
 
   @Get(':id')

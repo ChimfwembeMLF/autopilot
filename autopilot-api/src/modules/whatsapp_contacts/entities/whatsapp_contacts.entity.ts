@@ -5,19 +5,19 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
-  Index,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { Tenants } from '../../tenants/entities/tenants.entity';
 
-@Index(['tenantId', 'phone'], { unique: true })
 @Entity({ name: 'whatsapp_contacts' })
 export class WhatsappContacts {
   @PrimaryGeneratedColumn('uuid')
   id: string;
   @Column({ type: 'uuid' })
   tenantId: string;
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
   @Column({ type: 'text' })
   phone: string;
   @Column({ type: 'text', nullable: true })

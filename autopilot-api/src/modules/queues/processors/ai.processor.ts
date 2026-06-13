@@ -1,13 +1,20 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { QUEUE_AI, JOB_AI_TASK, AiTaskJobData } from '../queue.constants';
+import {
+  QUEUE_AI,
+  JOB_AI_TASK,
+  JOB_INGEST_DOCUMENT,
+  AiTaskJobData,
+  IngestDocumentJobData,
+} from '../queue.constants';
 import { GenerateContentService } from '../../content_items/services/generate-content.service';
 import { RepurposeContentService } from '../../content_items/services/repurpose-content.service';
 import { AdaptPlatformsService } from '../../content_items/services/adapt-platforms.service';
 import { GenerateImageService } from '../../content_items/services/generate-image.service';
 import { DailyContentWorkflowService } from '../../content_items/services/daily-content-workflow.service';
 import { CommentReplyAiService } from '../../content-publishing/comment-reply-ai.service';
+import { KnowledgeIngestService } from '../../chatbot/services/knowledge-ingest.service';
 
 @Processor(QUEUE_AI)
 export class AiProcessor extends WorkerHost {
@@ -20,17 +27,24 @@ export class AiProcessor extends WorkerHost {
     private readonly generateImage: GenerateImageService,
     private readonly dailyWorkflow: DailyContentWorkflowService,
     private readonly commentReplyAi: CommentReplyAiService,
+    private readonly knowledgeIngest: KnowledgeIngestService,
   ) {
     super();
   }
 
-  async process(job: Job<AiTaskJobData>): Promise<unknown> {
-    if (job.name !== JOB_AI_TASK) {
-      this.logger.warn(`Unknown job: ${job.name}`);
-      return null;
+  async process(job: Job): Promise<unknown> {
+    if (job.name === JOB_INGEST_DOCUMENT) {
+      const data = job.data as IngestDocumentJobData;
+      this.logger.log(`Ingest document ${data.documentId} (job ${job.id})`);
+      return this.knowledgeIngest.ingest(data);
     }
 
-    const { type, userId, payload } = job.data;
+    if (job.name !== JOB_AI_TASK) {
+      this.logger.warn(`Unknown job: ${job.name}`);
+      throw new Error(`Unsupported AI queue job: ${job.name}`);
+    }
+
+    const { type, userId, payload } = job.data as AiTaskJobData;
     this.logger.log(`AI task: ${type} (job ${job.id})`);
 
     switch (type) {
@@ -59,6 +73,7 @@ export class AiProcessor extends WorkerHost {
           platforms: payload.platforms as string[],
           title: payload.title as string | undefined,
           content: payload.content as string | undefined,
+          workspaceId: payload.workspaceId as string | undefined,
         });
       case 'generate-image':
         return this.generateImage.generateImage({

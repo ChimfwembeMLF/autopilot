@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, IsUUID, IsArray } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, IsArray, IsObject } from 'class-validator';
 
 export class GenerateContentDto {
   @IsOptional()
@@ -46,6 +46,14 @@ export class RepurposeContentDto {
 export class AdaptPlatformsDto {
   @IsUUID()
   tenantId: string;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
+  @IsOptional()
+  @IsString()
+  workspace_id?: string;
 
   @IsOptional()
   @IsString()
@@ -96,13 +104,22 @@ export class PublishContentDto {
   @IsString({ each: true })
   platforms?: string[];
 
-  /** Per-platform copy + media; used when publishing immediately after save */
+  /** Per-platform copy + media; persisted and used for publish */
   @IsOptional()
+  @IsObject()
   platformPayloads?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  contentType?: string;
 }
 
 export class DailyWorkflowDto {
   @IsOptional()
   @IsUUID()
   tenantId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
 }

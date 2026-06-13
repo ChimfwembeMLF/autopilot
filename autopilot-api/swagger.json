@@ -848,6 +848,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -901,6 +909,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -935,6 +951,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -964,6 +988,14 @@
           },
           {
             "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -1011,7 +1043,24 @@
       },
       "get": {
         "operationId": "AutoReplyRulesController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1206,6 +1255,14 @@
         "parameters": [
           {
             "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -3076,6 +3133,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3136,6 +3201,14 @@
           },
           {
             "name": "returnUrl",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -3535,6 +3608,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3557,6 +3638,14 @@
         "parameters": [
           {
             "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -3612,6 +3701,14 @@
           },
           {
             "name": "take",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -3721,6 +3818,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3813,6 +3918,14 @@
         "parameters": [
           {
             "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -4143,6 +4256,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4207,6 +4328,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4254,6 +4383,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4285,6 +4422,14 @@
           },
           {
             "name": "contentId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -4340,6 +4485,1037 @@
         ],
         "tags": [
           "Media"
+        ]
+      }
+    },
+    "/api/v1/chatbot/config": {
+      "get": {
+        "operationId": "ChatbotController_getConfig",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      },
+      "patch": {
+        "operationId": "ChatbotController_updateConfig",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChatbotConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/config/avatar": {
+      "post": {
+        "operationId": "ChatbotController_uploadAvatar",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/config/avatar-model": {
+      "post": {
+        "operationId": "ChatbotController_uploadAvatarModel",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/config/keys": {
+      "post": {
+        "operationId": "ChatbotController_createKey",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/config/keys/{id}": {
+      "delete": {
+        "operationId": "ChatbotController_revokeKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/sessions": {
+      "get": {
+        "operationId": "ChatbotController_listSessions",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      },
+      "post": {
+        "operationId": "ChatbotController_createSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/sessions/{id}/messages": {
+      "get": {
+        "operationId": "ChatbotController_getMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      },
+      "post": {
+        "operationId": "ChatbotController_sendMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/sessions/{id}/escalate": {
+      "post": {
+        "operationId": "ChatbotController_escalateSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscalateSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/tts/voices": {
+      "get": {
+        "operationId": "ChatbotController_listTtsVoices",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      },
+      "post": {
+        "operationId": "ChatbotController_cloneTtsVoice",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/tts/voices/{id}": {
+      "delete": {
+        "operationId": "ChatbotController_deleteTtsVoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/tts/preview": {
+      "post": {
+        "operationId": "ChatbotController_previewTtsVoice",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/sessions/{sessionId}/messages/{messageId}/speech": {
+      "post": {
+        "operationId": "ChatbotController_speakMessage",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/chatbot/sessions/{id}": {
+      "delete": {
+        "operationId": "ChatbotController_deleteSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chatbot"
+        ]
+      }
+    },
+    "/api/v1/knowledge/documents": {
+      "get": {
+        "operationId": "KnowledgeController_list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Knowledge"
+        ]
+      },
+      "post": {
+        "operationId": "KnowledgeController_upload",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/api/v1/knowledge/documents/{id}": {
+      "patch": {
+        "operationId": "KnowledgeController_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Knowledge"
+        ]
+      },
+      "delete": {
+        "operationId": "KnowledgeController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/api/v1/knowledge/documents/sync-mistral": {
+      "post": {
+        "operationId": "KnowledgeController_syncMistral",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/api/v1/knowledge/documents/{id}/reindex": {
+      "post": {
+        "operationId": "KnowledgeController_reindex",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/api/v1/widget/config": {
+      "get": {
+        "description": "Returns bot name, welcome message, theme, and TTS settings for the embed.",
+        "operationId": "WidgetController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetConfigResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "widget-api-key": []
+          }
+        ],
+        "summary": "Get widget configuration",
+        "tags": [
+          "Widget"
+        ]
+      }
+    },
+    "/api/v1/widget/sessions": {
+      "post": {
+        "description": "Starts a new widget conversation. Store sessionId and visitorId; send X-Visitor-Id on later messages.",
+        "operationId": "WidgetController_createSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWidgetSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWidgetSessionResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "widget-api-key": []
+          }
+        ],
+        "summary": "Create a chat session",
+        "tags": [
+          "Widget"
+        ]
+      }
+    },
+    "/api/v1/widget/sessions/{id}/suggestions": {
+      "post": {
+        "operationId": "WidgetController_getSuggestions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WidgetSuggestionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "widget-api-key": []
+          }
+        ],
+        "summary": "AI follow-up prompt suggestions (max 3)",
+        "tags": [
+          "Widget"
+        ]
+      }
+    },
+    "/api/v1/widget/sessions/{id}/messages": {
+      "post": {
+        "description": "Returns the assistant reply with optional RAG citations.",
+        "operationId": "WidgetController_sendMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-visitor-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Visitor-Id",
+            "in": "header",
+            "description": "Visitor ID from session creation. Required when the session has a visitorId.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantMessageResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "widget-api-key": []
+          }
+        ],
+        "summary": "Send a user message",
+        "tags": [
+          "Widget"
+        ]
+      }
+    },
+    "/api/v1/widget/sessions/{sessionId}/messages/{messageId}/speech": {
+      "post": {
+        "operationId": "WidgetController_speakMessage",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-visitor-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Visitor-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MPEG audio stream"
+          }
+        },
+        "security": [
+          {
+            "widget-api-key": []
+          }
+        ],
+        "summary": "Text-to-speech for an assistant message",
+        "tags": [
+          "Widget"
         ]
       }
     },
@@ -4744,6 +5920,14 @@
         "parameters": [
           {
             "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -5479,6 +6663,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -5774,6 +6966,14 @@
           },
           {
             "name": "contentId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -6334,6 +7534,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6365,6 +7573,14 @@
           },
           {
             "name": "conversationId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspaceId",
             "required": true,
             "in": "query",
             "schema": {
@@ -6548,942 +7764,6 @@
         },
         "tags": [
           "Platforms"
-        ]
-      }
-    },
-    "/api/v1/chatbot/config": {
-      "get": {
-        "operationId": "ChatbotController_getConfig",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      },
-      "patch": {
-        "operationId": "ChatbotController_updateConfig",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateChatbotConfigDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/config/avatar": {
-      "post": {
-        "operationId": "ChatbotController_uploadAvatar",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/config/avatar-model": {
-      "post": {
-        "operationId": "ChatbotController_uploadAvatarModel",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/config/keys": {
-      "post": {
-        "operationId": "ChatbotController_createKey",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApiKeyDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/config/keys/{id}": {
-      "delete": {
-        "operationId": "ChatbotController_revokeKey",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/sessions": {
-      "get": {
-        "operationId": "ChatbotController_listSessions",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "channel",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      },
-      "post": {
-        "operationId": "ChatbotController_createSession",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSessionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/sessions/{id}/messages": {
-      "get": {
-        "operationId": "ChatbotController_getMessages",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      },
-      "post": {
-        "operationId": "ChatbotController_sendMessage",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendMessageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/sessions/{id}/escalate": {
-      "post": {
-        "operationId": "ChatbotController_escalateSession",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EscalateSessionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/tts/voices": {
-      "get": {
-        "operationId": "ChatbotController_listTtsVoices",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      },
-      "post": {
-        "operationId": "ChatbotController_cloneTtsVoice",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/tts/voices/{id}": {
-      "delete": {
-        "operationId": "ChatbotController_deleteTtsVoice",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/tts/preview": {
-      "post": {
-        "operationId": "ChatbotController_previewTtsVoice",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/sessions/{sessionId}/messages/{messageId}/speech": {
-      "post": {
-        "operationId": "ChatbotController_speakMessage",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "messageId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/chatbot/sessions/{id}": {
-      "delete": {
-        "operationId": "ChatbotController_deleteSession",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Chatbot"
-        ]
-      }
-    },
-    "/api/v1/knowledge/documents": {
-      "get": {
-        "operationId": "KnowledgeController_list",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Knowledge"
-        ]
-      },
-      "post": {
-        "operationId": "KnowledgeController_upload",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Knowledge"
-        ]
-      }
-    },
-    "/api/v1/knowledge/documents/{id}": {
-      "patch": {
-        "operationId": "KnowledgeController_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateKnowledgeDocumentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Knowledge"
-        ]
-      },
-      "delete": {
-        "operationId": "KnowledgeController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Knowledge"
-        ]
-      }
-    },
-    "/api/v1/knowledge/documents/sync-mistral": {
-      "post": {
-        "operationId": "KnowledgeController_syncMistral",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Knowledge"
-        ]
-      }
-    },
-    "/api/v1/knowledge/documents/{id}/reindex": {
-      "post": {
-        "operationId": "KnowledgeController_reindex",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Knowledge"
-        ]
-      }
-    },
-    "/api/v1/widget/config": {
-      "get": {
-        "description": "Returns bot name, welcome message, theme, and TTS settings for the embed.",
-        "operationId": "WidgetController_getConfig",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WidgetConfigResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "widget-api-key": []
-          }
-        ],
-        "summary": "Get widget configuration",
-        "tags": [
-          "Widget"
-        ]
-      }
-    },
-    "/api/v1/widget/sessions": {
-      "post": {
-        "description": "Starts a new widget conversation. Store sessionId and visitorId; send X-Visitor-Id on later messages.",
-        "operationId": "WidgetController_createSession",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWidgetSessionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateWidgetSessionResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "widget-api-key": []
-          }
-        ],
-        "summary": "Create a chat session",
-        "tags": [
-          "Widget"
-        ]
-      }
-    },
-    "/api/v1/widget/sessions/{id}/messages": {
-      "post": {
-        "description": "Returns the assistant reply with optional RAG citations.",
-        "operationId": "WidgetController_sendMessage",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "x-visitor-id",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Visitor-Id",
-            "in": "header",
-            "description": "Visitor ID from session creation. Required when the session has a visitorId.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendMessageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssistantMessageResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "widget-api-key": []
-          }
-        ],
-        "summary": "Send a user message",
-        "tags": [
-          "Widget"
-        ]
-      }
-    },
-    "/api/v1/widget/sessions/{sessionId}/messages/{messageId}/speech": {
-      "post": {
-        "operationId": "WidgetController_speakMessage",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "messageId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "x-visitor-id",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Visitor-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "MPEG audio stream"
-          }
-        },
-        "security": [
-          {
-            "widget-api-key": []
-          }
-        ],
-        "summary": "Text-to-speech for an assistant message",
-        "tags": [
-          "Widget"
         ]
       }
     },
@@ -7907,6 +8187,170 @@
         "type": "object",
         "properties": {}
       },
+      "UpdateChatbotConfigDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateApiKeyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "EscalateSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SendMessageDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "What are your business hours?",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "UpdateKnowledgeDocumentDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WidgetConfigResponseDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Website Assistant"
+          },
+          "welcomeMessage": {
+            "type": "string",
+            "example": "Hi! How can I help you today?"
+          },
+          "theme": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "ttsEnabled": {
+            "type": "boolean"
+          },
+          "suggestions": {
+            "example": [
+              "What can you help me with?"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "theme",
+          "isActive",
+          "ttsEnabled",
+          "suggestions"
+        ]
+      },
+      "CreateWidgetSessionDto": {
+        "type": "object",
+        "properties": {
+          "visitorId": {
+            "type": "string",
+            "description": "Stable visitor identifier. Generated server-side if omitted.",
+            "example": "visitor-abc123"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "CreateWidgetSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "visitorId": {
+            "type": "string"
+          },
+          "welcomeMessageId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "sessionId",
+          "visitorId"
+        ]
+      },
+      "WidgetSuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "lastAssistantMessage": {
+            "type": "string",
+            "description": "Last assistant message to derive follow-up prompts from"
+          }
+        }
+      },
+      "ChatCitationDto": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          }
+        }
+      },
+      "AssistantMessageResponseDto": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatCitationDto"
+            }
+          }
+        },
+        "required": [
+          "messageId",
+          "role",
+          "content",
+          "citations"
+        ]
+      },
       "LeadSourcesCreateDto": {
         "type": "object",
         "properties": {}
@@ -7994,151 +8438,6 @@
       "UpdatePlansDto": {
         "type": "object",
         "properties": {}
-      },
-      "UpdateChatbotConfigDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "CreateApiKeyDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "CreateSessionDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "EscalateSessionDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "SendMessageDto": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": "string",
-            "example": "What are your business hours?",
-            "minLength": 1,
-            "maxLength": 8000
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "content"
-        ]
-      },
-      "UpdateKnowledgeDocumentDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "WidgetConfigResponseDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "Website Assistant"
-          },
-          "welcomeMessage": {
-            "type": "string",
-            "example": "Hi! How can I help you today?"
-          },
-          "theme": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "ttsEnabled": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "name",
-          "theme",
-          "isActive",
-          "ttsEnabled"
-        ]
-      },
-      "CreateWidgetSessionDto": {
-        "type": "object",
-        "properties": {
-          "visitorId": {
-            "type": "string",
-            "description": "Stable visitor identifier. Generated server-side if omitted.",
-            "example": "visitor-abc123"
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        }
-      },
-      "CreateWidgetSessionResponseDto": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "visitorId": {
-            "type": "string"
-          },
-          "welcomeMessageId": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
-        "required": [
-          "sessionId",
-          "visitorId"
-        ]
-      },
-      "ChatCitationDto": {
-        "type": "object",
-        "properties": {
-          "documentId": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "excerpt": {
-            "type": "string"
-          }
-        }
-      },
-      "AssistantMessageResponseDto": {
-        "type": "object",
-        "properties": {
-          "messageId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "assistant"
-            ]
-          },
-          "content": {
-            "type": "string"
-          },
-          "citations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChatCitationDto"
-            }
-          }
-        },
-        "required": [
-          "messageId",
-          "role",
-          "content",
-          "citations"
-        ]
       },
       "SearchAskDto": {
         "type": "object",

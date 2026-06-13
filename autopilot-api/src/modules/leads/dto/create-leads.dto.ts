@@ -13,6 +13,10 @@ export class LeadsCreateDto {
   @IsUUID()
   tenantId: string;
 
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
   @IsUUID()
   userId: string;
 

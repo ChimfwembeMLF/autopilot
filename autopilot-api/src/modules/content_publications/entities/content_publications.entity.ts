@@ -22,6 +22,9 @@ export class ContentPublications {
   @Column({ type: 'uuid' })
   tenantId: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
+
   @Column({ type: 'uuid' })
   contentId: string;
 

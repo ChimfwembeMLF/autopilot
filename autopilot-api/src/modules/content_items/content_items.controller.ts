@@ -41,7 +41,9 @@ export class ContentItemsController {
     const enriched: ContentItemsCreateDto = {
       ...dto,
       userId: dto.userId ?? userId,
-      brandProfileId: dto.brandProfileId ?? (await this.resolveBrandProfileId(dto.tenantId, userId)),
+      brandProfileId:
+        dto.brandProfileId ??
+        (await this.resolveBrandProfileId(dto.tenantId, userId, dto.workspaceId)),
     };
     return this.service.create(enriched);
   }
@@ -55,13 +57,14 @@ export class ContentItemsController {
       return this.service.findPaginated({
         tenantId: query.tenantId,
         userId: String(req.user.sub),
+        workspaceId: query.workspaceId,
         page: query.page,
         limit: query.limit,
         search: query.search,
         platform: query.platform,
       });
     }
-    return this.service.findAll(query.tenantId);
+    return this.service.findAll(query.tenantId, query.workspaceId);
   }
 
   @Get(':id/details')
@@ -106,15 +109,27 @@ export class ContentItemsController {
     return this.service.remove(id);
   }
 
-  private async resolveBrandProfileId(tenantId: string, userId: string): Promise<string | undefined> {
-    const brand = await this.brandProfiles.findForTenantUser(tenantId, userId);
+  private async resolveBrandProfileId(
+    tenantId: string,
+    userId: string,
+    workspaceId?: string,
+  ): Promise<string | undefined> {
+    const brand = await this.brandProfiles.resolveForContext({
+      tenantId,
+      userId,
+      workspaceId,
+    });
     return brand?.id;
   }
 
   private async enrichForUpdate(dto: ContentItemsUpdateDto, userId: string): Promise<ContentItemsUpdateDto> {
     const enriched: ContentItemsUpdateDto = { ...dto, userId: dto.userId ?? userId };
     if (!enriched.brandProfileId && enriched.tenantId) {
-      const brand = await this.brandProfiles.findForTenantUser(enriched.tenantId, userId);
+      const brand = await this.brandProfiles.resolveForContext({
+        tenantId: enriched.tenantId,
+        userId,
+        workspaceId: enriched.workspaceId,
+      });
       if (brand?.id) enriched.brandProfileId = brand.id;
     }
     return enriched;

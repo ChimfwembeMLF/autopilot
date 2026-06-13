@@ -1,6 +1,7 @@
 // src/lib/api.ts
 import type { UserRole } from './roles';
 import { ApiError, reportApiFailure, reportApiSuccess } from './api-errors';
+import { withWorkspace } from './workspace-query';
 
 export { ApiError, isNetworkError, isAuthError } from './api-errors';
 
@@ -93,7 +94,27 @@ export type AuthProfile = AuthUser & {
 export interface TenantsCreateDto { }
 export interface TenantsUpdateDto { }
 
-export interface BrandProfilesCreateDto { }
+export interface BrandProfilesCreateDto {
+    tenantId: string;
+    workspaceId?: string;
+    companyName?: string;
+    industry?: string;
+    description?: string;
+    services?: string;
+    targetAudience?: string;
+    audiencePainPoints?: string;
+    toneOfVoice?: string;
+    brandPersonality?: string;
+    currentOffers?: string;
+    uniqueSellingPoints?: string;
+    faqs?: string;
+    caseStudies?: string;
+    bannedWords?: string;
+    bannedTopics?: string;
+    competitors?: string;
+    keywords?: string;
+    websiteUrl?: string;
+}
 export interface BrandProfilesUpdateDto { }
 
 export interface ContentItemsCreateDto { }
@@ -418,13 +439,26 @@ export const socialAccountsApi = {
             body: JSON.stringify(data),
         }),
 
-    findByTenant: (tenantId: string) =>
-        request<SocialAccount[]>(`/api/v1/social-accounts/tenant/${tenantId}`),
+    findByTenant: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams(), workspaceId);
+        const q = qs.toString();
+        return request<SocialAccount[]>(
+            `/api/v1/social-accounts/tenant/${tenantId}${q ? `?${q}` : ''}`,
+        );
+    },
 
-    startOAuth: (platform: string, tenantId: string, returnUrl: string) =>
-        request<{ redirectUrl: string }>(
-            `/api/v1/social-accounts/oauth/${platform}/authorize?tenantId=${encodeURIComponent(tenantId)}&returnUrl=${encodeURIComponent(returnUrl)}`,
-        ),
+    startOAuth: (platform: string, tenantId: string, returnUrl: string, workspaceId?: string) => {
+        const qs = withWorkspace(
+            new URLSearchParams({
+                tenantId,
+                returnUrl,
+            }),
+            workspaceId,
+        );
+        return request<{ redirectUrl: string }>(
+            `/api/v1/social-accounts/oauth/${platform}/authorize?${qs}`,
+        );
+    },
 
     getFacebookSetup: (token: string) =>
         request<{ pages: Array<{ id: string; name: string; category?: string }>; profileName?: string }>(
@@ -454,8 +488,9 @@ export const socialAccountsApi = {
             `/api/v1/social-accounts/whatsapp/setup?token=${encodeURIComponent(token)}`,
         ),
 
-    setupWhatsappFromMeta: (tenantId: string) =>
-        request<
+    setupWhatsappFromMeta: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<
             | {
                   ready: true;
                   setupToken: string;
@@ -463,15 +498,18 @@ export const socialAccountsApi = {
                   source: 'facebook';
               }
             | { ready: false; needOAuth: true; reason: 'no_facebook' | 'missing_scopes' | 'no_phones' }
-        >(`/api/v1/social-accounts/whatsapp/setup-from-meta?tenantId=${encodeURIComponent(tenantId)}`, {
+        >(`/api/v1/social-accounts/whatsapp/setup-from-meta?${qs}`, {
             method: 'POST',
-        }),
+        });
+    },
 
-    enablePlatformWhatsapp: (tenantId: string) =>
-        request<SocialAccount>(
-            `/api/v1/social-accounts/whatsapp/enable-platform?tenantId=${encodeURIComponent(tenantId)}`,
+    enablePlatformWhatsapp: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<SocialAccount>(
+            `/api/v1/social-accounts/whatsapp/enable-platform?${qs}`,
             { method: 'POST' },
-        ),
+        );
+    },
 
     finalizeWhatsapp: (data: { setupToken: string; phoneNumberId: string }) =>
         request<any>('/api/v1/social-accounts/whatsapp/finalize', {
@@ -832,8 +870,11 @@ export const brandProfilesApi = {
     findAll: (tenantId?: string) =>
         request<any>(tenantId ? `/api/v1/brand-profiles?tenantId=${tenantId}` : '/api/v1/brand-profiles'),
 
-    getMine: (tenantId: string) =>
-        request<any | null>(`/api/v1/brand-profiles/mine?tenantId=${tenantId}`),
+    getMine: (tenantId: string, workspaceId?: string) => {
+        const params = new URLSearchParams({ tenantId });
+        if (workspaceId) params.set('workspaceId', workspaceId);
+        return request<any | null>(`/api/v1/brand-profiles/mine?${params.toString()}`);
+    },
 
     /** Creates or updates the profile for the current user + tenant (safe to call repeatedly). */
     save: (data: BrandProfilesCreateDto) =>
@@ -859,10 +900,11 @@ export const brandProfilesApi = {
             body: JSON.stringify(data),
         }),
 
-    parseDocument: (file: File, tenantId: string) => {
+    parseDocument: (file: File, tenantId: string, workspaceId?: string) => {
         const form = new FormData();
         form.append('file', file);
         form.append('tenantId', tenantId);
+        if (workspaceId) form.append('workspaceId', workspaceId);
         const token = getAuthToken();
         return fetch(`${API_BASE_URL}/api/v1/brand-profiles/parse-document`, {
             method: 'POST',
@@ -958,7 +1000,14 @@ export async function waitForQueueJob(
     while (Date.now() - start < timeoutMs) {
         const status = await queueJobsApi.getStatus(queue, jobId);
         if (!status) throw new Error('Background job not found');
-        if (status.state === 'completed') return status.returnvalue;
+        if (status.state === 'completed') {
+            if (status.returnvalue == null && status.name === 'ai-task') {
+                throw new Error(
+                    'Background job completed without a result. Restart the API server and try again.',
+                );
+            }
+            return status.returnvalue;
+        }
         if (status.state === 'failed') {
             throw new Error(status.failedReason || 'Background job failed');
         }
@@ -1003,6 +1052,7 @@ export const contentAiApi = {
         platforms: string[];
         content: string;
         title?: string;
+        workspaceId?: string;
     }) =>
         request<{ payloads: Record<string, { title: string; content: string }>; tokensUsed: number }>(
             '/api/v1/content-ai/adapt-platforms',
@@ -1025,6 +1075,7 @@ export const contentAiApi = {
         contentId: string,
         platforms?: string[],
         platformPayloads?: Record<string, unknown>,
+        opts?: { contentType?: string },
     ) =>
         request<
             QueuedJobResponse & {
@@ -1034,7 +1085,11 @@ export const contentAiApi = {
             }
         >(`/api/v1/content-ai/${contentId}/publish`, {
             method: 'POST',
-            body: JSON.stringify({ platforms, platformPayloads }),
+            body: JSON.stringify({
+                platforms,
+                platformPayloads,
+                contentType: opts?.contentType,
+            }),
         }),
 
     autoPublish: () =>
@@ -1043,10 +1098,10 @@ export const contentAiApi = {
             { method: 'POST', body: JSON.stringify({}) },
         ),
 
-    dailyWorkflow: (tenantId?: string) =>
+    dailyWorkflow: (tenantId?: string, workspaceId?: string) =>
         request<{ generated: number; skipped?: number; errors: string[] }>(
             '/api/v1/content-ai/daily-workflow',
-            { method: 'POST', body: JSON.stringify({ tenantId }) },
+            { method: 'POST', body: JSON.stringify({ tenantId, workspaceId }) },
         ),
 };
 
@@ -1066,8 +1121,11 @@ export const contentCampaignsApi = {
             { method: 'POST', body: JSON.stringify(data) },
         ),
 
-    list: (tenantId: string) =>
-        request<Record<string, unknown>[]>(`/api/v1/content-campaigns?tenantId=${tenantId}`),
+    list: (tenantId: string, workspaceId?: string) => {
+        const qs = new URLSearchParams({ tenantId });
+        if (workspaceId) qs.set('workspaceId', workspaceId);
+        return request<Record<string, unknown>[]>(`/api/v1/content-campaigns?${qs}`);
+    },
 
     getOne: (id: string, tenantId: string) =>
         request<{ campaign: Record<string, unknown>; posts: Record<string, unknown>[] }>(
@@ -1236,12 +1294,15 @@ export const paymentsApi = {
 };
 
 export const mediaApi = {
-    findAll: (tenantId: string) => request<any[]>(`/api/v1/media?tenantId=${tenantId}`),
-    upload: (file: File, tenantId: string, contentId?: string) => {
+    findAll: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any[]>(`/api/v1/media?${qs}`);
+    },
+    upload: (file: File, tenantId: string, contentId?: string, workspaceId?: string) => {
         const form = new FormData();
         form.append('file', file);
         const token = getAuthToken();
-        const q = new URLSearchParams({ tenantId });
+        const q = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         if (contentId) q.set('contentId', contentId);
         return fetch(`${API_BASE_URL}/api/v1/media/upload?${q}`, {
             method: 'POST',
@@ -1252,23 +1313,34 @@ export const mediaApi = {
             return res.json();
         });
     },
-    remove: (id: string, tenantId: string) =>
-        request<any>(`/api/v1/media/${id}?tenantId=${tenantId}`, { method: 'DELETE' }),
+    remove: (id: string, tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/media/${id}?${qs}`, { method: 'DELETE' });
+    },
 };
 
 export const templatesApi = {
-    findAll: (tenantId: string) => request<any[]>(`/api/v1/templates?tenantId=${tenantId}`),
-    findOne: (id: string, tenantId: string) =>
-        request<any>(`/api/v1/templates/${id}?tenantId=${tenantId}`),
+    findAll: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any[]>(`/api/v1/templates?${qs}`);
+    },
+    findOne: (id: string, tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/templates/${id}?${qs}`);
+    },
     create: (data: Record<string, unknown>) =>
         request<any>('/api/v1/templates', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, tenantId: string, data: Record<string, unknown>) =>
-        request<any>(`/api/v1/templates/${id}?tenantId=${tenantId}`, {
+    update: (id: string, tenantId: string, data: Record<string, unknown>, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/templates/${id}?${qs}`, {
             method: 'PATCH',
             body: JSON.stringify(data),
-        }),
-    remove: (id: string, tenantId: string) =>
-        request<any>(`/api/v1/templates/${id}?tenantId=${tenantId}`, { method: 'DELETE' }),
+        });
+    },
+    remove: (id: string, tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/templates/${id}?${qs}`, { method: 'DELETE' });
+    },
 };
 
 // ==================== Content Items ====================
@@ -1282,6 +1354,7 @@ export type PaginatedContentItemsResponse = {
 
 export type ContentItemsListParams = {
     tenantId?: string;
+    workspaceId?: string;
     page?: number;
     limit?: number;
     search?: string;
@@ -1298,6 +1371,7 @@ export const contentItemsApi = {
     findAll: (tenantId?: string, params?: Omit<ContentItemsListParams, 'tenantId'>) => {
         const qs = new URLSearchParams();
         if (tenantId) qs.set('tenantId', tenantId);
+        if (params?.workspaceId) qs.set('workspaceId', params.workspaceId);
         if (params?.page != null) qs.set('page', String(params.page));
         if (params?.limit != null) qs.set('limit', String(params.limit));
         if (params?.search?.trim()) qs.set('search', params.search.trim());
@@ -1341,7 +1415,13 @@ export const leadsApi = {
             body: JSON.stringify(data),
         }),
 
-    findAll: () => request<any>('/api/v1/leads'),
+    findAll: (tenantId?: string, workspaceId?: string) => {
+        const qs = new URLSearchParams();
+        if (tenantId) qs.set('tenantId', tenantId);
+        withWorkspace(qs, workspaceId);
+        const q = qs.toString();
+        return request<any>(q ? `/api/v1/leads?${q}` : '/api/v1/leads');
+    },
 
     findOne: (id: string) => request<any>(`/api/v1/leads/${id}`),
 
@@ -1473,7 +1553,13 @@ export const autoReplyRulesApi = {
             body: JSON.stringify(data),
         }),
 
-    findAll: () => request<any>('/api/v1/auto-reply-rules'),
+    findAll: (tenantId?: string, workspaceId?: string) => {
+        const qs = new URLSearchParams();
+        if (tenantId) qs.set('tenantId', tenantId);
+        withWorkspace(qs, workspaceId);
+        const q = qs.toString();
+        return request<any>(q ? `/api/v1/auto-reply-rules?${q}` : '/api/v1/auto-reply-rules');
+    },
 
     findOne: (id: string) => request<any>(`/api/v1/auto-reply-rules/${id}`),
 
@@ -1509,38 +1595,49 @@ export const whatsappContactsApi = {
             body: JSON.stringify(data),
         }),
 
-    findAll: (tenantId: string) =>
-        request<any>(`/api/v1/whatsapp/contacts?tenantId=${tenantId}`),
+    findAll: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/whatsapp/contacts?${qs}`);
+    },
 
-    findOne: (id: string, tenantId: string) =>
-        request<any>(`/api/v1/whatsapp/contacts/${id}?tenantId=${tenantId}`),
+    findOne: (id: string, tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/whatsapp/contacts/${id}?${qs}`);
+    },
 
-    update: (id: string, tenantId: string, data: WhatsappContactsUpdateDto) =>
-        request<any>(`/api/v1/whatsapp/contacts/${id}?tenantId=${tenantId}`, {
+    update: (id: string, tenantId: string, data: WhatsappContactsUpdateDto, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/whatsapp/contacts/${id}?${qs}`, {
             method: 'PATCH',
             body: JSON.stringify(data),
-        }),
+        });
+    },
 
-    remove: (id: string, tenantId: string) =>
-        request<any>(`/api/v1/whatsapp/contacts/${id}?tenantId=${tenantId}`, { method: 'DELETE' }),
+    remove: (id: string, tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/whatsapp/contacts/${id}?${qs}`, { method: 'DELETE' });
+    },
 };
 
 export const whatsappApi = {
-    listMessages: (tenantId: string, phone?: string) => {
-        const q = new URLSearchParams({ tenantId });
+    listMessages: (tenantId: string, phone?: string, workspaceId?: string) => {
+        const q = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         if (phone) q.set('phone', phone);
         return request<any[]>(`/api/v1/whatsapp/messages?${q}`);
     },
 
-    conversations: (tenantId: string) =>
-        request<Array<{ phone: string; lastMessage: string; lastAt: string; inboundCount: number }>>(
-            `/api/v1/whatsapp/conversations?tenantId=${tenantId}`,
-        ),
+    conversations: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<Array<{ phone: string; lastMessage: string; lastAt: string; inboundCount: number }>>(
+            `/api/v1/whatsapp/conversations?${qs}`,
+        );
+    },
 
     reply: (data: {
         tenantId: string;
         phone: string;
         message: string;
+        workspaceId?: string;
         leadId?: string;
         contactId?: string;
         useTemplate?: boolean;
@@ -1555,14 +1652,17 @@ export const whatsappApi = {
             },
         ),
 
-    listTemplates: (tenantId: string) =>
-        request<{
+    listTemplates: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<{
             templates: Array<{ name: string; language: string; status: string; category?: string }>;
             defaultTemplate?: string;
-        }>(`/api/v1/whatsapp/templates?tenantId=${tenantId}`),
+        }>(`/api/v1/whatsapp/templates?${qs}`);
+    },
 
-    getFlowConfig: (tenantId: string) =>
-        request<{
+    getFlowConfig: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<{
             enabled: boolean;
             serviceName: string;
             welcomeMessage?: string;
@@ -1570,7 +1670,8 @@ export const whatsappApi = {
             welcomeTriggers: string[];
             aiFallbackEnabled: boolean;
             menuItems: Array<{ id: string; title: string; description?: string; response: string; aiGenerate?: boolean }>;
-        }>(`/api/v1/whatsapp/flows/config?tenantId=${encodeURIComponent(tenantId)}`),
+        }>(`/api/v1/whatsapp/flows/config?${qs}`);
+    },
 
     updateFlowConfig: (
         tenantId: string,
@@ -1582,11 +1683,14 @@ export const whatsappApi = {
             welcomeTriggers: string[];
             menuItems: Array<{ id?: string; title: string; description?: string; response?: string; aiGenerate?: boolean }>;
         }>,
-    ) =>
-        request<any>(`/api/v1/whatsapp/flows/config?tenantId=${encodeURIComponent(tenantId)}`, {
+        workspaceId?: string,
+    ) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<any>(`/api/v1/whatsapp/flows/config?${qs}`, {
             method: 'PATCH',
             body: JSON.stringify(data),
-        }),
+        });
+    },
 };
 
 // ==================== Unified Inbox ====================
@@ -1621,28 +1725,36 @@ export type UnifiedMessage = {
 };
 
 export const inboxApi = {
-    conversations: (tenantId: string, channel?: 'post_comment' | 'dm' | 'all') => {
-        const params = new URLSearchParams({ tenantId });
+    conversations: (tenantId: string, channel?: 'post_comment' | 'dm' | 'all', workspaceId?: string) => {
+        const params = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         if (channel) params.set('channel', channel);
         return request<UnifiedConversation[]>(`/api/v1/inbox/conversations?${params.toString()}`);
     },
 
-    messages: (tenantId: string, conversationId: string) =>
-        request<UnifiedMessage[]>(
-            `/api/v1/inbox/messages?tenantId=${encodeURIComponent(tenantId)}&conversationId=${encodeURIComponent(conversationId)}`,
-        ),
+    messages: (tenantId: string, conversationId: string, workspaceId?: string) => {
+        const params = withWorkspace(
+            new URLSearchParams({ tenantId, conversationId }),
+            workspaceId,
+        );
+        return request<UnifiedMessage[]>(`/api/v1/inbox/messages?${params.toString()}`);
+    },
 
-    sync: (tenantId: string) =>
+    sync: (tenantId: string, workspaceId?: string) =>
         request<{ synced: number }>('/api/v1/inbox/sync', {
             method: 'POST',
-            body: JSON.stringify({ tenantId }),
+            body: JSON.stringify({ tenantId, workspaceId }),
         }),
 
     reply: (
         tenantId: string,
         conversationId: string,
         message: string,
-        options?: { useTemplate?: boolean; templateName?: string; templateLanguage?: string },
+        options?: {
+            workspaceId?: string;
+            useTemplate?: boolean;
+            templateName?: string;
+            templateLanguage?: string;
+        },
     ) =>
         request<{ sent: boolean; message?: string; usedTemplate?: boolean }>(
             '/api/v1/inbox/messages/reply',
@@ -1655,15 +1767,15 @@ export const inboxApi = {
 
 // ==================== Content Publications / Engagement ====================
 export const contentPublicationsApi = {
-    topPerforming: (tenantId: string, limit = 5) =>
-        request<TopPerformingPost[]>(
-            `/api/v1/content-publications/top-performing?tenantId=${encodeURIComponent(tenantId)}&limit=${limit}`,
-        ),
+    topPerforming: (tenantId: string, limit = 5, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId, limit: String(limit) }), workspaceId);
+        return request<TopPerformingPost[]>(`/api/v1/content-publications/top-performing?${qs}`);
+    },
 
-    syncEngagement: (tenantId: string) =>
+    syncEngagement: (tenantId: string, workspaceId?: string) =>
         request<{ updated: number }>('/api/v1/content-publications/sync-engagement', {
             method: 'POST',
-            body: JSON.stringify({ tenantId }),
+            body: JSON.stringify({ tenantId, workspaceId }),
         }),
 };
 
@@ -1723,18 +1835,18 @@ export type TopPerformingPost = {
 };
 
 export const commentRepliesApi = {
-    inbox: (tenantId: string, contentId?: string) => {
-        const params = new URLSearchParams({ tenantId });
+    inbox: (tenantId: string, contentId?: string, workspaceId?: string) => {
+        const params = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         if (contentId) params.set('contentId', contentId);
         return request<{ posts: PostInboxGroup[] }>(
             `/api/v1/comment-replies/inbox?${params.toString()}`,
         );
     },
 
-    fetch: (tenantId: string) =>
+    fetch: (tenantId: string, workspaceId?: string) =>
         request<{ fetched: number; autoReplied?: number }>('/api/v1/comment-replies/fetch', {
             method: 'POST',
-            body: JSON.stringify({ tenantId }),
+            body: JSON.stringify({ tenantId, workspaceId }),
         }),
 
     suggest: (id: string) =>
@@ -1992,13 +2104,16 @@ export type ChatbotApiKeySummary = {
 };
 
 export const chatbotApi = {
-    getConfig: (tenantId: string) =>
-        request<{ config: ChatbotConfig; keys: ChatbotApiKeySummary[] }>(
-            `/api/v1/chatbot/config?tenantId=${encodeURIComponent(tenantId)}`,
-        ),
+    getConfig: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<{ config: ChatbotConfig; keys: ChatbotApiKeySummary[] }>(
+            `/api/v1/chatbot/config?${qs}`,
+        );
+    },
 
-    updateConfig: (data: Partial<ChatbotConfig> & { tenantId: string }) => {
+    updateConfig: (data: Partial<ChatbotConfig> & { tenantId: string; workspaceId?: string }) => {
         const body: Record<string, unknown> = { tenantId: data.tenantId };
+        if (data.workspaceId) body.workspaceId = data.workspaceId;
         const optionalKeys = [
             'name',
             'welcomeMessage',
@@ -2033,13 +2148,14 @@ export const chatbotApi = {
         });
     },
 
-    uploadAvatar: (file: File, tenantId: string) => {
+    uploadAvatar: (file: File, tenantId: string, workspaceId?: string) => {
         const form = new FormData();
         form.append('file', file);
         const token = getAuthToken();
         if (!token) throw new ApiError('Not authenticated', { status: 401, isAuthError: true });
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         return fetch(
-            `${API_BASE_URL}/api/v1/chatbot/config/avatar?tenantId=${encodeURIComponent(tenantId)}`,
+            `${API_BASE_URL}/api/v1/chatbot/config/avatar?${qs}`,
             { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form },
         ).then(async (res) => {
             if (!res.ok) {
@@ -2050,13 +2166,14 @@ export const chatbotApi = {
         });
     },
 
-    uploadAvatarModel: (file: File, tenantId: string) => {
+    uploadAvatarModel: (file: File, tenantId: string, workspaceId?: string) => {
         const form = new FormData();
         form.append('file', file);
         const token = getAuthToken();
         if (!token) throw new ApiError('Not authenticated', { status: 401, isAuthError: true });
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         return fetch(
-            `${API_BASE_URL}/api/v1/chatbot/config/avatar-model?tenantId=${encodeURIComponent(tenantId)}`,
+            `${API_BASE_URL}/api/v1/chatbot/config/avatar-model?${qs}`,
             { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form },
         ).then(async (res) => {
             if (!res.ok) {
@@ -2078,30 +2195,32 @@ export const chatbotApi = {
             method: 'DELETE',
         }),
 
-    listSessions: (tenantId: string, channel?: string) => {
-        const params = new URLSearchParams({ tenantId });
+    listSessions: (tenantId: string, channel?: string, workspaceId?: string) => {
+        const params = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         if (channel) params.set('channel', channel);
         return request<Array<{ id: string; title?: string; channel: string; lastMessageAt?: string; created_at: string }>>(
             `/api/v1/chatbot/sessions?${params}`,
         );
     },
 
-    createSession: (tenantId: string) =>
+    createSession: (tenantId: string, workspaceId?: string) =>
         request<{ id: string }>('/api/v1/chatbot/sessions', {
             method: 'POST',
-            body: JSON.stringify({ tenantId }),
+            body: JSON.stringify({ tenantId, workspaceId }),
         }),
 
-    getMessages: (tenantId: string, sessionId: string) =>
-        request<ChatMessage[]>(
-            `/api/v1/chatbot/sessions/${sessionId}/messages?tenantId=${encodeURIComponent(tenantId)}`,
-        ),
+    getMessages: (tenantId: string, sessionId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<ChatMessage[]>(`/api/v1/chatbot/sessions/${sessionId}/messages?${qs}`);
+    },
 
-    sendMessage: (tenantId: string, sessionId: string, content: string) =>
-        request<{ messageId: string; content: string; citations: ChatCitation[] }>(
-            `/api/v1/chatbot/sessions/${sessionId}/messages?tenantId=${encodeURIComponent(tenantId)}`,
+    sendMessage: (tenantId: string, sessionId: string, content: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<{ messageId: string; content: string; citations: ChatCitation[] }>(
+            `/api/v1/chatbot/sessions/${sessionId}/messages?${qs}`,
             { method: 'POST', body: JSON.stringify({ content }) },
-        ),
+        );
+    },
 
     listTtsVoices: (tenantId: string) =>
         request<TtsVoiceList>(
@@ -2182,16 +2301,19 @@ export const chatbotApi = {
 };
 
 export const knowledgeApi = {
-    list: (tenantId: string) =>
-        request<KnowledgeDocument[]>(`/api/v1/knowledge/documents?tenantId=${encodeURIComponent(tenantId)}`),
+    list: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<KnowledgeDocument[]>(`/api/v1/knowledge/documents?${qs}`);
+    },
 
-    upload: (file: File, tenantId: string) => {
+    upload: (file: File, tenantId: string, workspaceId?: string) => {
         const form = new FormData();
         form.append('file', file);
         const token = getAuthToken();
         if (!token) throw new ApiError('Not authenticated', { status: 401, isAuthError: true });
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
         return fetch(
-            `${API_BASE_URL}/api/v1/knowledge/documents?tenantId=${encodeURIComponent(tenantId)}`,
+            `${API_BASE_URL}/api/v1/knowledge/documents?${qs}`,
             { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form },
         ).then(async (res) => {
             if (!res.ok) {
@@ -2202,28 +2324,34 @@ export const knowledgeApi = {
         });
     },
 
-    rename: (tenantId: string, id: string, title: string) =>
+    rename: (tenantId: string, id: string, title: string, workspaceId?: string) =>
         request<KnowledgeDocument>(`/api/v1/knowledge/documents/${id}`, {
             method: 'PATCH',
-            body: JSON.stringify({ tenantId, title }),
+            body: JSON.stringify({ tenantId, title, workspaceId }),
         }),
 
-    delete: (tenantId: string, id: string) =>
-        request<void>(`/api/v1/knowledge/documents/${id}?tenantId=${encodeURIComponent(tenantId)}`, {
+    delete: (tenantId: string, id: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<void>(`/api/v1/knowledge/documents/${id}?${qs}`, {
             method: 'DELETE',
-        }),
+        });
+    },
 
-    reindex: (tenantId: string, id: string) =>
-        request<KnowledgeDocument>(
-            `/api/v1/knowledge/documents/${id}/reindex?tenantId=${encodeURIComponent(tenantId)}`,
+    reindex: (tenantId: string, id: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<KnowledgeDocument>(
+            `/api/v1/knowledge/documents/${id}/reindex?${qs}`,
             { method: 'POST' },
-        ),
+        );
+    },
 
-    syncMistral: (tenantId: string) =>
-        request<{ success: true }>(
-            `/api/v1/knowledge/documents/sync-mistral?tenantId=${encodeURIComponent(tenantId)}`,
+    syncMistral: (tenantId: string, workspaceId?: string) => {
+        const qs = withWorkspace(new URLSearchParams({ tenantId }), workspaceId);
+        return request<{ success: true }>(
+            `/api/v1/knowledge/documents/sync-mistral?${qs}`,
             { method: 'POST' },
-        ),
+        );
+    },
 };
 
 export const notificationsApi = {

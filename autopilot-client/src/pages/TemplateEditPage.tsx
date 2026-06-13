@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
 import { templatesApi } from '@/lib/api';
@@ -45,6 +46,7 @@ export default function TemplateEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { can } = usePermissions();
   const { toast } = useToast();
   const isNew = id === 'new';
@@ -61,13 +63,14 @@ export default function TemplateEditPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!isNew && id && tenant) loadTemplate(id, tenant.id);
-  }, [id, tenant, isNew]);
+    if (!isNew && id && tenant && activeWorkspace) loadTemplate(id, tenant.id);
+  }, [id, tenant?.id, isNew, activeWorkspace, workspaceVersion]);
 
   async function loadTemplate(templateId: string, tenantId: string) {
+    if (!activeWorkspace) return;
     setLoading(true);
     try {
-      const row = await templatesApi.findOne(templateId, tenantId);
+      const row = await templatesApi.findOne(templateId, tenantId, activeWorkspace);
       const platform = row.platforms?.[0] ?? row.contentType ?? 'content';
       setForm({
         name: row.name ?? '',
@@ -92,11 +95,12 @@ export default function TemplateEditPage() {
     setForm((f) => ({ ...f, [k]: v }));
 
   async function handleSave() {
-    if (!form.name.trim() || !tenant) return;
+    if (!form.name.trim() || !tenant || !activeWorkspace) return;
     setSaving(true);
     try {
       const payload = {
         tenantId: tenant.id,
+        workspaceId: activeWorkspace,
         name: form.name.trim(),
         description: form.description.trim() || null,
         contentType: form.contentType,
@@ -111,7 +115,7 @@ export default function TemplateEditPage() {
         if (created?.id) navigate(`/templates/${created.id}`);
         else navigate('/templates');
       } else if (id) {
-        await templatesApi.update(id, tenant.id, payload);
+        await templatesApi.update(id, tenant.id, payload, activeWorkspace);
         toast({ title: 'Template saved' });
       }
     } catch (e: unknown) {

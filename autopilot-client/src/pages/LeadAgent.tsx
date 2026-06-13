@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { MessageSquare, UserCheck, AlertTriangle, Star, Clock, Send, ArrowUpRight, Globe, Copy, Check, Zap, ExternalLink, Mail, MailX, Phone, UserPlus, Trash2, PhoneOff, Bot, Plus, Sparkles } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ const LeadAgent = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
 
   const waMenuSuggestionValues = useMemo(
     () => ({
@@ -131,22 +133,22 @@ const LeadAgent = () => {
   });
 
   useEffect(() => {
-    if (!user || !tenant) return;
+    if (!user || !tenant || !activeWorkspace) return;
     loadLeads();
     loadLeadSource();
-  }, [user, tenant]);
+  }, [user, tenant?.id, activeWorkspace, workspaceVersion]);
   useEffect(() => {
-    if (tenant) {
+    if (tenant && activeWorkspace) {
       loadWaContacts();
       loadWaConversations();
       loadWaFlowConfig();
     }
-  }, [tenant]);
+  }, [tenant?.id, activeWorkspace, workspaceVersion]);
 
   const loadWaFlowConfig = async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
-      const cfg = await whatsappApi.getFlowConfig(tenant.id);
+      const cfg = await whatsappApi.getFlowConfig(tenant.id, activeWorkspace);
       setWaFlowEnabled(Boolean(cfg.enabled));
       setWaFlowServiceName(cfg.serviceName || "MyService");
       setWaFlowWelcomeMessage(cfg.welcomeMessage || "");
@@ -160,7 +162,7 @@ const LeadAgent = () => {
   };
 
   const saveWaFlowConfig = async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
 
     const menuItems = waFlowMenuItems
       .map((item) => ({
@@ -188,7 +190,7 @@ const LeadAgent = () => {
         welcomeMessage: waFlowWelcomeMessage.trim() || undefined,
         aiFallbackEnabled: waFlowAiFallback,
         menuItems,
-      });
+      }, activeWorkspace ?? undefined);
       toast({
         title: waFlowEnabled ? "Menu bot enabled" : "Menu bot disabled",
         description: waFlowEnabled
@@ -215,9 +217,9 @@ const LeadAgent = () => {
   };
 
   const loadWaConversations = async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
-      const rows = await whatsappApi.conversations(tenant.id);
+      const rows = await whatsappApi.conversations(tenant.id, activeWorkspace);
       setWaConversations(Array.isArray(rows) ? rows : []);
     } catch {
       setWaConversations([]);
@@ -296,9 +298,9 @@ const LeadAgent = () => {
   };
 
   const loadWaContacts = async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
-      const list = await whatsappContactsApi.findAll(tenant.id);
+      const list = await whatsappContactsApi.findAll(tenant.id, activeWorkspace);
       setWaContacts(
         (Array.isArray(list) ? list : []).map((c: Record<string, unknown>) => ({
             id: String(c.id),
@@ -318,11 +320,12 @@ const LeadAgent = () => {
   };
 
   const addWaContact = async () => {
-    if (!waPhone.trim() || !tenant) return;
+    if (!waPhone.trim() || !tenant || !activeWorkspace) return;
     setWaLoading(true);
     try {
       await whatsappContactsApi.create({
         tenantId: tenant.id,
+        workspaceId: activeWorkspace,
         phone: waPhone.trim(),
         name: waName.trim() || undefined,
         optedIn: false,
@@ -338,24 +341,24 @@ const LeadAgent = () => {
   };
 
   const toggleOptIn = async (id: string, current: boolean) => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     await whatsappContactsApi.update(id, tenant.id, {
       optedIn: !current,
       optedInAt: !current ? new Date().toISOString() : null,
-    } as any);
+    } as any, activeWorkspace);
     setWaContacts(prev => prev.map(c => c.id === id ? { ...c, opted_in: !current } : c));
   };
 
   const deleteWaContact = async (id: string) => {
-    if (!tenant) return;
-    await whatsappContactsApi.remove(id, tenant.id);
+    if (!tenant || !activeWorkspace) return;
+    await whatsappContactsApi.remove(id, tenant.id, activeWorkspace);
     setWaContacts(prev => prev.filter(c => c.id !== id));
     toast({ title: "Contact removed" });
   };
 
   const importCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !tenant) return;
+    if (!file || !tenant || !activeWorkspace) return;
     const text = await file.text();
     const lines = text.split("\n").slice(1).filter(Boolean);
     let imported = 0;
@@ -365,6 +368,7 @@ const LeadAgent = () => {
       try {
         await whatsappContactsApi.create({
           tenantId: tenant.id,
+          workspaceId: activeWorkspace,
           phone,
           name: name ?? undefined,
           optedIn: false,
@@ -380,9 +384,9 @@ const LeadAgent = () => {
   };
 
   const loadLeads = async () => {
-    if (!user) return;
+    if (!user || !tenant || !activeWorkspace) return;
     try {
-      const all = await leadsApi.findAll();
+      const all = await leadsApi.findAll(tenant.id, activeWorkspace);
       const list = Array.isArray(all) ? all : [];
       setLeads(
         list

@@ -6,12 +6,12 @@ export const PLATFORM_PUBLISH_GUIDE: Record<
   facebook: {
     maxChars: 63206,
     trends: 'Conversational, community-focused. Short paragraphs. Optional 1-2 emojis. Ask a question to drive comments.',
-    format: 'Plain text, line breaks between paragraphs. No markdown.',
+    format: 'Plain text with blank lines between paragraphs. No markdown, no asterisks for emphasis. Never append "See more" or "See less".',
   },
   instagram: {
     maxChars: 2200,
     trends: 'Visual-first caption. Hook in first line. 3-8 relevant hashtags at end. Emojis sparingly. CTA in last line.',
-    format: 'Plain text with line breaks. Hashtags on final line.',
+    format: 'Plain text: hook line, blank line, body, blank line, hashtags on final line. No markdown.',
   },
   linkedin: {
     maxChars: 3000,

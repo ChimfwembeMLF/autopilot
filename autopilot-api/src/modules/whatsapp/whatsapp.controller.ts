@@ -18,6 +18,7 @@ import { WhatsappAccountAuthService } from './whatsapp-account-auth.service';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { WhatsappFlowSessionService } from './whatsapp-flow-session.service';
 import { UpdateWhatsappFlowConfigDto } from './dto/update-whatsapp-flow-config.dto';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 interface JwtUser {
   sub: string;
@@ -38,21 +39,33 @@ export class WhatsappController {
     private readonly flowSessions: WhatsappFlowSessionService,
   ) {}
 
-  private async findWhatsappAccount(tenantId: string, userId: string) {
+  private async findWhatsappAccount(tenantId: string, userId: string, workspaceId?: string) {
     return (
       (await this.socialRepo.findOne({
-        where: { tenantId, userId, platform: 'whatsapp', connected: true },
+        where: {
+          ...scopeWhere<SocialAccounts>(tenantId, workspaceId),
+          userId,
+          platform: 'whatsapp',
+          connected: true,
+        },
       })) ??
       (await this.socialRepo.findOne({
-        where: { tenantId, platform: 'whatsapp', connected: true },
+        where: {
+          ...scopeWhere<SocialAccounts>(tenantId, workspaceId),
+          platform: 'whatsapp',
+          connected: true,
+        },
       }))
     );
   }
 
   @Get('flows/config')
   @ApiOperation({ summary: 'Get WhatsApp USSD-style menu flow config for a workspace' })
-  getFlowConfig(@Query('tenantId') tenantId: string) {
-    return this.flowSessions.getConfig(tenantId);
+  getFlowConfig(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.flowSessions.getConfig(tenantId, workspaceId);
   }
 
   @Patch('flows/config')
@@ -60,8 +73,9 @@ export class WhatsappController {
   updateFlowConfig(
     @Query('tenantId') tenantId: string,
     @Body() dto: UpdateWhatsappFlowConfigDto,
+    @Query('workspaceId') workspaceId?: string,
   ) {
-    return this.flowSessions.updateConfig(tenantId, dto);
+    return this.flowSessions.updateConfig(tenantId, dto, workspaceId);
   }
 
   @Get('messages')
@@ -69,6 +83,7 @@ export class WhatsappController {
     @Query('tenantId') tenantId: string,
     @Query('phone') phone?: string,
     @Query('take') take?: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     const limit = Math.min(parseInt(take ?? '50', 10) || 50, 200);
     const qb = this.messagesRepo
@@ -76,6 +91,10 @@ export class WhatsappController {
       .where('m.tenantId = :tenantId', { tenantId })
       .orderBy('m.created_at', 'DESC')
       .take(limit);
+
+    if (workspaceId) {
+      qb.andWhere('m.workspaceId = :workspaceId', { workspaceId });
+    }
 
     if (phone?.trim()) {
       qb.andWhere('m.phone = :phone', { phone: this.messaging.normalizePhone(phone) });
@@ -155,6 +174,7 @@ export class WhatsappController {
       message: string;
       leadId?: string;
       contactId?: string;
+      workspaceId?: string;
       /** Send as Meta-approved template (works outside the 24h session window). */
       useTemplate?: boolean;
       templateName?: string;
@@ -162,7 +182,7 @@ export class WhatsappController {
     },
   ) {
     const userId = String(req.user.sub);
-    const account = await this.findWhatsappAccount(body.tenantId, userId);
+    const account = await this.findWhatsappAccount(body.tenantId, userId, body.workspaceId);
     if (!account) {
       return { sent: false, message: 'WhatsApp not connected' };
     }
@@ -182,6 +202,7 @@ export class WhatsappController {
     await this.messagesRepo.save(
       this.messagesRepo.create({
         tenantId: body.tenantId,
+        workspaceId: account.workspaceId ?? body.workspaceId,
         contactId: body.contactId,
         leadId: body.leadId,
         phone: this.messaging.normalizePhone(body.phone),
@@ -224,12 +245,20 @@ export class WhatsappController {
   }
 
   @Get('conversations')
-  async conversations(@Query('tenantId') tenantId: string) {
-    const rows = await this.messagesRepo
+  async conversations(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    const qb = this.messagesRepo
       .createQueryBuilder('m')
       .where('m.tenantId = :tenantId', { tenantId })
-      .orderBy('m.created_at', 'DESC')
-      .getMany();
+      .orderBy('m.created_at', 'DESC');
+
+    if (workspaceId) {
+      qb.andWhere('m.workspaceId = :workspaceId', { workspaceId });
+    }
+
+    const rows = await qb.getMany();
 
     const byPhone = new Map<
       string,

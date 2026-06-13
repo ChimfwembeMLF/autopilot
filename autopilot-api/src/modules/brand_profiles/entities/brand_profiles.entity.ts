@@ -5,14 +5,13 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
-  Index,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { Tenants } from '../../tenants/entities/tenants.entity';
 import { UserEntity } from '../../user/user.entity';
+import { Workspaces } from '../../workspaces/entities/workspaces.entity';
 
-@Index(['tenantId', 'userId'], { unique: true })
 @Entity({ name: 'brand_profiles' })
 export class BrandProfiles {
   @PrimaryGeneratedColumn('uuid')
@@ -21,6 +20,8 @@ export class BrandProfiles {
   tenantId: string;
   @Column({ type: 'uuid' })
   userId: string;
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
   @Column({ type: 'text', nullable: true })
   companyName?: string;
   @Column({ type: 'text', nullable: true })
@@ -67,4 +68,7 @@ export class BrandProfiles {
   @ManyToOne(() => UserEntity, { nullable: false })
   @JoinColumn({ name: 'user_id' })
   user: UserEntity;
+  @ManyToOne(() => Workspaces, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'workspace_id' })
+  workspace?: Workspaces;
 }

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import {
   ScreenshotFrame,
-  BrowserChrome,
+  type ScreenshotDevice,
   MockBrandBrain,
   MockContentEngine,
   MockPublish,
@@ -20,6 +20,7 @@ import {
   MockReplies,
 } from '@/components/landing/ProductMocks';
 import Logo from '@/components/Logo';
+import { cn } from '@/lib/utils';
 
 function useInView(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null);
@@ -49,36 +50,50 @@ function FadeIn({ children, delay = 0, className = '' }: { children: React.React
   );
 }
 
-const SHOWCASE = [
+const SHOWCASE: Array<{
+  id: string;
+  badge: string;
+  title: string;
+  desc: string;
+  img: string;
+  mock: React.ReactNode;
+  icon: typeof Brain;
+  color: string;
+  device: ScreenshotDevice;
+  reverse?: boolean;
+}> = [
   {
     id: 'brand-brain',
     badge: 'Brand Brain',
     title: 'Teach the AI your voice once',
     desc: 'Company profile, tone, banned words, USPs, and audience — every post stays on-brand automatically.',
-    img: '/screenshots/brand-brain.png',
+    img: '/screenshots/mako-brand-brain-tablet.webp',
     mock: <MockBrandBrain />,
     icon: Brain,
     color: 'from-purple-500 to-indigo-600',
+    device: 'tablet',
   },
   {
     id: 'content',
     badge: 'Content Engine',
     title: 'Generate platform-native copy in seconds',
     desc: 'One theme → Facebook, Instagram, LinkedIn, email, and ad copy — each adapted to channel trends and limits.',
-    img: '/screenshots/content-engine.png',
+    img: '/screenshots/mako-content-engine-desktop.webp',
     mock: <MockContentEngine />,
     icon: Pen,
     color: 'from-blue-500 to-cyan-500',
+    device: 'desktop',
   },
   {
     id: 'publish',
     badge: 'Multi-Platform Publish',
     title: 'Preview, attach media, publish everywhere',
     desc: 'Per-platform carousel previews, AI-adapted copy, and attachments sent to each social API.',
-    img: '/screenshots/publish.png',
+    img: '/screenshots/mako-publisher-phone.webp',
     mock: <MockPublish />,
     icon: Globe,
     color: 'from-teal-500 to-emerald-500',
+    device: 'phone',
     reverse: true,
   },
   {
@@ -86,20 +101,22 @@ const SHOWCASE = [
     badge: 'Scheduler',
     title: 'Plan a month of content in minutes',
     desc: 'Drag posts onto your calendar, set optimal times, and let auto-publish handle the rest.',
-    img: '/screenshots/scheduler.png',
+    img: '/screenshots/mako-scheduler.webp',
     mock: <MockScheduler />,
     icon: CalendarClock,
     color: 'from-green-500 to-lime-500',
+    device: 'desktop',
   },
   {
     id: 'analytics',
     badge: 'Analytics',
     title: 'See what works, double down',
     desc: 'Track reach, engagement, and leads across campaigns — optimize with data, not guesswork.',
-    img: '/screenshots/analytics.png',
+    img: '/screenshots/mako-analytics-desktop.webp',
     mock: <MockAnalytics />,
     icon: BarChart3,
     color: 'from-pink-500 to-rose-500',
+    device: 'desktop',
     reverse: true,
   },
   {
@@ -107,10 +124,11 @@ const SHOWCASE = [
     badge: 'AI Replies',
     title: 'Never miss a comment again',
     desc: 'Pull comments from published posts, auto-draft replies with AI, and send from one queue.',
-    img: '/screenshots/replies.png',
+    img: '/screenshots/mako-replies-tablet.webp',
     mock: <MockReplies />,
     icon: MessageSquareReply,
     color: 'from-orange-500 to-amber-500',
+    device: 'tablet',
   },
 ];
 
@@ -226,21 +244,12 @@ function Hero() {
         </div>
 
         <FadeIn delay={200} className="relative">
-          <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur-2xl opacity-60" />
           <ScreenshotFrame
-            src="/screenshots/dashboard.png"
+            src="/screenshots/mako-dashboard-desktop.webp"
             alt="Mako Co-pilot dashboard"
-            url="app.autopilot.co/dashboard"
-            mock={
-              <div className="p-4 grid grid-cols-2 gap-3 min-h-[320px]">
-                {[Brain, Pen, CalendarClock, BarChart3].map((Icon, i) => (
-                  <div key={i} className="rounded-xl border bg-card p-4 flex flex-col gap-2 hover:border-primary/40 transition-colors">
-                    <Icon className="h-5 w-5 text-primary" />
-                    <span className="text-xs font-medium">{['Brand Brain', 'Content', 'Scheduler', 'Analytics'][i]}</span>
-                  </div>
-                ))}
-              </div>
-            }
+            device="desktop"
+            bare
+            mock={<div className="min-h-[320px] rounded-2xl bg-muted/30 animate-pulse" />}
             className="relative animate-[float_6s_ease-in-out_infinite]"
           />
         </FadeIn>
@@ -264,8 +273,14 @@ function ProductShowcase() {
                 <Link to="/auth?mode=signup">Try {s.badge} <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </FadeIn>
-            <FadeIn delay={i * 40 + 100} className={s.reverse ? 'lg:[direction:ltr]' : ''}>
-              <ScreenshotFrame src={s.img} alt={s.title} mock={s.mock} url={`app.autopilot.co/${s.id}`} />
+            <FadeIn
+              delay={i * 40 + 100}
+              className={cn(
+                s.reverse ? 'lg:[direction:ltr]' : '',
+                s.device !== 'desktop' && 'flex justify-center lg:justify-center',
+              )}
+            >
+              <ScreenshotFrame src={s.img} alt={s.title} mock={s.mock} device={s.device} bare />
             </FadeIn>
           </div>
         </div>

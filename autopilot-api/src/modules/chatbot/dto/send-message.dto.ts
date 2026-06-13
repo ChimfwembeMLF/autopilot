@@ -19,6 +19,10 @@ export class CreateSessionDto {
   tenantId: string;
 
   @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
+  @IsOptional()
   @IsString()
   title?: string;
 

@@ -5,6 +5,7 @@ import { PublishResult, ContentToPublish } from './interfaces/publish-result.int
 import { SocialPublishAccountService } from './social-publish-account.service';
 import { PublishMediaResolverService } from './publish-media-resolver.service';
 import { formatPublishError } from './publish-error.util';
+import { formatContentForPlatform, formatPlainPostText } from '../../common/text-format.util';
 
 @Injectable()
 export class FacebookPublishingService {
@@ -21,6 +22,7 @@ export class FacebookPublishingService {
         content.tenantId,
         content.userId,
         'facebook',
+        content.workspaceId,
       );
 
       if (!socialAccount) {
@@ -46,7 +48,7 @@ export class FacebookPublishingService {
         return { published: false, message: pageCheck };
       }
 
-      const plainText = content.content.replace(/<[^>]*>/g, '');
+      const plainText = formatContentForPlatform('facebook', formatPlainPostText(content.content));
       const resolvedMedia = await this.mediaResolver.resolveForPublish(media, content.tenantId);
       const attachedMedia: Array<{ media_fbid: string }> = [];
 

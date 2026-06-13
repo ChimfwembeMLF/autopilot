@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { usePermissions } from '@/hooks/usePermissions';
 import { P } from '@/lib/permissions';
 import { mediaApi } from '@/lib/api';
@@ -17,6 +18,7 @@ import { Image, Upload, Search, Trash2, Loader2 } from 'lucide-react';
 
 export default function MediaLibraryPage() {
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [assets, setAssets] = useState<MediaAsset[]>([]);
@@ -26,10 +28,10 @@ export default function MediaLibraryPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadAssets = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoading(true);
     try {
-      const rows = await mediaApi.findAll(tenant.id);
+      const rows = await mediaApi.findAll(tenant.id, activeWorkspace);
       setAssets(
         (Array.isArray(rows) ? rows : []).map((r) =>
           normalizeMediaAsset(r as Record<string, unknown>),
@@ -39,11 +41,11 @@ export default function MediaLibraryPage() {
       setAssets([]);
     }
     setLoading(false);
-  }, [tenant]);
+  }, [tenant, activeWorkspace]);
 
   useEffect(() => {
     void loadAssets();
-  }, [loadAssets]);
+  }, [loadAssets, workspaceVersion]);
 
   const filtered = assets.filter((a) => {
     if (!search.trim()) return true;
@@ -53,11 +55,11 @@ export default function MediaLibraryPage() {
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    if (!files.length || !tenant) return;
+    if (!files.length || !tenant || !activeWorkspace) return;
     setUploading(true);
     try {
       for (const file of files) {
-        await mediaApi.upload(file, tenant.id);
+        await mediaApi.upload(file, tenant.id, undefined, activeWorkspace);
       }
       toast({ title: 'Upload complete', description: `${files.length} file(s) added.` });
       await loadAssets();
@@ -74,11 +76,11 @@ export default function MediaLibraryPage() {
   }
 
   async function deleteAsset(asset: MediaAsset) {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     if (!window.confirm(`Delete "${asset.name ?? 'this asset'}"?`)) return;
     setDeletingId(asset.id);
     try {
-      await mediaApi.remove(asset.id, tenant.id);
+      await mediaApi.remove(asset.id, tenant.id, activeWorkspace);
       setAssets((prev) => prev.filter((a) => a.id !== asset.id));
       toast({ title: 'Asset deleted' });
     } catch (err: unknown) {

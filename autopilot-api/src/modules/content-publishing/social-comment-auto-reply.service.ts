@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CommentReplies } from '../comment_replies/entities/comment_replies.entity';
+import { ContentItems } from '../content_items/entities/content_items.entity';
 import { AutoReplyRulesService } from '../auto_reply_rules/auto_reply_rules.service';
 import { CommentReplyAiService } from './comment-reply-ai.service';
 import { SendCommentReplyService } from './send-comment-reply.service';
@@ -13,6 +14,8 @@ export class SocialCommentAutoReplyService {
   constructor(
     @InjectRepository(CommentReplies)
     private readonly commentsRepo: Repository<CommentReplies>,
+    @InjectRepository(ContentItems)
+    private readonly contentRepo: Repository<ContentItems>,
     private readonly rules: AutoReplyRulesService,
     private readonly replyAi: CommentReplyAiService,
     private readonly sendReply: SendCommentReplyService,
@@ -41,16 +44,28 @@ export class SocialCommentAutoReplyService {
     return { sent, skipped };
   }
 
-  /** Process all pending comments for a tenant (e.g. after manual fetch). */
+  /** Process pending comments for a tenant, optionally limited to one workspace. */
   async processPendingForTenant(
     tenantId: string,
     userId: string,
+    workspaceId?: string,
   ): Promise<{ sent: number; skipped: number }> {
-    const pending = await this.commentsRepo.find({
+    let pending = await this.commentsRepo.find({
       where: { tenantId, status: 'pending' },
       order: { created_at: 'ASC' },
       take: 50,
     });
+
+    if (workspaceId) {
+      const contentIds = (
+        await this.contentRepo.find({
+          where: { tenantId, workspaceId },
+          select: ['id'],
+        })
+      ).map((c) => c.id);
+      if (!contentIds.length) return { sent: 0, skipped: 0 };
+      pending = pending.filter((c) => contentIds.includes(c.contentId));
+    }
 
     let sent = 0;
     let skipped = 0;
@@ -68,21 +83,17 @@ export class SocialCommentAutoReplyService {
     if (comment.status !== 'pending') return false;
     if (comment.replyText?.trim()) return false;
 
+    const workspaceId = await this.resolveWorkspaceId(comment);
     const activeRules = await this.rules.findActiveForPlatform(
       comment.tenantId,
       comment.platform,
+      workspaceId,
     );
     if (!activeRules.length) {
-      this.logger.debug(
-        `Auto-reply skipped for ${comment.platform} comment ${comment.id}: no active rules (enable one on Replies → Rules)`,
-      );
       return false;
     }
     const rule = this.rules.matchKeywordRule(activeRules, comment.commentText);
     if (!rule) {
-      this.logger.debug(
-        `Auto-reply skipped for ${comment.platform} comment ${comment.id}: no keyword match`,
-      );
       return false;
     }
 
@@ -107,5 +118,13 @@ export class SocialCommentAutoReplyService {
       this.logger.warn(`Auto-reply failed for ${comment.platform} comment ${comment.id}: ${msg}`);
       return false;
     }
+  }
+
+  private async resolveWorkspaceId(comment: CommentReplies): Promise<string | undefined> {
+    const content = await this.contentRepo.findOne({
+      where: { id: comment.contentId },
+      select: ['id', 'workspaceId'],
+    });
+    return content?.workspaceId;
   }
 }

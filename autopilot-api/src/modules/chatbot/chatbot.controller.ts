@@ -53,10 +53,11 @@ export class ChatbotController {
   async getConfig(
     @Req() req: { user: JwtUser },
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.view');
-    const config = await this.configService.getOrCreate(tenantId);
+    const config = await this.configService.getOrCreateForContext(tenantId, workspaceId);
     const keys = await this.apiKeys.listKeys(tenantId);
     return {
       config,
@@ -78,10 +79,11 @@ export class ChatbotController {
     @Req() req: { user: JwtUser },
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.manage');
-    return this.configService.uploadAvatar(tenantId, file);
+    return this.configService.uploadAvatar(tenantId, file, workspaceId);
   }
 
   @Post('config/avatar-model')
@@ -91,10 +93,11 @@ export class ChatbotController {
     @Req() req: { user: JwtUser },
     @UploadedFile() file: Express.Multer.File,
     @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.manage');
-    return this.configService.uploadAvatarModel(tenantId, file);
+    return this.configService.uploadAvatarModel(tenantId, file, workspaceId);
   }
 
   @Patch('config')
@@ -104,8 +107,8 @@ export class ChatbotController {
   ) {
     if (!dto.tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), dto.tenantId, 'chatbot.manage');
-    const { tenantId, ...patch } = dto;
-    return this.configService.update(tenantId, patch);
+    const { tenantId, workspaceId, ...patch } = dto;
+    return this.configService.update(tenantId, patch, workspaceId);
   }
 
   @Post('config/keys')
@@ -140,10 +143,11 @@ export class ChatbotController {
     @Req() req: { user: JwtUser },
     @Query('tenantId') tenantId: string,
     @Query('channel') channel?: 'admin' | 'widget' | 'api',
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), tenantId, 'chatbot.view');
-    return this.sessions.listSessions(tenantId, channel);
+    return this.sessions.listSessions(tenantId, channel, workspaceId);
   }
 
   @Post('sessions')
@@ -153,7 +157,10 @@ export class ChatbotController {
   ) {
     if (!dto.tenantId) throw new BadRequestException('tenantId is required');
     await this.access.assertPermission(String(req.user.sub), dto.tenantId, 'chatbot.use');
-    const config = await this.configService.getOrCreate(dto.tenantId);
+    const config = await this.configService.getOrCreateForContext(
+      dto.tenantId,
+      dto.workspaceId,
+    );
     return this.sessions.createSession({
       tenantId: dto.tenantId,
       config,

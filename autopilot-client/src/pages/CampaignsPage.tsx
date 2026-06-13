@@ -165,7 +165,7 @@ function CampaignCard({
 export default function CampaignsPage() {
   const { user } = useAuth();
   const { tenant } = useTenant();
-  const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspace(user?.id);
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { toast } = useToast();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -189,15 +189,15 @@ export default function CampaignsPage() {
   });
 
   useEffect(() => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     loadCampaigns();
-  }, [tenant?.id]);
+  }, [tenant?.id, activeWorkspace, workspaceVersion]);
 
   async function loadCampaigns() {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     setLoading(true);
     try {
-      const rows = await contentCampaignsApi.list(tenant.id);
+      const rows = await contentCampaignsApi.list(tenant.id, activeWorkspace);
       setCampaigns(
         (Array.isArray(rows) ? rows : []).map((r) => ({
           id: String(r.id),
@@ -220,7 +220,7 @@ export default function CampaignsPage() {
 
   async function handleGenerate() {
     if (!tenant || !activeWorkspace) {
-      toast({ title: 'Select a workspace first', variant: 'destructive' });
+      toast({ title: 'Select a workspace', description: 'Choose one from the top navbar.', variant: 'destructive' });
       return;
     }
     if (!theme.trim()) {
@@ -272,18 +272,6 @@ export default function CampaignsPage() {
             </p>
           </div>
         </div>
-        {workspaces.length > 0 && (
-          <Select value={activeWorkspace || ''} onValueChange={setActiveWorkspace}>
-            <SelectTrigger className="w-full sm:w-[180px] h-9">
-              <SelectValue placeholder="Workspace…" />
-            </SelectTrigger>
-            <SelectContent>
-              {workspaces.map((ws) => (
-                <SelectItem key={ws.id} value={ws.id}>{ws.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

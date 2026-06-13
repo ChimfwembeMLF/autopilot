@@ -5,6 +5,8 @@ export interface ContentItem {
   title?: string;
   content?: string;
   content_type?: string;
+  workspaceId?: string;
+  workspace_id?: string;
   platforms?: string[];
   platformPayloads?: Record<string, PlatformPayload>;
   campaign_theme?: string;

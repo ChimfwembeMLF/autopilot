@@ -12,6 +12,7 @@ import { QueueDispatchService } from '../../queues/queue-dispatch.service';
 import { KnowledgeIngestService } from './knowledge-ingest.service';
 import { ChatbotConfigService } from './chatbot-config.service';
 import { MistralChatbotLibraryService } from './mistral-chatbot-library.service';
+import { scopeWhere } from '../../../common/workspace-scope.util';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const ALLOWED_MIMES = [
@@ -35,15 +36,17 @@ export class KnowledgeDocumentService {
     private readonly mistralLibrary: MistralChatbotLibraryService,
   ) {}
 
-  async list(tenantId: string): Promise<KnowledgeDocument[]> {
+  async list(tenantId: string, workspaceId?: string): Promise<KnowledgeDocument[]> {
     return this.docRepo.find({
-      where: { tenantId },
+      where: scopeWhere<KnowledgeDocument>(tenantId, workspaceId),
       order: { created_at: 'DESC' },
     });
   }
 
-  async get(tenantId: string, id: string): Promise<KnowledgeDocument> {
-    const doc = await this.docRepo.findOne({ where: { id, tenantId } });
+  async get(tenantId: string, id: string, workspaceId?: string): Promise<KnowledgeDocument> {
+    const doc = await this.docRepo.findOne({
+      where: { id, ...scopeWhere<KnowledgeDocument>(tenantId, workspaceId) },
+    });
     if (!doc) throw new NotFoundException('Document not found');
     return doc;
   }
@@ -52,6 +55,7 @@ export class KnowledgeDocumentService {
     tenantId: string;
     userId: string;
     file: Express.Multer.File;
+    workspaceId?: string;
   }): Promise<KnowledgeDocument> {
     if (!params.file?.buffer?.length) {
       throw new BadRequestException('file is required');
@@ -84,6 +88,7 @@ export class KnowledgeDocumentService {
 
     const doc = this.docRepo.create({
       tenantId: params.tenantId,
+      workspaceId: params.workspaceId,
       uploadedBy: params.userId,
       title: params.file.originalname,
       sourceType: 'upload',
@@ -94,7 +99,10 @@ export class KnowledgeDocumentService {
     });
     const saved = await this.docRepo.save(doc);
 
-    const config = await this.chatbotConfig.getOrCreate(params.tenantId);
+    const config = await this.chatbotConfig.getOrCreateForContext(
+      params.tenantId,
+      params.workspaceId,
+    );
     if (config.useMistralLibrary) {
       void this.mistralLibrary
         .uploadDocument({
@@ -126,9 +134,9 @@ export class KnowledgeDocumentService {
     return saved;
   }
 
-  async delete(tenantId: string, id: string): Promise<void> {
-    const doc = await this.get(tenantId, id);
-    const config = await this.chatbotConfig.getOrCreate(tenantId);
+  async delete(tenantId: string, id: string, workspaceId?: string): Promise<void> {
+    const doc = await this.get(tenantId, id, workspaceId);
+    const config = await this.chatbotConfig.getOrCreateForContext(tenantId, workspaceId);
     await this.mistralLibrary.deleteDocument(config, doc);
     if (doc.storageUrl) {
       try {
@@ -141,8 +149,13 @@ export class KnowledgeDocumentService {
     await this.docRepo.delete({ id, tenantId });
   }
 
-  async rename(tenantId: string, id: string, title: string): Promise<KnowledgeDocument> {
-    const doc = await this.get(tenantId, id);
+  async rename(
+    tenantId: string,
+    id: string,
+    title: string,
+    workspaceId?: string,
+  ): Promise<KnowledgeDocument> {
+    const doc = await this.get(tenantId, id, workspaceId);
     const trimmed = title.trim();
     if (!trimmed) {
       throw new BadRequestException('title is required');

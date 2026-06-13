@@ -22,6 +22,7 @@ import { buildPlatformPayloads } from "@/lib/platforms";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { contentItemsApi } from "@/lib/api";
 import { invokeEdgeFunction } from "@/lib/edgeFunctions";
 
@@ -88,15 +89,16 @@ const Scheduler = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
 
   useEffect(() => {
-    if (user) loadPosts();
-  }, [user]);
+    if (user && activeWorkspace) loadPosts();
+  }, [user, tenant?.id, activeWorkspace, workspaceVersion]);
 
   const loadPosts = async () => {
-    if (!user) return;
+    if (!user || !activeWorkspace) return;
     try {
-      const all = await contentItemsApi.findAll(tenant?.id);
+      const all = await contentItemsApi.findAll(tenant?.id, { workspaceId: activeWorkspace });
       const list = (Array.isArray(all) ? all : [])
         .filter((item: Record<string, unknown>) =>
           item.userId === user.id && (!tenant?.id || item.tenantId === tenant.id),
@@ -139,14 +141,13 @@ const Scheduler = () => {
   };
 
   const handleSchedule = async () => {
-    if (!user || !newContent.trim() || !selectedPlatforms.length) return;
+    if (!user || !newContent.trim() || !selectedPlatforms.length || !activeWorkspace) return;
     const payloads = buildPlatformPayloads(newContent, newTitle, selectedPlatforms);
     try {
       await contentItemsApi.create({
         userId: user.id,
         tenantId: tenant?.id,
-        workspaceId: tenant?.id,
-        brandProfileId: tenant?.id,
+        workspaceId: activeWorkspace,
         content: newContent,
         contentType: selectedPlatforms[0],
         platforms: selectedPlatforms,
@@ -187,14 +188,14 @@ const Scheduler = () => {
   };
 
   const handleDailyWorkflow = async () => {
-    if (!tenant) {
-      toast({ title: "Select a workspace", description: "Choose a tenant before auto-generating.", variant: "destructive" });
+    if (!tenant || !activeWorkspace) {
+      toast({ title: "Select a workspace", description: "Choose a workspace from the top navbar.", variant: "destructive" });
       return;
     }
     setRunningWorkflow(true);
     try {
       const { data, error } = await invokeEdgeFunction("daily-content-workflow", {
-        body: { tenantId: tenant.id },
+        body: { tenantId: tenant.id, workspaceId: activeWorkspace },
       });
       if (error) throw error;
       const result = data as { generated?: number; skipped?: number; errors?: string[] } | null;

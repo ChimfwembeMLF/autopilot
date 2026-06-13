@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import { MistralChatService } from '../../ai/services/mistral-chat.service';
 import { PromptBuilderService } from '../../ai/services/prompt-builder.service';
 import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
-import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
+import { BrandProfilesService } from '../../brand_profiles/brand_profiles.service';
 import { ContentItems } from '../../content_items/entities/content_items.entity';
 import { ContentCampaigns } from '../entities/content_campaigns.entity';
 import { brandContextBlock } from '../../ai/prompts/brand-fields';
@@ -38,8 +38,7 @@ export class GenerateCampaignService {
     private readonly campaignRepo: Repository<ContentCampaigns>,
     @InjectRepository(ContentItems)
     private readonly contentRepo: Repository<ContentItems>,
-    @InjectRepository(BrandProfiles)
-    private readonly brandRepo: Repository<BrandProfiles>,
+    private readonly brandProfiles: BrandProfilesService,
   ) {}
 
   async generate(params: {
@@ -63,8 +62,10 @@ export class GenerateCampaignService {
 
     await this.usage.assertWithinLimit(params.tenantId, params.userId);
 
-    const brand = await this.brandRepo.findOne({
-      where: { tenantId: params.tenantId, userId: params.userId },
+    const brand = await this.brandProfiles.resolveForContext({
+      tenantId: params.tenantId,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
     });
     if (!brand?.id) {
       throw new BadRequestException('Set up Brand Brain before generating a campaign');
@@ -157,9 +158,11 @@ export class GenerateCampaignService {
     };
   }
 
-  async findByTenant(tenantId: string): Promise<ContentCampaigns[]> {
+  async findByTenant(tenantId: string, workspaceId?: string): Promise<ContentCampaigns[]> {
+    const where: { tenantId: string; workspaceId?: string } = { tenantId };
+    if (workspaceId) where.workspaceId = workspaceId;
     return this.campaignRepo.find({
-      where: { tenantId },
+      where,
       order: { created_at: 'DESC' },
     });
   }

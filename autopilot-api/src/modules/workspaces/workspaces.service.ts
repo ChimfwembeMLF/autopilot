@@ -4,17 +4,21 @@ import { Repository } from 'typeorm';
 import { Workspaces } from './entities/workspaces.entity';
 import { WorkspacesCreateDto } from './dto/create-workspaces.dto';
 import { WorkspacesUpdateDto } from './dto/update-workspaces.dto';
+import { BrandProfilesService } from '../brand_profiles/brand_profiles.service';
 
 @Injectable()
 export class WorkspacesService {
   constructor(
     @InjectRepository(Workspaces)
     private readonly repo: Repository<Workspaces>,
+    private readonly brandProfiles: BrandProfilesService,
   ) {}
 
-  async create(dto: WorkspacesCreateDto): Promise<Workspaces> {
+  async create(dto: WorkspacesCreateDto, userId: string): Promise<Workspaces> {
     const ent = this.repo.create(dto);
-    return this.repo.save(ent as Workspaces);
+    const saved = await this.repo.save(ent as Workspaces);
+    await this.brandProfiles.ensureForWorkspace(dto.tenantId, saved.id, userId);
+    return saved;
   }
 
   async findAll(tenantId?: string): Promise<Workspaces[]> {
@@ -31,7 +35,7 @@ export class WorkspacesService {
   }
 
   async update(id: string, dto: WorkspacesUpdateDto): Promise<Workspaces> {
-    await this.repo.update(id, dto as any);
+    await this.repo.update(id, dto as Partial<Workspaces>);
     return this.findOne(id);
   }
 

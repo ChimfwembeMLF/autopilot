@@ -26,6 +26,10 @@ export class ListContentItemsQueryDto {
   @IsOptional()
   @IsString()
   platform?: string;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
 }
 
 export type PaginatedContentItems = {

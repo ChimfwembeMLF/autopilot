@@ -28,6 +28,51 @@ export class ChatbotConfigService {
   ) {}
 
   async getOrCreate(tenantId: string): Promise<ChatbotConfig> {
+    return this.getOrCreateForContext(tenantId);
+  }
+
+  async getOrCreateForContext(
+    tenantId: string,
+    workspaceId?: string,
+  ): Promise<ChatbotConfig> {
+    if (workspaceId) {
+      let config = await this.repo.findOne({ where: { workspaceId } });
+      if (config) {
+        if (!config.systemPromptExtra?.trim()) {
+          config.systemPromptExtra = DEFAULT_CHATBOT_SYSTEM_MESSAGE;
+          return this.repo.save(config);
+        }
+        return config;
+      }
+
+      try {
+        config = await this.repo.save(
+          this.repo.create({
+            tenantId,
+            workspaceId,
+            name: 'Website Assistant',
+            welcomeMessage: 'Hi! How can I help you today?',
+            systemPromptExtra: DEFAULT_CHATBOT_SYSTEM_MESSAGE,
+            widgetTheme: {
+              primaryColor: '#6366f1',
+              gradientFrom: '#6366f1',
+              gradientTo: '#a855f7',
+              gradientAngle: 135,
+              position: 'bottom-right',
+            },
+          }),
+        );
+        return config;
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === '23505') {
+          const existing = await this.repo.findOne({ where: { workspaceId } });
+          if (existing) return existing;
+        }
+        throw err;
+      }
+    }
+
     let config = await this.repo.findOne({
       where: { tenantId },
       order: { created_at: 'ASC' },
@@ -70,8 +115,12 @@ export class ChatbotConfigService {
     }
   }
 
-  async update(tenantId: string, patch: Partial<ChatbotConfig>): Promise<ChatbotConfig> {
-    const config = await this.getOrCreate(tenantId);
+  async update(
+    tenantId: string,
+    patch: Partial<ChatbotConfig>,
+    workspaceId?: string,
+  ): Promise<ChatbotConfig> {
+    const config = await this.getOrCreateForContext(tenantId, workspaceId);
     const enablingMistral =
       patch.useMistralLibrary === true && !config.useMistralLibrary;
     const mistralTouched =
@@ -108,6 +157,7 @@ export class ChatbotConfigService {
   async uploadAvatar(
     tenantId: string,
     file: Express.Multer.File,
+    workspaceId?: string,
   ): Promise<ChatbotConfig> {
     if (!file?.buffer?.length) {
       throw new BadRequestException('file is required');
@@ -128,7 +178,7 @@ export class ChatbotConfigService {
       prefix: 'chatbot-avatar',
     });
 
-    const config = await this.getOrCreate(tenantId);
+    const config = await this.getOrCreateForContext(tenantId, workspaceId);
     const theme = { ...(config.widgetTheme ?? {}) };
     theme.avatarUrl = uploaded.publicUrl;
     config.widgetTheme = theme;
@@ -138,6 +188,7 @@ export class ChatbotConfigService {
   async uploadAvatarModel(
     tenantId: string,
     file: Express.Multer.File,
+    workspaceId?: string,
   ): Promise<ChatbotConfig> {
     if (!file?.buffer?.length) {
       throw new BadRequestException('file is required');
@@ -166,7 +217,7 @@ export class ChatbotConfigService {
       prefix: 'chatbot-avatar-model',
     });
 
-    const config = await this.getOrCreate(tenantId);
+    const config = await this.getOrCreateForContext(tenantId, workspaceId);
     const theme = { ...(config.widgetTheme ?? {}) };
     theme.avatarModelUrl = uploaded.publicUrl;
     theme.avatarModelBytes = compressed.compressedBytes;

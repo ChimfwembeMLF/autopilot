@@ -7,6 +7,7 @@ import { WhatsappAccountAuthService } from '../whatsapp/whatsapp-account-auth.se
 import { WhatsappMessagingService } from '../whatsapp/whatsapp-messaging.service';
 import { WhatsappMessages } from '../whatsapp/entities/whatsapp_messages.entity';
 import { SocialMessages } from './entities/social_messages.entity';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 @Injectable()
 export class SocialDmReplyService {
@@ -26,6 +27,7 @@ export class SocialDmReplyService {
     userId: string;
     conversationId: string;
     message: string;
+    workspaceId?: string;
     useTemplate?: boolean;
     templateName?: string;
     templateLanguage?: string;
@@ -37,10 +39,19 @@ export class SocialDmReplyService {
       const phone = this.waMessaging.normalizePhone(params.conversationId.slice(3));
       const account =
         (await this.socialRepo.findOne({
-          where: { tenantId: params.tenantId, userId: params.userId, platform: 'whatsapp', connected: true },
+          where: {
+            ...scopeWhere<SocialAccounts>(params.tenantId, params.workspaceId),
+            userId: params.userId,
+            platform: 'whatsapp',
+            connected: true,
+          },
         })) ??
         (await this.socialRepo.findOne({
-          where: { tenantId: params.tenantId, platform: 'whatsapp', connected: true },
+          where: {
+            ...scopeWhere<SocialAccounts>(params.tenantId, params.workspaceId),
+            platform: 'whatsapp',
+            connected: true,
+          },
         }));
       if (!account) return { sent: false, message: 'WhatsApp not connected' };
 
@@ -59,6 +70,7 @@ export class SocialDmReplyService {
       await this.waMessagesRepo.save(
         this.waMessagesRepo.create({
           tenantId: params.tenantId,
+          workspaceId: account.workspaceId ?? params.workspaceId,
           phone,
           direction: 'outbound',
           body: text,
@@ -75,7 +87,11 @@ export class SocialDmReplyService {
 
     const [, platform, threadId] = params.conversationId.split(':');
     const account = await this.socialRepo.findOne({
-      where: { tenantId: params.tenantId, platform, connected: true },
+      where: {
+        ...scopeWhere<SocialAccounts>(params.tenantId, params.workspaceId),
+        platform,
+        connected: true,
+      },
     });
     if (!account) return { sent: false, message: `${platform} not connected` };
 
@@ -96,6 +112,7 @@ export class SocialDmReplyService {
     await this.socialMessagesRepo.save(
       this.socialMessagesRepo.create({
         tenantId: params.tenantId,
+        workspaceId: account.workspaceId ?? params.workspaceId,
         platform,
         threadId,
         participantId: recipientId,

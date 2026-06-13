@@ -109,7 +109,14 @@ export async function invokeEdgeFunction(
     }
 
     case 'daily-content-workflow':
-      return runHandler(() => runQueued(() => contentAiApi.dailyWorkflow(tenantId)));
+      return runHandler(() =>
+        runQueued(() =>
+          contentAiApi.dailyWorkflow(
+            tenantId,
+            (body.workspaceId ?? body.workspace_id) as string | undefined,
+          ),
+        ),
+      );
 
     case 'auto-publish':
       return runHandler(() => runQueued(() => contentAiApi.autoPublish()));

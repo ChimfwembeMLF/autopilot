@@ -68,7 +68,9 @@ export const P = {
 } as const;
 
 /** Union type of every permission key string */
-export type PermissionKey = typeof P[keyof typeof P][keyof typeof P[keyof typeof P]];
+export type PermissionKey = {
+  [K in keyof typeof P]: (typeof P)[K][keyof (typeof P)[K]]
+}[keyof typeof P];
 
 /** Platform-level Super Admin — users.role = SUPER_ADMIN or profile.isSystemAdmin */
 export const PLATFORM_ROLE = {

@@ -111,8 +111,11 @@ export class LeadsController {
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  findAll(@Query('tenantId') tenantId?: string): Promise<Leads[]> {
-    return this.service.findAll(tenantId);
+  findAll(
+    @Query('tenantId') tenantId?: string,
+    @Query('workspaceId') workspaceId?: string,
+  ): Promise<Leads[]> {
+    return this.service.findAll(tenantId, workspaceId);
   }
 
   @Get(':id')

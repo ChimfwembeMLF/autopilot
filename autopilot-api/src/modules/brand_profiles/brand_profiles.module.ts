@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BrandProfiles } from './entities/brand_profiles.entity';
+import { Workspaces } from '../workspaces/entities/workspaces.entity';
 import { BrandProfilesService } from './brand_profiles.service';
 import { BrandProfilesController } from './brand_profiles.controller';
 import { AiModule } from '../ai/ai.module';
@@ -9,7 +10,7 @@ import { ParseDocumentService } from './services/parse-document.service';
 import { BrandProfileSeedService } from './brand-profile-seed.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([BrandProfiles]), AiModule],
+  imports: [TypeOrmModule.forFeature([BrandProfiles, Workspaces]), AiModule],
   providers: [BrandProfilesService, ScrapeWebsiteService, ParseDocumentService, BrandProfileSeedService],
   controllers: [BrandProfilesController],
   exports: [BrandProfilesService, BrandProfileSeedService, ParseDocumentService],

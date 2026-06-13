@@ -19,6 +19,8 @@ export class Leads {
   id: string;
   @Column({ type: 'uuid' })
   tenantId: string;
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
   @Column({ type: 'uuid' })
   userId: string;
   @Column({ type: 'text' })

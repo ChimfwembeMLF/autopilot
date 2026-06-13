@@ -5,14 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
-  Index,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { Tenants } from '../../tenants/entities/tenants.entity';
 import { UserEntity } from '../../user/user.entity';
 
-@Index(['tenantId', 'name'], { unique: true })
 @Entity({ name: 'content_templates' })
 export class ContentTemplates {
   @PrimaryGeneratedColumn('uuid')
@@ -20,6 +18,9 @@ export class ContentTemplates {
 
   @Column({ type: 'uuid' })
   tenantId: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
 
   @Column({ type: 'uuid' })
   userId: string;

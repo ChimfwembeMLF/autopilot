@@ -3,6 +3,7 @@ export type WidgetConfig = {
   welcomeMessage?: string;
   theme: Record<string, unknown>;
   ttsEnabled?: boolean;
+  suggestions?: string[];
 };
 
 export type ChatCitation = {
@@ -74,5 +75,23 @@ export class WidgetApi {
     );
     if (!res.ok) throw new Error('Failed to load speech');
     return res.blob();
+  }
+
+  async fetchSuggestions(
+    sessionId: string,
+    lastAssistantMessage?: string,
+  ): Promise<string[]> {
+    const res = await fetch(`${this.apiBase}/api/v1/widget/sessions/${sessionId}/suggestions`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({
+        lastAssistantMessage: lastAssistantMessage?.trim() || undefined,
+      }),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { suggestions?: string[] };
+    return Array.isArray(data.suggestions)
+      ? data.suggestions.filter((s) => typeof s === 'string').slice(0, 3)
+      : [];
   }
 }

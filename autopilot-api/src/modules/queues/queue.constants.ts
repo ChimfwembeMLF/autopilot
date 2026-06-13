@@ -66,6 +66,7 @@ export type PublishContentJobData = {
 export type SyncTenantCommentsJobData = {
   tenantId: string;
   userId: string;
+  workspaceId?: string;
   runAutoReply?: boolean;
 };
 

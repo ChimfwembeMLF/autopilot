@@ -13,6 +13,10 @@ export class SocialAccountsCreateDto {
 
   @IsOptional()
   @IsUUID()
+  workspaceId?: string;
+
+  @IsOptional()
+  @IsUUID()
   userId?: string;
 
   @IsString()

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { usePermissions } from "@/hooks/usePermissions";
 import { P } from "@/lib/permissions";
 import { knowledgeApi } from "@/lib/api";
@@ -35,16 +36,18 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 
 export default function ChatbotKnowledgePage() {
   const { tenant } = useTenant();
+  const { activeWorkspace } = useWorkspace();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const tenantId = tenant?.id ?? "";
+  const workspaceId = activeWorkspace ?? undefined;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
   const docsQuery = useQuery({
-    queryKey: ["knowledge-docs", tenantId],
-    queryFn: () => knowledgeApi.list(tenantId),
-    enabled: Boolean(tenantId) && can(P.chatbot.view),
+    queryKey: ["knowledge-docs", tenantId, activeWorkspace],
+    queryFn: () => knowledgeApi.list(tenantId, workspaceId),
+    enabled: Boolean(tenantId && activeWorkspace) && can(P.chatbot.view),
     refetchInterval: (q) => {
       const docs = q.state.data;
       if (docs?.some((d) => d.status === "pending" || d.status === "processing")) return 3000;
@@ -53,48 +56,48 @@ export default function ChatbotKnowledgePage() {
   });
 
   const upload = useMutation({
-    mutationFn: (file: File) => knowledgeApi.upload(file, tenantId),
+    mutationFn: (file: File) => knowledgeApi.upload(file, tenantId, workspaceId),
     onSuccess: () => {
       toast.success("Document uploaded — indexing started");
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => knowledgeApi.delete(tenantId, id),
+    mutationFn: (id: string) => knowledgeApi.delete(tenantId, id, workspaceId),
     onSuccess: () => {
       toast.success("Document removed");
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const rename = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>
-      knowledgeApi.rename(tenantId, id, title),
+      knowledgeApi.rename(tenantId, id, title, workspaceId),
     onSuccess: () => {
       toast.success("Document renamed");
       setEditingId(null);
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const reindex = useMutation({
-    mutationFn: (id: string) => knowledgeApi.reindex(tenantId, id),
+    mutationFn: (id: string) => knowledgeApi.reindex(tenantId, id, workspaceId),
     onSuccess: () => {
       toast.success("Re-indexing started");
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const syncMistral = useMutation({
-    mutationFn: () => knowledgeApi.syncMistral(tenantId),
+    mutationFn: () => knowledgeApi.syncMistral(tenantId, workspaceId),
     onSuccess: () => {
       toast.success("Documents sent to Mistral for indexing");
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

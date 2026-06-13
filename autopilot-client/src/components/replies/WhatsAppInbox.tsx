@@ -3,6 +3,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Bot, Loader2, MessageSquare, Send } from 'lucide-react';
 import { whatsappApi } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ type Message = {
 
 export function WhatsAppInbox() {
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -57,9 +59,9 @@ export function WhatsAppInbox() {
   const [sending, setSending] = useState(false);
 
   const loadConversations = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !activeWorkspace) return;
     try {
-      const rows = await whatsappApi.conversations(tenant.id);
+      const rows = await whatsappApi.conversations(tenant.id, activeWorkspace);
       setConversations(rows);
       setSelectedPhone((prev) => prev ?? rows[0]?.phone ?? null);
     } catch {
@@ -67,15 +69,15 @@ export function WhatsAppInbox() {
     } finally {
       setLoading(false);
     }
-  }, [tenant]);
+  }, [tenant, activeWorkspace]);
 
   const loadMessages = useCallback(async () => {
-    if (!tenant || !selectedPhone) {
+    if (!tenant || !activeWorkspace || !selectedPhone) {
       setMessages([]);
       return;
     }
     try {
-      const rows = await whatsappApi.listMessages(tenant.id, selectedPhone);
+      const rows = await whatsappApi.listMessages(tenant.id, selectedPhone, activeWorkspace);
       setMessages(
         [...rows].sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -84,33 +86,34 @@ export function WhatsAppInbox() {
     } catch {
       setMessages([]);
     }
-  }, [tenant, selectedPhone]);
+  }, [tenant, activeWorkspace, selectedPhone]);
 
   useEffect(() => {
     void loadConversations();
-  }, [loadConversations]);
+  }, [loadConversations, workspaceVersion]);
 
   useEffect(() => {
-    if (!tenant) return;
-    void whatsappApi.listTemplates(tenant.id).then((res) => {
+    if (!tenant || !activeWorkspace) return;
+    void whatsappApi.listTemplates(tenant.id, activeWorkspace).then((res) => {
       const list = res.templates ?? [];
       setTemplates(list);
       if (res.defaultTemplate) setTemplateName(res.defaultTemplate);
       else if (list[0]?.name) setTemplateName(list[0].name);
       if (list[0]?.language) setTemplateLanguage(list[0].language);
     }).catch(() => setTemplates([]));
-  }, [tenant]);
+  }, [tenant, activeWorkspace, workspaceVersion]);
 
   useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
 
   async function sendReply() {
-    if (!tenant || !selectedPhone || !replyText.trim()) return;
+    if (!tenant || !activeWorkspace || !selectedPhone || !replyText.trim()) return;
     setSending(true);
     try {
       const result = await whatsappApi.reply({
         tenantId: tenant.id,
+        workspaceId: activeWorkspace,
         phone: selectedPhone,
         message: replyText.trim(),
         useTemplate,

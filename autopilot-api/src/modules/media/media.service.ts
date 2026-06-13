@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MediaAssets } from '../content_items/entities/media_assets.entity';
 import { SupabaseStorageService } from './supabase-storage.service';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 
@@ -18,10 +19,10 @@ export class MediaService {
     private readonly storage: SupabaseStorageService,
   ) {}
 
-  async findByTenant(tenantId: string) {
+  async findByTenant(tenantId: string, workspaceId?: string) {
     if (!tenantId) return [];
     return this.mediaRepo.find({
-      where: { tenantId },
+      where: scopeWhere<MediaAssets>(tenantId, workspaceId),
       order: { created_at: 'DESC' },
     });
   }
@@ -31,6 +32,7 @@ export class MediaService {
     userId: string;
     file: Express.Multer.File;
     contentId?: string;
+    workspaceId?: string;
   }) {
     this.storage.assertConfigured();
 
@@ -53,6 +55,7 @@ export class MediaService {
     return this.mediaRepo.save(
       this.mediaRepo.create({
         tenantId: params.tenantId,
+        workspaceId: params.workspaceId,
         contentId: params.contentId,
         mediaUrl: uploaded.publicUrl,
         mediaType,

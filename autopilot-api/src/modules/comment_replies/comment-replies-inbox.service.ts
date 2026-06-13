@@ -6,6 +6,7 @@ import { ContentItems } from '../content_items/entities/content_items.entity';
 import { ContentPublications } from '../content_publications/entities/content_publications.entity';
 import { SocialAccounts } from '../social_accounts/entities/social_accounts.entity';
 import { capabilityOf } from '../../constants/platform-capabilities';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 export type CommentInboxNode = {
   id: string;
@@ -64,16 +65,37 @@ export class CommentRepliesInboxService {
   async getInbox(
     tenantId: string,
     contentId?: string,
+    workspaceId?: string,
   ): Promise<{ posts: PostInboxGroup[] }> {
+    const workspaceContentIds = workspaceId
+      ? (
+          await this.contentRepo.find({
+            where: { tenantId, workspaceId },
+            select: ['id'],
+          })
+        ).map((c) => c.id)
+      : null;
+
+    if (workspaceId && workspaceContentIds?.length === 0) {
+      return { posts: [] };
+    }
+
     const comments = await this.commentsRepo.find({
-      where: contentId ? { tenantId, contentId } : { tenantId },
+      where: contentId
+        ? { tenantId, contentId }
+        : workspaceContentIds
+          ? { tenantId, contentId: In(workspaceContentIds) }
+          : { tenantId },
       order: { created_at: 'ASC' },
     });
 
     const publications = await this.publicationsRepo.find({
       where: contentId
         ? { tenantId, contentId, status: 'published' }
-        : { tenantId, status: 'published' },
+        : {
+            ...scopeWhere<ContentPublications>(tenantId, workspaceId),
+            status: 'published',
+          },
       order: { publishedAt: 'DESC' },
     });
 
@@ -82,7 +104,7 @@ export class CommentRepliesInboxService {
         ...comments.map((c) => c.contentId),
         ...publications.map((p) => p.contentId),
       ]),
-    ];
+    ].filter((id) => !workspaceContentIds || workspaceContentIds.includes(id));
     const contents = contentIds.length
       ? await this.contentRepo.find({ where: { id: In(contentIds) } })
       : [];

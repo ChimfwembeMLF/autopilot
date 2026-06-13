@@ -4,6 +4,7 @@ import { PublishResult, ContentToPublish } from './interfaces/publish-result.int
 import { SocialPublishAccountService } from './social-publish-account.service';
 import { PublishMediaResolverService } from './publish-media-resolver.service';
 import { formatGraphApiError, formatPublishError } from './publish-error.util';
+import { formatContentForPlatform, formatPlainPostText } from '../../common/text-format.util';
 
 @Injectable()
 export class InstagramPublishingService {
@@ -20,6 +21,7 @@ export class InstagramPublishingService {
         content.tenantId,
         content.userId,
         'instagram',
+        content.workspaceId,
       );
 
       if (!socialAccount) {
@@ -36,7 +38,7 @@ export class InstagramPublishingService {
         };
       }
 
-      const plainText = content.content.replace(/<[^>]*>/g, '');
+      const plainText = formatContentForPlatform('instagram', formatPlainPostText(content.content));
 
       if (!media?.length) {
         return {

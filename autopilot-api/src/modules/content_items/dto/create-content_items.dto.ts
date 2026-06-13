@@ -4,6 +4,7 @@ import {
   IsUUID,
   IsDate,
   IsArray,
+  IsObject,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -49,7 +50,8 @@ export class ContentItemsCreateDto {
   platforms?: string[];
 
   @IsOptional()
-  platformPayloads?: string;
+  @IsObject()
+  platformPayloads?: Record<string, unknown>;
 
   @IsOptional()
   @IsDate()

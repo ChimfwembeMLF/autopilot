@@ -84,8 +84,12 @@ export class SocialAccountsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List connected social accounts for a tenant' })
   @Get('tenant/:tenantId')
-  findByTenant(@Req() req: Request, @Param('tenantId') tenantId: string) {
-    return this.service.findByTenant(tenantId, this.getUserId(req));
+  findByTenant(
+    @Req() req: Request,
+    @Param('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.service.findByTenant(tenantId, this.getUserId(req), workspaceId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -105,6 +109,7 @@ export class SocialAccountsController {
     @Param('platform') platform: string,
     @Query('tenantId') tenantId: string,
     @Query('returnUrl') returnUrl?: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     if (!OAUTH_PLATFORMS.includes(platform as SocialOAuthPlatform)) {
       throw new BadRequestException(`Unsupported OAuth platform: ${platform}`);
@@ -120,6 +125,7 @@ export class SocialAccountsController {
     let connectState: OAuthConnectState = {
       userId,
       tenantId,
+      workspaceId,
       returnUrl,
       provider: oauthPlatform,
       redirectUri,
@@ -187,6 +193,7 @@ export class SocialAccountsController {
         const setupToken = this.oauth.createWhatsAppSetupToken({
           userId: decoded.userId,
           tenantId: decoded.tenantId,
+          workspaceId: decoded.workspaceId,
           accessToken: prepared.accessToken,
           expiresAt: prepared.expiresAt?.toISOString(),
           phones: prepared.phones,
@@ -199,6 +206,7 @@ export class SocialAccountsController {
         const setupToken = this.oauth.createFacebookSetupToken({
           userId: decoded.userId,
           tenantId: decoded.tenantId,
+          workspaceId: decoded.workspaceId,
           accessToken: prepared.accessToken,
           expiresAt: prepared.expiresAt?.toISOString(),
           profile: prepared.profile,
@@ -212,6 +220,7 @@ export class SocialAccountsController {
         const setupToken = this.oauth.createYoutubeSetupToken({
           userId: decoded.userId,
           tenantId: decoded.tenantId,
+          workspaceId: decoded.workspaceId,
           accessToken: prepared.accessToken,
           refreshToken: prepared.refreshToken,
           expiresAt: prepared.expiresAt?.toISOString(),
@@ -230,6 +239,7 @@ export class SocialAccountsController {
 
       await this.service.connectAccount({
         tenantId: decoded.tenantId,
+        workspaceId: decoded.workspaceId,
         userId: decoded.userId,
         platform: result.platform,
         accountName: result.accountName,
@@ -294,6 +304,7 @@ export class SocialAccountsController {
 
     return this.service.connectAccount({
       tenantId: payload.tenantId,
+      workspaceId: payload.workspaceId,
       userId: payload.userId,
       platform: result.platform,
       accountName: result.accountName,
@@ -334,6 +345,7 @@ export class SocialAccountsController {
 
     return this.service.connectAccount({
       tenantId: payload.tenantId,
+      workspaceId: payload.workspaceId,
       userId: payload.userId,
       platform: result.platform,
       accountName: result.accountName,
@@ -407,6 +419,7 @@ export class SocialAccountsController {
 
     return this.service.connectAccount({
       tenantId: payload.tenantId,
+      workspaceId: payload.workspaceId,
       userId: payload.userId,
       platform: 'whatsapp',
       accountName,

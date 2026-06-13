@@ -15,6 +15,9 @@ export class WidgetConfigResponseDto {
 
   @ApiProperty()
   ttsEnabled: boolean;
+
+  @ApiProperty({ type: [String], example: ['What can you help me with?'] })
+  suggestions: string[];
 }
 
 export class CreateWidgetSessionResponseDto {

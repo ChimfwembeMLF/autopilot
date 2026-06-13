@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { BrandProfiles } from './entities/brand_profiles.entity';
+import { Workspaces } from '../workspaces/entities/workspaces.entity';
 import { UserEntity } from '../user/user.entity';
 
 @Injectable()
@@ -11,14 +12,38 @@ export class BrandProfileSeedService {
   constructor(
     @InjectRepository(BrandProfiles)
     private readonly repo: Repository<BrandProfiles>,
+    @InjectRepository(Workspaces)
+    private readonly workspaceRepo: Repository<Workspaces>,
   ) {}
 
-  /** Minimal brand profile shell so AI and onboarding have something to work with. */
+  /** Minimal brand profile shell on the default workspace (not tenant-level legacy). */
   async ensureStarterForUser(tenantId: string, user: UserEntity): Promise<boolean> {
-    const existing = await this.repo.findOne({
-      where: { tenantId, userId: user.id },
+    const defaultWorkspace = await this.workspaceRepo.findOne({
+      where: { tenantId },
+      order: { created_at: 'ASC' },
     });
-    if (existing) return false;
+
+    if (defaultWorkspace) {
+      const onWorkspace = await this.repo.findOne({
+        where: { workspaceId: defaultWorkspace.id, tenantId },
+      });
+      if (onWorkspace) return false;
+
+      const legacy = await this.repo.findOne({
+        where: { tenantId, userId: user.id, workspaceId: IsNull() },
+      });
+      if (legacy) {
+        legacy.workspaceId = defaultWorkspace.id;
+        await this.repo.save(legacy);
+        this.logger.log(`Moved legacy brand profile to workspace ${defaultWorkspace.id}`);
+        return true;
+      }
+    }
+
+    const existingLegacy = await this.repo.findOne({
+      where: { tenantId, userId: user.id, workspaceId: IsNull() },
+    });
+    if (existingLegacy) return false;
 
     const companyName =
       [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
@@ -31,7 +56,8 @@ export class BrandProfileSeedService {
       this.repo.create({
         tenantId,
         userId: user.id,
-        companyName,
+        workspaceId: defaultWorkspace?.id,
+        companyName: defaultWorkspace?.name ?? companyName,
         toneOfVoice: 'Professional, clear, and friendly',
         brandPersonality: 'Helpful and trustworthy',
         description: undefined,

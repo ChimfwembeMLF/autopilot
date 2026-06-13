@@ -4,6 +4,10 @@ export class AutoReplyRulesCreateDto {
   @IsUUID()
   tenantId: string;
 
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
   @IsString()
   platform: string;
 

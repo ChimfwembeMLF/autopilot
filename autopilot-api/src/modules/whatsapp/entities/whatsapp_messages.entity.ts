@@ -21,6 +21,9 @@ export class WhatsappMessages {
   tenantId: string;
 
   @Column({ type: 'uuid', nullable: true })
+  workspaceId?: string;
+
+  @Column({ type: 'uuid', nullable: true })
   contactId?: string;
 
   @Column({ type: 'uuid', nullable: true })

@@ -41,6 +41,7 @@ export interface WhatsAppSetupPayload {
   type: 'whatsapp_setup';
   userId: string;
   tenantId: string;
+  workspaceId?: string;
   accessToken: string;
   expiresAt?: string;
   phones: WhatsAppPhoneOption[];
@@ -62,6 +63,7 @@ export interface FacebookSetupPayload {
   type: 'facebook_setup';
   userId: string;
   tenantId: string;
+  workspaceId?: string;
   accessToken: string;
   expiresAt?: string;
   profile: { id?: string; name?: string };
@@ -86,6 +88,7 @@ export interface YoutubeSetupPayload {
   type: 'youtube_setup';
   userId: string;
   tenantId: string;
+  workspaceId?: string;
   accessToken: string;
   refreshToken?: string;
   expiresAt?: string;
@@ -104,6 +107,7 @@ export interface YoutubeOAuthPrepareResult {
 export interface OAuthConnectState {
   userId: string;
   tenantId: string;
+  workspaceId?: string;
   returnUrl?: string;
   provider: SocialOAuthPlatform;
   redirectUri: string;

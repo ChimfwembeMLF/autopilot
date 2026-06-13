@@ -4,7 +4,8 @@ import { Repository } from 'typeorm';
 import { MistralAgentsService } from '../../ai/services/mistral-agents.service';
 import { PromptBuilderService } from '../../ai/services/prompt-builder.service';
 import { AiUsageTrackerService } from '../../ai/services/ai-usage-tracker.service';
-import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
+import { BrandProfilesService } from '../../brand_profiles/brand_profiles.service';
+import { ContentItems } from '../entities/content_items.entity';
 import { MediaAssets } from '../entities/media_assets.entity';
 
 @Injectable()
@@ -13,8 +14,9 @@ export class GenerateImageService {
     private readonly agents: MistralAgentsService,
     private readonly prompts: PromptBuilderService,
     private readonly usage: AiUsageTrackerService,
-    @InjectRepository(BrandProfiles)
-    private readonly brandRepo: Repository<BrandProfiles>,
+    private readonly brandProfiles: BrandProfilesService,
+    @InjectRepository(ContentItems)
+    private readonly contentRepo: Repository<ContentItems>,
     @InjectRepository(MediaAssets)
     private readonly mediaRepo: Repository<MediaAssets>,
   ) {}
@@ -28,8 +30,16 @@ export class GenerateImageService {
   }) {
     await this.usage.assertWithinLimit(params.tenantId, params.userId);
 
-    const brand = await this.brandRepo.findOne({
-      where: { tenantId: params.tenantId, userId: params.userId },
+    let workspaceId: string | undefined;
+    if (params.contentId) {
+      const item = await this.contentRepo.findOne({ where: { id: params.contentId } });
+      workspaceId = item?.workspaceId;
+    }
+
+    const brand = await this.brandProfiles.resolveForContext({
+      tenantId: params.tenantId,
+      userId: params.userId,
+      workspaceId,
     });
     const brandCtx = this.prompts.brandFromEntity(brand);
     const fullPrompt = [

@@ -16,6 +16,7 @@ fi
 
 mkdir -p logs /var/log/pm2 2>/dev/null || sudo mkdir -p /var/log/pm2
 npm run build
+npm run db:sync
 npm run migrations:run
 npm run pm2:start
 npm run pm2:save

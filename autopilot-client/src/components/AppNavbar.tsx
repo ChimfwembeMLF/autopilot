@@ -2,12 +2,13 @@ import { useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Zap, Settings, CreditCard, ChevronsUpDown, Building2,
-  Menu, LogOut, Rocket, ChevronRight, Search, Sparkles,
+  Menu, LogOut, Rocket, ChevronRight, Search, Sparkles, Layers,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch, GlobalSearchTrigger, useGlobalSearchShortcut } from "@/components/GlobalSearch";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { NavLink } from "@/components/NavLink";
 import Logo from "./Logo";
 import {
   NAV_GROUPS, MORE_ITEMS, filterNavItems, type NavGroup,
@@ -96,13 +98,13 @@ function TenantSwitcher() {
       <DropdownMenuTrigger asChild>
         <button className="hidden sm:flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs hover:bg-muted/70 transition-colors max-w-[180px]">
           <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium">{tenant?.name ?? "Workspace"}</span>
+          <span className="truncate font-medium">{tenant?.name ?? "Organization"}</span>
           {tenants.length > 1 && <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Active workspace
+          Organization
         </DropdownMenuLabel>
         <DropdownMenuItem disabled className="font-medium flex-wrap gap-1">
           <span className="truncate">{tenant?.name}</span>
@@ -126,6 +128,55 @@ function TenantSwitcher() {
             ))}
           </>
         )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function WorkspaceSwitcher() {
+  const { workspaces, activeWorkspace, setActiveWorkspace, loading } = useWorkspace();
+  const activeName =
+    workspaces.find((w: { id: string }) => w.id === activeWorkspace)?.name ?? "Workspace";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="hidden sm:flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs hover:bg-muted/70 transition-colors max-w-[180px]">
+          <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{loading ? "Loading…" : activeName}</span>
+          {workspaces.length > 0 && <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Switch workspace
+        </DropdownMenuLabel>
+        {workspaces.length === 0 ? (
+          <DropdownMenuItem asChild>
+            <Link to="/workspaces">
+              <Layers className="h-3.5 w-3.5 mr-2" />
+              Create a workspace
+            </Link>
+          </DropdownMenuItem>
+        ) : (
+          workspaces.map((ws: { id: string; name: string }) => (
+            <DropdownMenuItem
+              key={ws.id}
+              onClick={() => setActiveWorkspace(ws.id)}
+              className={cn(ws.id === activeWorkspace && "font-semibold")}
+            >
+              <Layers className="h-3.5 w-3.5 mr-2 shrink-0" />
+              <span className="truncate">{ws.name}</span>
+            </DropdownMenuItem>
+          ))
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/workspaces">
+            <Building2 className="h-3.5 w-3.5 mr-2" />
+            Manage workspaces
+          </Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -171,6 +222,9 @@ function MobileNav() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const { canAny, isSuperAdmin, loading } = usePermissions();
+  const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspace();
+  const activeWorkspaceName =
+    workspaces.find((w: { id: string }) => w.id === activeWorkspace)?.name ?? "Workspace";
   const visibleMore = filterNavItems(MORE_ITEMS, canAny, isSuperAdmin, loading);
 
   return (
@@ -180,8 +234,8 @@ function MobileNav() {
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-80 p-0">
-        <SheetHeader className="p-4 border-b text-left">
+      <SheetContent side="left" className="flex h-full max-h-[100dvh] w-80 flex-col overflow-hidden p-0">
+        <SheetHeader className="shrink-0 border-b p-4 pr-12 text-left">
           <SheetTitle className="flex items-center gap-2 font-display">
             <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
               <Rocket className="h-4 w-4 text-primary-foreground" />
@@ -189,7 +243,45 @@ function MobileNav() {
             Mako
           </SheetTitle>
         </SheetHeader>
-        <div className="overflow-y-auto p-4 space-y-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-6">
+          <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-1">Workspace</p>
+            {workspaces.length === 0 ? (
+              <Link
+                to="/workspaces"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
+              >
+                <Layers className="h-4 w-4" /> Create a workspace
+              </Link>
+            ) : (
+              workspaces.map((ws: { id: string; name: string }) => (
+                <button
+                  key={ws.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkspace(ws.id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-left transition-colors",
+                    ws.id === activeWorkspace ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted",
+                  )}
+                >
+                  <Layers className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{ws.name}</span>
+                </button>
+              ))
+            )}
+            <Link
+              to="/workspaces"
+              onClick={() => setOpen(false)}
+              className="block px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Manage workspaces ({activeWorkspaceName})
+            </Link>
+          </div>
+
           <Link
             to="/dashboard"
             onClick={() => setOpen(false)}
@@ -338,6 +430,7 @@ export function AppNavbar() {
               </Link>
             </Button>
             <NotificationBell />
+            <WorkspaceSwitcher />
             <TenantSwitcher />
             <UserMenu />
           </div>

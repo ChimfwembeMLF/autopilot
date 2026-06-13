@@ -1,43 +1,102 @@
-import { useState, useEffect, useCallback } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '@/lib/api';
 import { useTenant } from '@/hooks/useTenant';
 
-export function useWorkspace() {
+const STORAGE_KEY = 'active_workspace';
+
+type WorkspaceRow = { id: string; name: string };
+
+type WorkspaceContextValue = {
+  workspaces: WorkspaceRow[];
+  activeWorkspace: string | null;
+  defaultWorkspaceId: string | null;
+  setActiveWorkspace: (id: string) => void;
+  loading: boolean;
+  refetch: () => Promise<void>;
+  /** Bumps on every workspace switch so pages can refetch scoped data. */
+  workspaceVersion: number;
+};
+
+const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+
+export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { tenant } = useTenant();
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [activeWorkspace, setActiveWorkspace] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [workspaces, setWorkspaces] = useState<WorkspaceRow[]>([]);
+  const [activeWorkspace, setActiveWorkspaceState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [workspaceVersion, setWorkspaceVersion] = useState(0);
 
   const load = useCallback(async () => {
     if (!tenant) {
       setWorkspaces([]);
-      setActiveWorkspace(null);
+      setActiveWorkspaceState(null);
       return;
     }
     setLoading(true);
     try {
       const data = await workspacesApi.findAll(tenant.id);
-      const list = Array.isArray(data) ? data : [];
+      const list = (Array.isArray(data) ? data : []) as WorkspaceRow[];
       setWorkspaces(list);
-      const stored = localStorage.getItem('active_workspace');
-      if (stored && list.find((w: { id: string }) => w.id === stored)) {
-        setActiveWorkspace(stored);
-      } else if (list.length) {
-        setActiveWorkspace(list[0].id);
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored && list.some((w) => w.id === stored)) {
+        setActiveWorkspaceState(stored);
+      } else {
+        setActiveWorkspaceState(list[0]?.id ?? null);
+        if (list[0]?.id) localStorage.setItem(STORAGE_KEY, list[0].id);
       }
     } catch {
       setWorkspaces([]);
+      setActiveWorkspaceState(null);
     } finally {
       setLoading(false);
     }
   }, [tenant]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const switchWorkspace = (id: string) => {
-    setActiveWorkspace(id);
-    localStorage.setItem('active_workspace', id);
-  };
+  const setActiveWorkspace = useCallback(
+    (id: string) => {
+      if (id === activeWorkspace) return;
+      setActiveWorkspaceState(id);
+      localStorage.setItem(STORAGE_KEY, id);
+      setWorkspaceVersion((v) => v + 1);
+      void queryClient.invalidateQueries();
+    },
+    [activeWorkspace, queryClient],
+  );
 
-  return { workspaces, activeWorkspace, setActiveWorkspace: switchWorkspace, loading, refetch: load };
+  const value = useMemo(
+    () => ({
+      workspaces,
+      activeWorkspace,
+      defaultWorkspaceId: activeWorkspace,
+      setActiveWorkspace,
+      loading,
+      refetch: load,
+      workspaceVersion,
+    }),
+    [workspaces, activeWorkspace, setActiveWorkspace, loading, load, workspaceVersion],
+  );
+
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+}
+
+export function useWorkspace(): WorkspaceContextValue {
+  const ctx = useContext(WorkspaceContext);
+  if (!ctx) {
+    throw new Error('useWorkspace must be used within WorkspaceProvider');
+  }
+  return ctx;
 }

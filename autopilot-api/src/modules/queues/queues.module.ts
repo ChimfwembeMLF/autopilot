@@ -19,6 +19,7 @@ import { EmailProcessor } from './processors/email.processor';
 import { AiProcessor } from './processors/ai.processor';
 import { ContentItemsModule } from '../content_items/content_items.module';
 import { ContentPublishingModule } from '../content-publishing/content-publishing.module';
+import { ChatbotModule } from '../chatbot/chatbot.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadSourcesModule } from '../lead_sources/lead_sources.module';
@@ -65,6 +66,7 @@ import { TenantQueueFanoutService } from './tenant-queue-fanout.service';
     ),
     forwardRef(() => ContentItemsModule),
     forwardRef(() => ContentPublishingModule),
+    forwardRef(() => ChatbotModule),
     forwardRef(() => WhatsappModule),
     forwardRef(() => LeadsModule),
     LeadSourcesModule,

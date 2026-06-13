@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { mediaApi } from "@/lib/api";
 import { normalizeMediaAsset, resolveMediaUrl, type MediaAsset } from "@/lib/mediaUrl";
 import { Input } from "./ui/input";
@@ -13,10 +14,13 @@ interface MediaUploadProps {
   label?: string;
   disabled?: boolean;
   contentId?: string;
+  workspaceId?: string | null;
 }
 
-export function MediaUpload({ onUpload, label, disabled, contentId }: MediaUploadProps) {
+export function MediaUpload({ onUpload, label, disabled, contentId, workspaceId }: MediaUploadProps) {
   const { tenant } = useTenant();
+  const { activeWorkspace } = useWorkspace();
+  const scopedWorkspaceId = workspaceId ?? activeWorkspace ?? undefined;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
@@ -25,9 +29,9 @@ export function MediaUpload({ onUpload, label, disabled, contentId }: MediaUploa
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const loadLibrary = useCallback(async () => {
-    if (!tenant) return;
+    if (!tenant || !scopedWorkspaceId) return;
     try {
-      const rows = await mediaApi.findAll(tenant.id);
+      const rows = await mediaApi.findAll(tenant.id, scopedWorkspaceId);
       setLibraryFiles(
         (Array.isArray(rows) ? rows : []).map((r) =>
           normalizeMediaAsset(r as Record<string, unknown>),
@@ -36,7 +40,7 @@ export function MediaUpload({ onUpload, label, disabled, contentId }: MediaUploa
     } catch {
       setLibraryFiles([]);
     }
-  }, [tenant]);
+  }, [tenant, scopedWorkspaceId]);
 
   useEffect(() => {
     void loadLibrary();
@@ -63,10 +67,10 @@ export function MediaUpload({ onUpload, label, disabled, contentId }: MediaUploa
   }
 
   const uploadFile = useCallback(async (file: File) => {
-    if (!tenant) return;
+    if (!tenant || !scopedWorkspaceId) return;
     setUploading(true);
     try {
-      const asset = await mediaApi.upload(file, tenant.id, contentId);
+      const asset = await mediaApi.upload(file, tenant.id, contentId, scopedWorkspaceId);
       const normalized = normalizeMediaAsset(asset as Record<string, unknown>);
       const type = normalized.mediaType === "video" ? "video" : "image";
       onUpload(normalized.mediaUrl, type, normalized.id);
@@ -82,7 +86,7 @@ export function MediaUpload({ onUpload, label, disabled, contentId }: MediaUploa
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, [tenant, contentId, onUpload, toast]);
+  }, [tenant, contentId, scopedWorkspaceId, onUpload, toast]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();

@@ -7,6 +7,7 @@ import { ChatbotApiKeysCard } from "@/components/chatbot/ChatbotApiKeysCard";
 import { ChatbotIntegrationExamples } from "@/components/chatbot/ChatbotIntegrationExamples";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { usePermissions } from "@/hooks/usePermissions";
 import { P } from "@/lib/permissions";
 import { chatbotApi, knowledgeApi, resolveApiBaseUrl, type ChatMessage, type ChatbotConfig } from "@/lib/api";
@@ -47,9 +48,11 @@ type WidgetThemeDraft = {
 
 export default function ChatbotPage() {
   const { tenant } = useTenant();
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const tenantId = tenant?.id ?? "";
+  const workspaceId = activeWorkspace ?? undefined;
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -69,9 +72,9 @@ export default function ChatbotPage() {
     }));
 
   const configQuery = useQuery({
-    queryKey: ["chatbot-config", tenantId],
-    queryFn: () => chatbotApi.getConfig(tenantId),
-    enabled: Boolean(tenantId) && can(P.chatbot.view),
+    queryKey: ["chatbot-config", tenantId, activeWorkspace],
+    queryFn: () => chatbotApi.getConfig(tenantId, workspaceId),
+    enabled: Boolean(tenantId && activeWorkspace) && can(P.chatbot.view),
   });
 
   useEffect(() => {
@@ -89,53 +92,58 @@ export default function ChatbotPage() {
   }, [avatarMode, widgetTheme.avatarModelUrl]);
 
   const startSession = useCallback(async () => {
-    if (!tenantId || !can(P.chatbot.use)) return;
-    const session = await chatbotApi.createSession(tenantId);
+    if (!tenantId || !workspaceId || !can(P.chatbot.use)) return;
+    const session = await chatbotApi.createSession(tenantId, workspaceId);
     setSessionId(session.id);
-    const msgs = await chatbotApi.getMessages(tenantId, session.id);
+    const msgs = await chatbotApi.getMessages(tenantId, session.id, workspaceId);
     setMessages(msgs);
-  }, [tenantId, can]);
+  }, [tenantId, workspaceId, can]);
 
   useEffect(() => {
-    if (tenantId && can(P.chatbot.use) && !sessionId) {
+    setSessionId(null);
+    setMessages([]);
+  }, [activeWorkspace, workspaceVersion]);
+
+  useEffect(() => {
+    if (tenantId && workspaceId && can(P.chatbot.use) && !sessionId) {
       void startSession();
     }
-  }, [tenantId, can, sessionId, startSession]);
+  }, [tenantId, workspaceId, can, sessionId, startSession]);
 
   const saveConfig = useMutation({
-    mutationFn: () => chatbotApi.updateConfig({ tenantId, ...draft }),
+    mutationFn: () => chatbotApi.updateConfig({ tenantId, workspaceId, ...draft }),
     onSuccess: () => {
       toast.success("Chatbot settings saved");
-      void queryClient.invalidateQueries({ queryKey: ["chatbot-config", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["chatbot-config", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const uploadAvatar = useMutation({
-    mutationFn: (file: File) => chatbotApi.uploadAvatar(file, tenantId),
+    mutationFn: (file: File) => chatbotApi.uploadAvatar(file, tenantId, workspaceId),
     onSuccess: (config) => {
       setDraft(config);
       toast.success("Avatar updated");
-      void queryClient.invalidateQueries({ queryKey: ["chatbot-config", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["chatbot-config", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const uploadKnowledge = useMutation({
-    mutationFn: (file: File) => knowledgeApi.upload(file, tenantId),
+    mutationFn: (file: File) => knowledgeApi.upload(file, tenantId, workspaceId),
     onSuccess: () => {
       toast.success("Document uploaded — indexing started");
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge-docs", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const uploadAvatarModel = useMutation({
-    mutationFn: (file: File) => chatbotApi.uploadAvatarModel(file, tenantId),
+    mutationFn: (file: File) => chatbotApi.uploadAvatarModel(file, tenantId, workspaceId),
     onSuccess: (config) => {
       setDraft(config);
       toast.success("3D avatar model uploaded");
-      void queryClient.invalidateQueries({ queryKey: ["chatbot-config", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["chatbot-config", tenantId, activeWorkspace] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -151,7 +159,7 @@ export default function ChatbotPage() {
     };
     setMessages((prev) => [...prev, optimistic]);
     try {
-      const res = await chatbotApi.sendMessage(tenantId, sessionId, content);
+      const res = await chatbotApi.sendMessage(tenantId, sessionId, content, workspaceId);
       const assistant: ChatMessage = {
         id: res.messageId,
         role: "assistant",
@@ -182,7 +190,7 @@ export default function ChatbotPage() {
     : `<script async src="${window.location.origin}/widget/v1/loader.js" data-key="pk_live_YOUR_KEY" data-api="${apiBase}"></script>`;
 
   return (
-    <div className="container max-w-6xl py-6 space-y-6">
+    <div className="container max-w-6xl space-y-6">
       <div className="flex items-center gap-3">
         <div className="p-2.5 rounded-xl gradient-primary text-white">
           <Bot className="h-6 w-6" />

@@ -49,6 +49,7 @@ export class CommentRepliesController {
         .enqueueSyncTenantComments({
           tenantId: dto.tenantId,
           userId,
+          workspaceId: dto.workspaceId,
           runAutoReply: true,
         })
         .then(({ jobId, queue }) => ({ queued: true, jobId, queue }));
@@ -56,6 +57,7 @@ export class CommentRepliesController {
     return this.fetchComments.fetchForTenant({
       tenantId: dto.tenantId,
       userId,
+      workspaceId: dto.workspaceId,
       runAutoReply: true,
     });
   }
@@ -95,8 +97,9 @@ export class CommentRepliesController {
   getInbox(
     @Query('tenantId') tenantId: string,
     @Query('contentId') contentId?: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
-    return this.inbox.getInbox(tenantId, contentId);
+    return this.inbox.getInbox(tenantId, contentId, workspaceId);
   }
 
   @Get()

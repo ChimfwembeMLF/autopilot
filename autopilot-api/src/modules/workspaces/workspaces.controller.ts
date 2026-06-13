@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -16,6 +17,10 @@ import { WorkspacesCreateDto } from './dto/create-workspaces.dto';
 import { WorkspacesUpdateDto } from './dto/update-workspaces.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+interface JwtUser {
+  sub: string;
+}
+
 @ApiTags('Workspaces')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
@@ -24,8 +29,11 @@ export class WorkspacesController {
   constructor(private readonly service: WorkspacesService) {}
 
   @Post()
-  create(@Body() dto: WorkspacesCreateDto): Promise<Workspaces> {
-    return this.service.create(dto);
+  create(
+    @Req() req: { user: JwtUser },
+    @Body() dto: WorkspacesCreateDto,
+  ): Promise<Workspaces> {
+    return this.service.create(dto, String(req.user.sub));
   }
 
   @Get()

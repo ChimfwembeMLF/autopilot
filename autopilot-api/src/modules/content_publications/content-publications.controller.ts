@@ -21,9 +21,12 @@ export class ContentPublicationsController {
   ) {}
 
   @Get()
-  findByTenant(@Query('tenantId') tenantId: string) {
+  findByTenant(
+    @Query('tenantId') tenantId: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
     if (!tenantId) return [];
-    return this.service.findPublishedForTenant(tenantId);
+    return this.service.findPublishedForTenant(tenantId, workspaceId);
   }
 
   @Get('content/:contentId')
@@ -32,17 +35,21 @@ export class ContentPublicationsController {
   }
 
   @Get('top-performing')
-  topPerforming(@Query('tenantId') tenantId: string, @Query('limit') limit?: string) {
-    return this.insights.getTopPerforming(tenantId, Number(limit ?? 5));
+  topPerforming(
+    @Query('tenantId') tenantId: string,
+    @Query('limit') limit?: string,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
+    return this.insights.getTopPerforming(tenantId, Number(limit ?? 5), workspaceId);
   }
 
   @Post('sync-engagement')
   syncEngagement(
     @Req() req: { user: JwtUser },
-    @Body() body: { tenantId: string },
+    @Body() body: { tenantId: string; workspaceId?: string },
   ) {
     return this.engagement
-      .syncForTenant(body.tenantId, String(req.user.sub))
+      .syncForTenant(body.tenantId, String(req.user.sub), body.workspaceId)
       .then((updated) => ({ updated }));
   }
 }

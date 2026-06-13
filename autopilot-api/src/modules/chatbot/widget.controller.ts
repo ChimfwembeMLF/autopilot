@@ -32,6 +32,8 @@ import {
 } from './dto/widget-response.dto';
 import type { ApiKeyValidation } from './services/chat-api-key.service';
 import { stripMarkdownForSpeech } from './utils/strip-markdown.util';
+import { WidgetSuggestionsService } from './services/widget-suggestions.service';
+import { WidgetSuggestionsDto } from './dto/widget-suggestions.dto';
 
 @ApiTags('Widget')
 @Controller('api/v1/widget')
@@ -39,6 +41,7 @@ export class WidgetController {
   constructor(
     private readonly sessions: ChatSessionService,
     private readonly mistral: MistralChatService,
+    private readonly widgetSuggestions: WidgetSuggestionsService,
   ) {}
 
   @Get('config')
@@ -57,6 +60,7 @@ export class WidgetController {
       theme: config.widgetTheme ?? {},
       isActive: config.isActive,
       ttsEnabled: config.widgetTtsEnabled ?? false,
+      suggestions: this.widgetSuggestions.getStarterSuggestions(config),
     };
   }
 
@@ -88,6 +92,27 @@ export class WidgetController {
         visitorId,
         welcomeMessageId: (session as { welcomeMessageId?: string }).welcomeMessageId,
       }));
+  }
+
+  @Post('sessions/:id/suggestions')
+  @UseGuards(WidgetApiKeyGuard)
+  @ApiBearerAuth('widget-api-key')
+  @ApiOperation({ summary: 'AI follow-up prompt suggestions (max 3)' })
+  async getSuggestions(
+    @Req() req: { widgetAuth: ApiKeyValidation },
+    @Param('id') sessionId: string,
+    @Body() dto: WidgetSuggestionsDto,
+  ) {
+    const { config, key } = req.widgetAuth;
+    await this.sessions.getSession(key.tenantId, sessionId);
+    const suggestions = dto.lastAssistantMessage?.trim()
+      ? await this.widgetSuggestions.getFollowUpSuggestions({
+          tenantId: key.tenantId,
+          config,
+          lastAssistantMessage: dto.lastAssistantMessage,
+        })
+      : this.widgetSuggestions.getStarterSuggestions(config);
+    return { suggestions: suggestions.slice(0, 3) };
   }
 
   @Post('sessions/:id/messages')

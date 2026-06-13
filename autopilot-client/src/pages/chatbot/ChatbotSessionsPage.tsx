@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { History, MessageSquare } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { usePermissions } from "@/hooks/usePermissions";
 import { P } from "@/lib/permissions";
 import { chatbotApi } from "@/lib/api";
@@ -12,20 +13,22 @@ import { cn } from "@/lib/utils";
 
 export default function ChatbotSessionsPage() {
   const { tenant } = useTenant();
+  const { activeWorkspace } = useWorkspace();
   const { can } = usePermissions();
   const tenantId = tenant?.id ?? "";
+  const workspaceId = activeWorkspace ?? undefined;
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const sessionsQuery = useQuery({
-    queryKey: ["chatbot-sessions", tenantId],
-    queryFn: () => chatbotApi.listSessions(tenantId),
-    enabled: Boolean(tenantId) && can(P.chatbot.view),
+    queryKey: ["chatbot-sessions", tenantId, activeWorkspace],
+    queryFn: () => chatbotApi.listSessions(tenantId, undefined, workspaceId),
+    enabled: Boolean(tenantId && activeWorkspace) && can(P.chatbot.view),
   });
 
   const messagesQuery = useQuery({
-    queryKey: ["chatbot-messages", tenantId, selectedId],
-    queryFn: () => chatbotApi.getMessages(tenantId, selectedId!),
-    enabled: Boolean(tenantId && selectedId),
+    queryKey: ["chatbot-messages", tenantId, activeWorkspace, selectedId],
+    queryFn: () => chatbotApi.getMessages(tenantId, selectedId!, workspaceId),
+    enabled: Boolean(tenantId && activeWorkspace && selectedId),
   });
 
   if (!can(P.chatbot.view)) {

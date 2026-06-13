@@ -1,15 +1,34 @@
 import { useState } from 'react';
 import { Brain, Pen, CalendarClock, BarChart3, MessageSquareReply, Link2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+export type ScreenshotDevice = 'desktop' | 'tablet' | 'phone';
+
+const DEVICE_SIZE_CLASS: Record<ScreenshotDevice, string> = {
+  desktop: 'w-full',
+  tablet: 'w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto',
+  phone: 'w-full max-w-[200px] sm:max-w-[260px] md:max-w-[300px] mx-auto',
+};
 
 export function BrowserChrome({
   children,
   url = 'app.autopilot.co',
   className = '',
+  chrome = true,
 }: {
   children: React.ReactNode;
   url?: string;
   className?: string;
+  chrome?: boolean;
 }) {
+  if (!chrome) {
+    return (
+      <div className={`overflow-hidden ${className}`}>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div
       className={`rounded-2xl border bg-card shadow-2xl overflow-hidden ${className}`}
@@ -36,32 +55,44 @@ export function ScreenshotFrame({
   mock,
   url,
   className = '',
+  bare = false,
+  device = 'desktop',
 }: {
   src: string;
   alt: string;
   mock: React.ReactNode;
   url?: string;
   className?: string;
+  bare?: boolean;
+  device?: ScreenshotDevice;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   return (
-    <BrowserChrome url={url} className={className}>
-      <div className="relative">
-        {!failed && (
-          <img
-            src={src}
-            alt={alt}
-            className={`w-full block transition-opacity duration-500 ${loaded ? 'opacity-100 relative' : 'opacity-0 absolute inset-0 pointer-events-none'}`}
-            onLoad={() => setLoaded(true)}
-            onError={() => setFailed(true)}
-            loading="lazy"
-          />
-        )}
-        {(!loaded || failed) && mock}
-      </div>
-    </BrowserChrome>
+    <div className={cn(DEVICE_SIZE_CLASS[device], className)}>
+      <BrowserChrome url={url} chrome={!bare}>
+        <div className="relative">
+          {!failed && (
+            <img
+              src={src}
+              alt={alt}
+              className={cn(
+                'w-full h-auto block transition-opacity duration-500',
+                loaded ? 'opacity-100 relative' : 'opacity-0 absolute inset-0 pointer-events-none',
+                bare && 'rounded-2xl shadow-2xl',
+                device === 'phone' && bare && 'rounded-[2rem] shadow-xl ring-1 ring-black/5',
+                device === 'tablet' && bare && 'rounded-xl shadow-xl',
+              )}
+              onLoad={() => setLoaded(true)}
+              onError={() => setFailed(true)}
+              loading="lazy"
+            />
+          )}
+          {(!loaded || failed) && mock}
+        </div>
+      </BrowserChrome>
+    </div>
   );
 }
 

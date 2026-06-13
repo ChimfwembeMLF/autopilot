@@ -1,13 +1,4 @@
-import {
-  IsString,
-  IsOptional,
-  IsUUID,
-  IsBoolean,
-  IsDate,
-  IsArray,
-  IsNumber,
-  IsInt,
-} from 'class-validator';
+import { IsString, IsOptional, IsUUID } from 'class-validator';
 
 export class WorkspacesUpdateDto {
   @IsOptional()
@@ -25,12 +16,4 @@ export class WorkspacesUpdateDto {
   @IsOptional()
   @IsString()
   logoUrl?: string;
-
-  @IsOptional()
-  @IsDate()
-  createdAt?: Date;
-
-  @IsOptional()
-  @IsDate()
-  updatedAt?: Date;
 }

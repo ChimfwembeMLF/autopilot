@@ -4,6 +4,7 @@ import {
   IsUUID,
   IsDate,
   IsArray,
+  IsObject,
 } from 'class-validator';
 
 export class ContentItemsUpdateDto {
@@ -49,6 +50,7 @@ export class ContentItemsUpdateDto {
   platforms?: string[];
 
   @IsOptional()
+  @IsObject()
   platformPayloads?: Record<string, unknown>;
 
   @IsOptional()

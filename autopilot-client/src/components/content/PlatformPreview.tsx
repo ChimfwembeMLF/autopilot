@@ -3,9 +3,10 @@ import { MessageCircle, Share2, ThumbsUp } from 'lucide-react';
 import {
   platformOf,
   PlatformPayload,
-  stripHtml,
   validatePlatformPayload,
 } from '@/lib/platforms';
+import { RichTextContent } from '@/components/RichTextContent';
+import { htmlToPlainText } from '@/lib/rich-text';
 import { cn } from '@/lib/utils';
 import { AlertTriangle } from 'lucide-react';
 import {
@@ -41,9 +42,10 @@ export function PlatformPreview({
 }: PlatformPreviewProps) {
   const def = platformOf(platform);
   const Icon = def.icon;
-  const text = stripHtml(payload.content);
-  const media = payload.media ?? [];
+  const richHtml = payload.content ?? '';
+  const plainCaption = htmlToPlainText(richHtml);
   const validation = validatePlatformPayload(platform, payload);
+  const media = payload.media ?? [];
   const isPublished = mode === 'published';
   const displayName = authorName ?? 'Tekrem Innvation Solutions';
 
@@ -118,9 +120,21 @@ export function PlatformPreview({
   const contentBlock = (
     <div className="px-4 py-3">
       {titleBlock}
-      <p className="text-sm whitespace-pre-wrap leading-relaxed">
-        {text || (isPublished ? '' : 'Your post content will appear here…')}
-      </p>
+      {isPublished ? (
+        <p className="text-sm whitespace-pre-wrap leading-relaxed">
+          {plainCaption || ''}
+        </p>
+      ) : (
+        <RichTextContent
+          html={richHtml}
+          emptyPlaceholder="Your post content will appear here…"
+        />
+      )}
+      {!isPublished && richHtml && plainCaption !== richHtml.replace(/<[^>]*>/g, '').trim() && (
+        <p className="text-[10px] text-muted-foreground mt-2 border-t pt-2">
+          Live on {def.label}: formatting becomes plain text; links stay as URLs.
+        </p>
+      )}
     </div>
   );
 
@@ -137,7 +151,7 @@ export function PlatformPreview({
         <div className="p-4 space-y-3 text-sm">
           <p className="font-semibold">{payload.title || 'Subject line'}</p>
           {images.length > 0 && mediaBlock}
-          <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{text}</p>
+          <RichTextContent html={richHtml} className="text-muted-foreground" />
         </div>
         {charFooter}
       </div>
@@ -156,7 +170,9 @@ export function PlatformPreview({
         <div className="p-4">
           {(images[0] || videos[0]) && mediaBlock}
           <p className="font-semibold text-sm">{payload.title}</p>
-          <p className="text-sm text-muted-foreground mt-1">{text}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            <RichTextContent html={richHtml} />
+          </p>
           <span className="inline-block mt-3 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground">
             Learn more
           </span>

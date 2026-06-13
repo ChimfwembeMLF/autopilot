@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useFormSuggestions } from "@/hooks/useFormSuggestions";
 import { SuggestedField } from "@/components/form/SuggestedField";
 import { brandProfilesApi } from "@/lib/api";
@@ -167,7 +168,7 @@ const sections: Array<{ id: string; label: string; icon: typeof Building2; field
   },
 ];
 
-const BrandBrain = () => {
+const BrandBrainInner = () => {
   const [data, setData] = useState<BrandData>(initialData);
   const [activeTab, setActiveTab] = useState("company");
   const [saving, setSaving] = useState(false);
@@ -176,6 +177,8 @@ const BrandBrain = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { tenant, loading: tenantLoading } = useTenant();
+  const { activeWorkspace, workspaces, workspaceVersion, loading: workspaceLoading } = useWorkspace();
+  const activeWorkspaceName = workspaces.find((w: { id: string }) => w.id === activeWorkspace)?.name;
 
   const [loading, setLoading] = useState(true);
 
@@ -205,10 +208,23 @@ const BrandBrain = () => {
   });
 
   useEffect(() => {
-    if (!user || !tenant) return;
+    if (!user || !tenant || workspaceLoading) return;
+    if (workspaces.length > 0 && !activeWorkspace) return;
+
+    const workspaceId = activeWorkspace ?? undefined;
+    let cancelled = false;
+
+    setData(initialData);
+    setScrapeUrl('');
+    setLoading(true);
+
     const load = async () => {
       try {
-        const row = await brandProfilesApi.getMine(tenant.id);
+        const row = await brandProfilesApi.getMine(tenant.id, workspaceId);
+        if (cancelled) return;
+        if (workspaceId && row?.id && String(row.workspaceId ?? "") !== workspaceId) {
+          return;
+        }
         if (row?.id) {
           const d = fromApi(row as Record<string, unknown>);
           setData(d);
@@ -217,11 +233,15 @@ const BrandBrain = () => {
       } catch {
         /* empty profile */
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    load();
-  }, [user, tenant]);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, tenant, activeWorkspace, workspaceVersion, workspaceLoading, workspaces.length]);
 
   const updateField = (key: keyof BrandData, value: string) => {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -277,10 +297,19 @@ const BrandBrain = () => {
 
   const handleSave = async () => {
     if (!user || !tenant) return;
+    if (workspaces.length > 0 && !activeWorkspace) {
+      toast({
+        title: "No workspace selected",
+        description: "Choose a workspace in the top navbar before saving Brand Brain.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     try {
       await brandProfilesApi.save({
         tenantId: tenant.id,
+        workspaceId: activeWorkspace ?? undefined,
         ...toApi(data),
       });
       toast({ title: "Brand Brain saved", description: "Your brand profile has been updated." });
@@ -295,7 +324,7 @@ const BrandBrain = () => {
     }
   };
 
-  if (loading || tenantLoading) {
+  if (loading || tenantLoading || workspaceLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-muted-foreground">Loading your Brand Brain...</div>
@@ -304,7 +333,7 @@ const BrandBrain = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 md:p-6">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
@@ -313,7 +342,9 @@ const BrandBrain = () => {
           <div>
             <h1 className="text-3xl font-bold font-display">Brand Brain</h1>
             <p className="text-muted-foreground text-sm">
-              Everything the AI needs to represent your brand accurately.
+              {activeWorkspaceName
+                ? `Brand profile for “${activeWorkspaceName}”. Switch workspace in the top navbar.`
+                : 'Create a workspace to set up Brand Brain.'}
             </p>
           </div>
         </div>
@@ -363,7 +394,11 @@ const BrandBrain = () => {
               <FileText className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium">Auto-fill from Document</span>
             </div>
-            <DocumentUpload onResult={handleParsedDocument} disabled={scraping} />
+            <DocumentUpload
+              onResult={handleParsedDocument}
+              disabled={scraping}
+              workspaceId={activeWorkspace}
+            />
           </CardContent>
         </Card>
       </div>
@@ -414,4 +449,9 @@ const BrandBrain = () => {
   );
 };
 
-export default BrandBrain;
+export default function BrandBrain() {
+  const { activeWorkspace, workspaceVersion } = useWorkspace();
+  return (
+    <BrandBrainInner key={`${activeWorkspace ?? "none"}-${workspaceVersion}`} />
+  );
+}

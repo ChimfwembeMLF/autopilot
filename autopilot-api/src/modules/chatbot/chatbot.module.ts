@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { AiModule } from '../ai/ai.module';
@@ -28,8 +28,8 @@ import { RagOrchestratorService } from './services/rag-orchestrator.service';
 import { MistralChatbotLibraryService } from './services/mistral-chatbot-library.service';
 import { ChatbotTtsVoiceService } from './services/chatbot-tts-voice.service';
 import { WidgetApiKeyGuard } from './guards/widget-api-key.guard';
-import { IngestDocumentProcessor } from './processors/ingest-document.processor';
 import { ChatbotWidgetSeedService } from './chatbot-widget-seed.service';
+import { WidgetSuggestionsService } from './services/widget-suggestions.service';
 
 @Module({
   imports: [
@@ -46,7 +46,7 @@ import { ChatbotWidgetSeedService } from './chatbot-widget-seed.service';
     AiModule,
     BrandProfilesModule,
     MediaModule,
-    QueuesModule,
+    forwardRef(() => QueuesModule),
     RbacModule,
   ],
   controllers: [ChatbotController, KnowledgeController, WidgetController],
@@ -62,8 +62,8 @@ import { ChatbotWidgetSeedService } from './chatbot-widget-seed.service';
     MistralChatbotLibraryService,
     ChatbotTtsVoiceService,
     WidgetApiKeyGuard,
-    IngestDocumentProcessor,
     ChatbotWidgetSeedService,
+    WidgetSuggestionsService,
   ],
   exports: [ChatbotConfigService, KnowledgeIngestService, ChatbotWidgetSeedService],
 })

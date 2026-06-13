@@ -12,14 +12,49 @@ export type PublishJobResult = {
   results?: Record<string, { published: boolean; message: string }>;
 };
 
+function truncateText(text: string, max = 120): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1).trimEnd()}…`;
+}
+
+function summarizePublishFailure(
+  results: Record<string, { published: boolean; message: string }>,
+): { title: string; description: string } {
+  const failed = Object.entries(results).filter(([, r]) => !r.published);
+  if (failed.length === 0) {
+    return {
+      title: 'Publish failed',
+      description: 'Check platform connections and try again.',
+    };
+  }
+
+  if (failed.length === 1) {
+    const [platform, result] = failed[0];
+    return {
+      title: `${platformOf(platform).label} publish failed`,
+      description: truncateText(result.message, 100),
+    };
+  }
+
+  const labels = failed.map(([p]) => platformOf(p).label).join(', ');
+  const firstError = truncateText(failed[0][1].message, 80);
+  return {
+    title: `${failed.length} platforms failed`,
+    description: `${labels}. ${firstError}`,
+  };
+}
+
 export async function submitPublish(
   contentId: string,
   platforms: string[] | undefined,
   platformPayloads: Record<string, unknown> | undefined,
   toast: PublishToast,
-  opts?: { waitInForeground?: boolean },
+  opts?: { waitInForeground?: boolean; contentType?: string },
 ): Promise<PublishJobResult> {
-  const response = await contentAiApi.publish(contentId, platforms, platformPayloads);
+  const response = await contentAiApi.publish(contentId, platforms, platformPayloads, {
+    contentType: opts?.contentType,
+  });
 
   if (response.queued && response.jobId != null && response.queue) {
     toast({
@@ -37,12 +72,10 @@ export async function submitPublish(
           description: `Content was sent to ${labels}.`,
         });
       } else {
-        const details = Object.entries(result?.results ?? {})
-          .map(([p, r]) => `${platformOf(p).label}: ${r.message}`)
-          .join('\n');
+        const failure = summarizePublishFailure(result?.results ?? {});
         toast({
-          title: 'Publish failed',
-          description: details || 'Check platform connections and try again.',
+          title: failure.title,
+          description: failure.description,
           variant: 'destructive',
         });
       }
@@ -64,12 +97,10 @@ export async function submitPublish(
       description: `Sent to ${labels}.`,
     });
   } else {
-    const details = Object.entries(response.results ?? {})
-      .map(([p, r]) => `${platformOf(p).label}: ${r.message}`)
-      .join('\n');
+    const failure = summarizePublishFailure(response.results ?? {});
     toast({
-      title: 'Publish failed',
-      description: details || 'Check platform connections.',
+      title: failure.title,
+      description: failure.description,
       variant: 'destructive',
     });
   }

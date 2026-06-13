@@ -10,6 +10,13 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { publishablePlatforms } from '@/lib/platform-capabilities';
+import {
+  htmlToPlainText,
+  htmlToPublishPlainText,
+  plainTextLength,
+  plainToHtml,
+  normalizeRichContent,
+} from '@/lib/rich-text';
 
 export interface PlatformMediaRules {
   maxAttachments: number;
@@ -217,7 +224,95 @@ export type PlatformPayload = {
 };
 
 export function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return htmlToPlainText(html);
+}
+
+export function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '');
+}
+
+export function formatPlainPostText(text: string): string {
+  return stripMarkdown(htmlToPlainText(text))
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function splitSentences(text: string): string[] {
+  return text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+}
+
+function appendInstagramHashtags(text: string): string {
+  if (/#\w+/.test(text)) return text;
+  return `${text}\n\n#Mako #Marketing #AI #SocialMedia #ContentCreation`.trim();
+}
+
+export function formatContentForPlatform(platform: string, raw: string): string {
+  const plain = formatPlainPostText(raw);
+  if (!plain) return '';
+
+  const key = platform.toLowerCase();
+
+  if (key === 'instagram') {
+    const sentences = splitSentences(plain);
+    if (sentences.length <= 2) return appendInstagramHashtags(plain);
+    const hook = sentences.slice(0, 2).join(' ');
+    const body = sentences.slice(2).join(' ');
+    return appendInstagramHashtags(`${hook}\n\n${body}`.trim());
+  }
+
+  if (key === 'facebook') {
+    const sentences = splitSentences(plain);
+    if (sentences.length <= 2) return plain;
+    const paragraphs: string[] = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+      paragraphs.push(sentences.slice(i, i + 2).join(' '));
+    }
+    return paragraphs.join('\n\n');
+  }
+
+  if (key === 'linkedin') {
+    return splitSentences(plain).join('\n\n');
+  }
+
+  if (key === 'twitter' || key === 'x') {
+    return plain.length > 280 ? `${plain.slice(0, 277).trimEnd()}…` : plain;
+  }
+
+  return plain;
+}
+
+export function payloadsAreDuplicates(
+  platforms: string[],
+  payloads: Record<string, PlatformPayload | undefined>,
+): boolean {
+  const normalized = platforms
+    .map((p) => formatPlainPostText(payloads[p]?.content ?? ''))
+    .filter(Boolean);
+  if (normalized.length < 2) return false;
+  const first = normalized[0];
+  return normalized.every((c) => c === first);
+}
+
+export function contentNeedsFormatting(text: string): boolean {
+  return /[*_`#]/.test(text ?? '') || /<[^>]+>/.test(text ?? '');
+}
+
+/** Plain text ready for a platform API (from HTML or plain source). */
+export function formatPublishText(platform: string, htmlOrText: string): string {
+  const fromHtml = htmlToPublishPlainText(htmlOrText, platform);
+  return formatContentForPlatform(platform, fromHtml);
 }
 
 export function trimMediaForPlatform(
@@ -273,12 +368,11 @@ export function validatePlatformPayload(
 ): PlatformValidation {
   const def = platformOf(platform);
   const rules = def.media;
-  const text = stripHtml(payload.content);
+  const charCount = plainTextLength(payload.content);
   const media = payload.media ?? [];
   const warnings: string[] = [];
   const errors: string[] = [];
 
-  const charCount = text.length;
   const overCharLimit = charCount > def.maxChars;
 
   if (overCharLimit) {
@@ -345,23 +439,19 @@ export function buildPlatformPayloads(
   platforms: string[],
   baseMedia: PlatformMediaAttachment[] = [],
 ): Record<string, PlatformPayload> {
-  const plain = stripHtml(baseContent);
   const out: Record<string, PlatformPayload> = {};
+  const richBase = normalizeRichContent(baseContent);
 
   for (const p of platforms) {
     const def = platformOf(p);
-    let content = plain;
+    const publishPlain = formatPublishText(p, richBase);
+    let content = plainToHtml(publishPlain);
 
-    if (p === 'twitter' && content.length > def.maxChars) {
-      content = content.slice(0, def.maxChars - 3) + '…';
-    } else if (p === 'linkedin') {
-      content = plain.length > 0 ? plain : baseTitle;
-    } else if (p === 'email') {
-      content = `Subject: ${baseTitle || 'Your update'}\n\n${plain}`;
-    } else if (p === 'ad_copy') {
-      content = plain.length > def.maxChars ? plain.slice(0, def.maxChars - 3) + '…' : plain;
-    } else if (content.length > def.maxChars) {
-      content = content.slice(0, def.maxChars - 3) + '…';
+    if (p === 'email') {
+      const plain = htmlToPlainText(richBase);
+      content = plainToHtml(`Subject: ${baseTitle || 'Your update'}\n\n${plain}`);
+    } else if (plainTextLength(content) > def.maxChars) {
+      content = plainToHtml(publishPlain.slice(0, def.maxChars - 3) + '…');
     }
 
     out[p] = {

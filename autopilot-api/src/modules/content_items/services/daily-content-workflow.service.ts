@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { BrandProfiles } from '../../brand_profiles/entities/brand_profiles.entity';
+import { BrandProfilesService } from '../../brand_profiles/brand_profiles.service';
 import { Workspaces } from '../../workspaces/entities/workspaces.entity';
 import { Tenants } from '../../tenants/entities/tenants.entity';
 import { GenerateContentService } from './generate-content.service';
@@ -14,8 +14,7 @@ export class DailyContentWorkflowService {
   constructor(
     private readonly generateContent: GenerateContentService,
     private readonly subscriptions: SubscriptionsService,
-    @InjectRepository(BrandProfiles)
-    private readonly brandRepo: Repository<BrandProfiles>,
+    private readonly brandProfiles: BrandProfilesService,
     @InjectRepository(Workspaces)
     private readonly workspaceRepo: Repository<Workspaces>,
     @InjectRepository(Tenants)
@@ -25,6 +24,7 @@ export class DailyContentWorkflowService {
   async run(params: {
     tenantId?: string;
     userId?: string;
+    workspaceId?: string;
   }): Promise<{ generated: number; skipped: number; errors: string[] }> {
     const targets = await this.resolveTargets(params);
     let generated = 0;
@@ -41,21 +41,23 @@ export class DailyContentWorkflowService {
           continue;
         }
 
-        const brand = await this.brandRepo.findOne({
-          where: { tenantId: target.tenantId, userId: target.userId },
+        const workspace = target.workspaceId
+          ? await this.workspaceRepo.findOne({ where: { id: target.workspaceId, tenantId: target.tenantId } })
+          : await this.workspaceRepo.findOne({ where: { tenantId: target.tenantId } });
+        if (!workspace) {
+          skipped++;
+          errors.push(`${target.tenantId}: no workspace found`);
+          continue;
+        }
+
+        const brand = await this.brandProfiles.resolveForContext({
+          tenantId: target.tenantId,
+          userId: target.userId,
+          workspaceId: workspace.id,
         });
         if (!brand?.companyName && !brand?.description) {
           skipped++;
           errors.push(`${target.tenantId}: brand profile incomplete — set up Brand Brain first`);
-          continue;
-        }
-
-        const workspace = await this.workspaceRepo.findOne({
-          where: { tenantId: target.tenantId },
-        });
-        if (!workspace) {
-          skipped++;
-          errors.push(`${target.tenantId}: no workspace found`);
           continue;
         }
 
@@ -77,7 +79,7 @@ export class DailyContentWorkflowService {
         });
 
         generated++;
-        this.logger.log(`Daily workflow generated content for tenant ${target.tenantId}`);
+        this.logger.log(`Daily workflow generated content for tenant ${target.tenantId} workspace ${workspace.id}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`${target.tenantId}: ${msg}`);
@@ -91,7 +93,8 @@ export class DailyContentWorkflowService {
   private async resolveTargets(params: {
     tenantId?: string;
     userId?: string;
-  }): Promise<Array<{ tenantId: string; userId: string }>> {
+    workspaceId?: string;
+  }): Promise<Array<{ tenantId: string; userId: string; workspaceId?: string }>> {
     if (params.tenantId) {
       let userId = params.userId;
       if (!userId) {
@@ -99,16 +102,24 @@ export class DailyContentWorkflowService {
         userId = tenant?.ownerId;
       }
       if (!userId) return [];
-      return [{ tenantId: params.tenantId, userId }];
+      return [{ tenantId: params.tenantId, userId, workspaceId: params.workspaceId }];
     }
 
     const eligibleTenantIds = await this.subscriptions.findEligibleForDailyCron();
-    const targets: Array<{ tenantId: string; userId: string }> = [];
+    const targets: Array<{ tenantId: string; userId: string; workspaceId?: string }> = [];
 
     for (const tenantId of eligibleTenantIds) {
-      const brand = await this.brandRepo.findOne({ where: { tenantId } });
+      const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+      if (!tenant?.ownerId) continue;
+      const workspace = await this.workspaceRepo.findOne({ where: { tenantId } });
+      if (!workspace) continue;
+      const brand = await this.brandProfiles.resolveForContext({
+        tenantId,
+        userId: tenant.ownerId,
+        workspaceId: workspace.id,
+      });
       if (!brand) continue;
-      targets.push({ tenantId, userId: brand.userId });
+      targets.push({ tenantId, userId: tenant.ownerId, workspaceId: workspace.id });
     }
 
     return targets;

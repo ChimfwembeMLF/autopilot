@@ -1,8 +1,12 @@
-import { IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class FetchCommentsDto {
   @IsUUID()
   tenantId: string;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
 }
 
 export class SendCommentReplyDto {

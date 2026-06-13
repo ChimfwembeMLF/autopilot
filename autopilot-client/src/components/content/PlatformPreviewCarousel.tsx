@@ -9,7 +9,8 @@ import {
 import { PlatformPreview } from './PlatformPreview';
 import { PlatformMediaEditor } from './PlatformMediaEditor';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { plainToHtml, normalizeRichContent } from '@/lib/rich-text';
+import RichTextEditor from '@/components/RichTextEditor';
 import { Button } from '@/components/ui/button';
 import {
   Carousel,
@@ -107,7 +108,7 @@ export function PlatformPreviewCarousel({
                       <PIcon className="h-4 w-4" style={{ color: def.color }} />
                       <span className="text-sm font-medium">{def.label}</span>
                       <span className="text-[10px] text-muted-foreground">
-                        · as it will be sent
+                        · draft preview
                       </span>
                     </div>
                     <PlatformPreview platform={p} payload={payload} />
@@ -183,13 +184,11 @@ export function PlatformPreviewCarousel({
                 <span className="text-destructive ml-1">(over limit)</span>
               )}
             </Label>
-            <Textarea
-              id={`edit-${activePlatform}`}
-              value={activePayload.content}
-              onChange={(e) => onEditPayload(activePlatform, { content: e.target.value })}
-              rows={4}
+            <RichTextEditor
+              value={normalizeRichContent(activePayload.content)}
+              onChange={(html) => onEditPayload(activePlatform, { content: html })}
               placeholder={`${activeDef.label} copy…`}
-              className="text-sm resize-y min-h-[100px]"
+              minHeight="120px"
             />
             <p className="text-[10px] text-muted-foreground">
               {activeValidation.charCount.toLocaleString()} / {activeDef.maxChars.toLocaleString()}{' '}

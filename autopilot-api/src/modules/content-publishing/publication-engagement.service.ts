@@ -8,6 +8,7 @@ import { SocialAccounts } from '../social_accounts/entities/social_accounts.enti
 import { YoutubePublishingService } from './youtube-publishing.service';
 import { SocialPublishAccountService } from './social-publish-account.service';
 import { summarizeAxiosError } from './publish-error.util';
+import { scopeWhere } from '../../common/workspace-scope.util';
 
 const GRAPH_API = 'https://graph.facebook.com/v20.0';
 
@@ -37,9 +38,13 @@ export class PublicationEngagementService {
     private readonly publishAccounts: SocialPublishAccountService,
   ) {}
 
-  async syncForTenant(tenantId: string, userId: string): Promise<number> {
+  async syncForTenant(
+    tenantId: string,
+    userId: string,
+    workspaceId?: string,
+  ): Promise<number> {
     const publications = await this.publicationsRepo.find({
-      where: { tenantId, status: 'published' },
+      where: { ...scopeWhere<ContentPublications>(tenantId, workspaceId), status: 'published' },
     });
 
     let updated = 0;
