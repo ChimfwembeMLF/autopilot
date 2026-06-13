@@ -17,6 +17,15 @@
     "start:dev": "NODE_ENV=development nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "NODE_ENV=production node dist/main",
+    "pm2:start": "mkdir -p logs && npx pm2 start ecosystem.config.cjs --env production",
+    "pm2:stop": "npx pm2 stop autopilot-api",
+    "pm2:restart": "npx pm2 restart autopilot-api --update-env",
+    "pm2:reload": "npx pm2 reload autopilot-api --update-env",
+    "pm2:delete": "npx pm2 delete autopilot-api",
+    "pm2:logs": "npx pm2 logs autopilot-api",
+    "pm2:status": "npx pm2 status autopilot-api",
+    "pm2:save": "npx pm2 save",
+    "deploy:pm2": "npm run build && npx pm2 restart ecosystem.config.cjs --env production --update-env",
     "seed:dev": "ts-node -r ./scripts/polyfill-crypto.ts -r tsconfig-paths/register scripts/seed.ts",
     "migrations:run": "typeorm-ts-node-commonjs migration:run -d database/data-source.ts",
     "migrations:revert": "typeorm-ts-node-commonjs migration:revert -d database/data-source.ts",
@@ -116,7 +125,8 @@
     "ts-jest": "^29",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "pm2": "^6.0.8"
   },
   "jest": {
     "moduleFileExtensions": [
