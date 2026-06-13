@@ -2,10 +2,10 @@ server:
   port: 5000
 db:
   username: 'mako'
-  password: 'mako@2026'
+  password: 'Mako@2026'
   host: 'localhost'
   synchronize: false
-  database: 'autopilot_prod'
+  database: 'mako_prod'
   env: "production"
 
 jwt:

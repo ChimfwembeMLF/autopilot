@@ -35,7 +35,13 @@ function parseEnvFile(filePath) {
 }
 
 const root = __dirname;
-const envFromFile = parseEnvFile(path.join(root, '.env'));
+const envFromFile = {
+  ...parseEnvFile(path.join(root, '.env.production')),
+  ...parseEnvFile(path.join(root, '.env')),
+};
+if (envFromFile.DB_NAME && !envFromFile.DB_DATABASE) {
+  envFromFile.DB_DATABASE = envFromFile.DB_NAME;
+}
 
 /** Defaults aligned with config/production.yml */
 const productionDefaults = {
