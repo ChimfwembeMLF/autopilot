@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,49 +11,50 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { isNetworkError } from "@/lib/api-errors";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
-// Existing pages
-import Index from "./pages/Index";
+// Existing pages — landing/auth stay eager for first paint
 import LandingPage from "./pages/LandingPage";
-import BrandBrain from "./pages/BrandBrain";
-import ContentEngine from "./pages/ContentEngine";
-import ContentDetailPage from "./pages/ContentDetailPage";
-import EditContent from "./pages/EditContent";
-import CampaignsPage from "./pages/CampaignsPage";
-import Scheduler from "./pages/Scheduler";
-import LeadAgent from "./pages/LeadAgent";
-import Analytics from "./pages/Analytics";
-import SettingsPage from "./pages/SettingsPage";
-import ContactForm from "./pages/ContactForm";
 import Auth from "./pages/auth/Auth";
-import ResetPassword from "./pages/ResetPassword";
-import PublisherConnect from "./pages/PublisherConnect";
-import NotFound from "./pages/NotFound";
 
-// New RBAC & admin pages
-import RolesPage from "./pages/admin/RolesPage";
-import MakerCheckerConfigPage from "./pages/admin/MakerCheckerConfigPage";
-import SystemSettingsPage from "./pages/admin/SystemSettingsPage";
-import BackofficePage from "./pages/admin/BackofficePage";
-import QueueJobsPage from "./pages/admin/QueueJobsPage";
-import TeamPage from "./pages/team/TeamPage";
-import UserPermissionsPage from "./pages/team/UserPermissionsPage";
-import ApprovalsPage from "./pages/ApprovalsPage";
-import MediaLibraryPage from "./pages/MediaLibraryPage";
-import TemplatesPage from "./pages/TemplatesPage";
-import TemplateEditPage from "./pages/TemplateEditPage";
-import RepliesPage from "./pages/RepliesPage";
-import AuditLogsPage from "./pages/AuditLogsPage";
-import BillingPage from "./pages/BillingPage";
-import ExportPage from "./pages/ExportPage";
-import ReportsPage from "./pages/ReportsPage";
-import ChatbotPage from "./pages/chatbot/ChatbotPage";
-import ChatbotKnowledgePage from "./pages/chatbot/ChatbotKnowledgePage";
-import ChatbotSessionsPage from "./pages/chatbot/ChatbotSessionsPage";
-import WorkspacesPage from "./pages/WorkspacesPage";
-import SocialCallback from "./pages/auth/SocialCallback";
-import PrivacyPage from "./pages/legal/PrivacyPage";
-import TermsPage from "./pages/legal/TermsPage";
-import DataDeletionPage from "./pages/legal/DataDeletionPage";
+const Index = lazy(() => import("./pages/Index"));
+const BrandBrain = lazy(() => import("./pages/BrandBrain"));
+const ContentEngine = lazy(() => import("./pages/ContentEngine"));
+const ContentDetailPage = lazy(() => import("./pages/ContentDetailPage"));
+const EditContent = lazy(() => import("./pages/EditContent"));
+const CampaignsPage = lazy(() => import("./pages/CampaignsPage"));
+const Scheduler = lazy(() => import("./pages/Scheduler"));
+const LeadAgent = lazy(() => import("./pages/LeadAgent"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const ContactForm = lazy(() => import("./pages/ContactForm"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const PublisherConnect = lazy(() => import("./pages/PublisherConnect"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// RBAC & admin pages
+const RolesPage = lazy(() => import("./pages/admin/RolesPage"));
+const MakerCheckerConfigPage = lazy(() => import("./pages/admin/MakerCheckerConfigPage"));
+const SystemSettingsPage = lazy(() => import("./pages/admin/SystemSettingsPage"));
+const BackofficePage = lazy(() => import("./pages/admin/BackofficePage"));
+const QueueJobsPage = lazy(() => import("./pages/admin/QueueJobsPage"));
+const TeamPage = lazy(() => import("./pages/team/TeamPage"));
+const UserPermissionsPage = lazy(() => import("./pages/team/UserPermissionsPage"));
+const ApprovalsPage = lazy(() => import("./pages/ApprovalsPage"));
+const MediaLibraryPage = lazy(() => import("./pages/MediaLibraryPage"));
+const TemplatesPage = lazy(() => import("./pages/TemplatesPage"));
+const TemplateEditPage = lazy(() => import("./pages/TemplateEditPage"));
+const RepliesPage = lazy(() => import("./pages/RepliesPage"));
+const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
+const BillingPage = lazy(() => import("./pages/BillingPage"));
+const ExportPage = lazy(() => import("./pages/ExportPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const ChatbotPage = lazy(() => import("./pages/chatbot/ChatbotPage"));
+const ChatbotKnowledgePage = lazy(() => import("./pages/chatbot/ChatbotKnowledgePage"));
+const ChatbotSessionsPage = lazy(() => import("./pages/chatbot/ChatbotSessionsPage"));
+const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage"));
+const SocialCallback = lazy(() => import("./pages/auth/SocialCallback"));
+const PrivacyPage = lazy(() => import("./pages/legal/PrivacyPage"));
+const TermsPage = lazy(() => import("./pages/legal/TermsPage"));
+const DataDeletionPage = lazy(() => import("./pages/legal/DataDeletionPage"));
 import { SuperAdminRoute } from "@/components/SuperAdminRoute";
 import { ChatbotWidgetLoader } from "@/components/ChatbotWidgetLoader";
 import { DataProtectionBanner } from "@/components/DataProtectionBanner";
@@ -68,6 +69,18 @@ const queryClient = new QueryClient({
     mutations: { throwOnError: false },
   },
 });
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh] text-muted-foreground">
+      <div className="animate-pulse text-sm">Loading…</div>
+    </div>
+  );
+}
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
 function HomeRoute() {
   const { user, loading } = useAuth();
@@ -115,72 +128,72 @@ const App = () => (
               <Routes>
                 {/* Public routes */}
                 <Route path="/auth" element={<PublicOnly><Auth /></PublicOnly>} />
-                <Route path="/auth/callback" element={<SocialCallback />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/contact/:sourceId" element={<ContactForm />} />
-                <Route path="/privacy" element={<PrivacyPage />} />
-                <Route path="/terms" element={<TermsPage />} />
-                <Route path="/data-deletion" element={<DataDeletionPage />} />
+                <Route path="/auth/callback" element={<LazyPage><SocialCallback /></LazyPage>} />
+                <Route path="/reset-password" element={<LazyPage><ResetPassword /></LazyPage>} />
+                <Route path="/contact/:sourceId" element={<LazyPage><ContactForm /></LazyPage>} />
+                <Route path="/privacy" element={<LazyPage><PrivacyPage /></LazyPage>} />
+                <Route path="/terms" element={<LazyPage><TermsPage /></LazyPage>} />
+                <Route path="/data-deletion" element={<LazyPage><DataDeletionPage /></LazyPage>} />
                 <Route path="/" element={<HomeRoute />} />
 
                 {/* Protected app routes */}
                 <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-                  <Route path="/dashboard" element={<Index />} />
-                  <Route path="/brand-brain" element={<BrandBrain />} />
-                  <Route path="/content" element={<ContentEngine />} />
-                  <Route path="/campaigns" element={<CampaignsPage />} />
-                  <Route path="/content/edit/:id" element={<EditContent />} />
-                  <Route path="/content/:id" element={<ContentDetailPage />} />
-                  <Route path="/scheduler" element={<Scheduler />} />
-                  <Route path="/leads" element={<LeadAgent />} />
-                  <Route path="/analytics" element={<Analytics />} />
-                  <Route path="/reports" element={<ReportsPage />} />
-                  <Route path="/publisher" element={<PublisherConnect />} />
-                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/dashboard" element={<LazyPage><Index /></LazyPage>} />
+                  <Route path="/brand-brain" element={<LazyPage><BrandBrain /></LazyPage>} />
+                  <Route path="/content" element={<LazyPage><ContentEngine /></LazyPage>} />
+                  <Route path="/campaigns" element={<LazyPage><CampaignsPage /></LazyPage>} />
+                  <Route path="/content/edit/:id" element={<LazyPage><EditContent /></LazyPage>} />
+                  <Route path="/content/:id" element={<LazyPage><ContentDetailPage /></LazyPage>} />
+                  <Route path="/scheduler" element={<LazyPage><Scheduler /></LazyPage>} />
+                  <Route path="/leads" element={<LazyPage><LeadAgent /></LazyPage>} />
+                  <Route path="/analytics" element={<LazyPage><Analytics /></LazyPage>} />
+                  <Route path="/reports" element={<LazyPage><ReportsPage /></LazyPage>} />
+                  <Route path="/publisher" element={<LazyPage><PublisherConnect /></LazyPage>} />
+                  <Route path="/settings" element={<LazyPage><SettingsPage /></LazyPage>} />
 
                   {/* Media */}
-                  <Route path="/media" element={<MediaLibraryPage />} />
+                  <Route path="/media" element={<LazyPage><MediaLibraryPage /></LazyPage>} />
 
                   {/* Templates */}
-                  <Route path="/templates" element={<TemplatesPage />} />
-                  <Route path="/templates/:id" element={<TemplateEditPage />} />
+                  <Route path="/templates" element={<LazyPage><TemplatesPage /></LazyPage>} />
+                  <Route path="/templates/:id" element={<LazyPage><TemplateEditPage /></LazyPage>} />
 
                   {/* Replies */}
-                  <Route path="/replies" element={<RepliesPage />} />
-                  <Route path="/chatbot" element={<ChatbotPage />} />
-                  <Route path="/chatbot/knowledge" element={<ChatbotKnowledgePage />} />
-                  <Route path="/chatbot/sessions" element={<ChatbotSessionsPage />} />
+                  <Route path="/replies" element={<LazyPage><RepliesPage /></LazyPage>} />
+                  <Route path="/chatbot" element={<LazyPage><ChatbotPage /></LazyPage>} />
+                  <Route path="/chatbot/knowledge" element={<LazyPage><ChatbotKnowledgePage /></LazyPage>} />
+                  <Route path="/chatbot/sessions" element={<LazyPage><ChatbotSessionsPage /></LazyPage>} />
 
                   {/* Approvals (maker-checker) */}
-                  <Route path="/approvals" element={<ApprovalsPage />} />
+                  <Route path="/approvals" element={<LazyPage><ApprovalsPage /></LazyPage>} />
 
                   {/* Team management */}
-                  <Route path="/team" element={<TeamPage />} />
-                  <Route path="/team/:userId/permissions" element={<UserPermissionsPage />} />
+                  <Route path="/team" element={<LazyPage><TeamPage /></LazyPage>} />
+                  <Route path="/team/:userId/permissions" element={<LazyPage><UserPermissionsPage /></LazyPage>} />
 
                   {/* Audit */}
-                  <Route path="/audit" element={<AuditLogsPage />} />
+                  <Route path="/audit" element={<LazyPage><AuditLogsPage /></LazyPage>} />
 
                   {/* Billing */}
-                  <Route path="/billing" element={<BillingPage />} />
+                  <Route path="/billing" element={<LazyPage><BillingPage /></LazyPage>} />
 
                   {/* Data Export */}
-                  <Route path="/export" element={<ExportPage />} />
+                  <Route path="/export" element={<LazyPage><ExportPage /></LazyPage>} />
 
                   {/* Workspace Management */}
-                  <Route path="/workspaces" element={<WorkspacesPage />} />
+                  <Route path="/workspaces" element={<LazyPage><WorkspacesPage /></LazyPage>} />
 
                   {/* Tenant admin */}
-                  <Route path="/admin/roles" element={<RolesPage />} />
-                  <Route path="/admin/maker-checker" element={<MakerCheckerConfigPage />} />
+                  <Route path="/admin/roles" element={<LazyPage><RolesPage /></LazyPage>} />
+                  <Route path="/admin/maker-checker" element={<LazyPage><MakerCheckerConfigPage /></LazyPage>} />
 
                   {/* Platform backoffice — Super Admin only */}
-                  <Route path="/admin/system" element={<SuperAdminRoute><SystemSettingsPage /></SuperAdminRoute>} />
-                  <Route path="/admin/backoffice" element={<BackofficePage />} />
-                  <Route path="/admin/queues" element={<QueueJobsPage />} />
+                  <Route path="/admin/system" element={<SuperAdminRoute><LazyPage><SystemSettingsPage /></LazyPage></SuperAdminRoute>} />
+                  <Route path="/admin/backoffice" element={<LazyPage><BackofficePage /></LazyPage>} />
+                  <Route path="/admin/queues" element={<LazyPage><QueueJobsPage /></LazyPage>} />
                 </Route>
 
-                <Route path="*" element={<NotFound />} />
+                <Route path="*" element={<LazyPage><NotFound /></LazyPage>} />
               </Routes>
             </BrowserRouter>
           </ErrorBoundary>

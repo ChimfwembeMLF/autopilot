@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icons/*.png"],
       workbox: {
+        // Main bundle can exceed Workbox default 2 MiB after minification
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Cache strategy: app shell + API responses
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
@@ -68,5 +70,25 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("three") || id.includes("@react-three")) return "three-vendor";
+          if (id.includes("recharts") || id.includes("d3-")) return "charts-vendor";
+          if (
+            id.includes("@tiptap") ||
+            id.includes("prosemirror") ||
+            id.includes("@uiw/react-md-editor")
+          ) {
+            return "editor-vendor";
+          }
+          if (id.includes("@radix-ui")) return "radix-vendor";
+          if (id.includes("lucide-react")) return "icons-vendor";
+        },
+      },
+    },
   },
 }));
