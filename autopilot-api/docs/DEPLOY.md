@@ -88,7 +88,7 @@ npm run pm2:startup   # run the sudo command it prints
 
 Or one-shot setup: `bash scripts/pm2-setup.sh`
 
-**Process file:** `ecosystem.config.json` (PM2 app name: `Mako API Production`, cluster mode, port `5000`).
+**Process file:** `ecosystem.config.json` (PM2 app name: `Mako API Production`, single instance, port `4005`).
 
 ```bash
 sudo mkdir -p /var/log/pm2 && sudo chown "$USER" /var/log/pm2
