@@ -1,49 +1,36 @@
 import './polyfills';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import { existsSync } from 'fs';
 import { AppModule } from './app.module';
 import { ValidationPipe, LogLevel } from '@nestjs/common';
 import { setupSwagger } from './setup-swagger';
 import { resolveApiPublicUrl } from './common/env-urls.util';
+import { buildNestCorsOptions, MAKO_CORS_BUILD, resolveCorsOrigins } from './common/cors.util';
 import type { RequestHandler } from 'express';
 import type { SessionOptions } from 'express-session';
 import * as passport from 'passport';
 
+// Load .env before CORS/session read process.env (ConfigModule loads later).
+function loadEnvFiles(): void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const dotenv = require('dotenv') as typeof import('dotenv');
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  for (const file of [`.env.${nodeEnv}`, '.env']) {
+    const path = resolve(process.cwd(), file);
+    if (existsSync(path)) {
+      dotenv.config({ path });
+    }
+  }
+}
+
+loadEnvFiles();
+
 // Same CJS pattern as passport — avoids broken default import at runtime under PM2
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const expressSession = require('express-session') as (options: SessionOptions) => RequestHandler;
-
-function resolveCorsOrigins(): string[] {
-  return process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
-    : [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://mako.tekreminnovations.com',
-        'https://mako.tekreminnovations.com',
-      ];
-}
-
-function buildCorsOptions(): import('@nestjs/common/interfaces/external/cors-options.interface').CorsOptions {
-  const corsOrigins = resolveCorsOrigins();
-  return {
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean | string) => void,
-    ) => {
-      if (!origin) return callback(null, true);
-      if (corsOrigins.includes(origin)) return callback(null, origin);
-      console.warn('[cors] blocked origin:', origin);
-      return callback(null, false);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Visitor-Id', 'Accept'],
-    optionsSuccessStatus: 204,
-  };
-}
 
 function normalizeLegacyEnv(): void {
   if (process.env.APP_URL && !process.env.FRONTEND_URL) {
@@ -121,13 +108,13 @@ async function configureExpressSession(
 
 async function bootstrap() {
   normalizeLegacyEnv();
-  console.log('[boot] Mako API starting (session-fix-v3, cors-v5)');
+  console.log(`[boot] Mako API starting (session-fix-v3, ${MAKO_CORS_BUILD})`);
   console.log(`[cors] allowed origins: ${resolveCorsOrigins().join(', ')}`);
 
   const logLevels = (process.env.LOG_LEVEL?.split(',') ?? ['error', 'warn', 'log']) as LogLevel[];
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: logLevels,
-    cors: buildCorsOptions(),
+    cors: buildNestCorsOptions(),
   });
 
   const isProduction = process.env.NODE_ENV === 'production';
