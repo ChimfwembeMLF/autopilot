@@ -14,7 +14,7 @@ export class HealthController {
       port: process.env.PORT,
       service: 'Mako API',
       version: '1.0.0',
-      apiMode: 'same-origin-proxy',
+      apiMode: 'cross-origin',
     };
   }
 }

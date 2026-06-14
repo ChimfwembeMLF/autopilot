@@ -43,9 +43,11 @@ npm run migrations:run
 npm run seed:prod
 npm run pm2:start
 
-# Same-origin API proxy on the frontend vhost — see docs/SAME_ORIGIN_PROXY.md
+# Same-origin alternative: LiteSpeed `/api` proxy — see docs/SAME_ORIGIN_PROXY.md
+# Recommended: Firebase client + makoapi — see docs/FIREBASE_HOSTING.md
 ```
 
+```bash
 # After code updates
 npm run deploy:prod
 
@@ -55,15 +57,16 @@ npm run pm2:save
 npm run pm2:startup   # run the sudo command it prints
 ```
 
-| Variable | Production value |
-|----------|------------------|
-| `PORT` | `5000` (see `config/production.yml`) |
+| Variable | Production value (Firebase + makoapi) |
+|----------|-------------------------------------|
+| `PORT` | `4005` (see `ecosystem.config.json`) |
 | `NODE_ENV` | `production` |
 | `DB_SYNCHRONIZE` | `false` |
 | `JWT_SECRET` | Strong random string |
 | `SESSION_SECRET` | Strong random string (required — app exits if missing) |
-| `API_PUBLIC_URL` | `https://app.yourdomain.com` (same host as frontend when using `/api` proxy) |
-| `FRONTEND_URL` | `https://app.yourdomain.com` |
+| `API_PUBLIC_URL` | `https://makoapi.tekreminnovations.com` |
+| `FRONTEND_URL` | `https://YOUR_PROJECT.web.app` (Firebase Hosting URL) |
+| `CORS_ORIGIN` | Same as `FRONTEND_URL` (comma-separate custom domains) |
 | `MISTRAL_API_KEY` | Your Mistral key |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | Public media bucket (recommended) |
 | `PAYMENTS_DEV_AUTO_COMPLETE` | `false` |
@@ -102,27 +105,30 @@ Secrets live in `.env` on the server — NestJS loads them at boot; PM2 does not
 
 ---
 
-## 3. Client environment
+## 3. Client — Firebase Hosting
+
+See **`docs/FIREBASE_HOSTING.md`** for the full guide.
 
 ```env
-# Empty = same origin (LiteSpeed proxies /api → NestJS). See docs/SAME_ORIGIN_PROXY.md
-VITE_API_BASE_URL=
+# autopilot-client/.env.production
+VITE_API_BASE_URL=https://makoapi.tekreminnovations.com
+VITE_WIDGET_API_KEY=pk_live_...
+```
+
+```bash
+cd autopilot-client
+yarn install
+yarn firebase login
+yarn firebase use --add
+yarn deploy:firebase
 ```
 
 | Host | Role |
 |------|------|
-| `mako.tekreminnovations.com` | Frontend (static SPA) + `/api` proxy to NestJS |
-| `makoapi.tekreminnovations.com` | Optional direct API access (not required with same-origin proxy) |
+| `YOUR_PROJECT.web.app` | Frontend (Firebase Hosting static SPA) |
+| `makoapi.tekreminnovations.com` | API (NestJS on VPS) |
 
-Build & deploy static files:
-```bash
-cd autopilot-client
-npm ci
-npm run build
-# Deploy dist/ to CDN / Vercel / Netlify / nginx
-```
-
-Configure SPA fallback: all routes → `index.html`.
+Local dev: leave `VITE_API_BASE_URL` empty in `.env` — Vite proxies `/api` to `localhost:4000`.
 
 ---
 
@@ -230,7 +236,7 @@ Queues: `content-publish`, `comments`, `webhooks`, `ai`, `email`. Job status: `G
 - [ ] Meta Data Deletion Callback registered
 - [ ] OAuth callback URLs updated to production domains
 - [ ] `PAYMENTS_DEV_AUTO_COMPLETE=false`
-- [ ] LiteSpeed `/api` proxy to NestJS (see `docs/SAME_ORIGIN_PROXY.md`) or CORS configured
+- [ ] `CORS_ORIGIN` matches Firebase Hosting URL (see `docs/FIREBASE_HOSTING.md`)
 - [ ] Publish test post → verify `content_publications` row + comment sync
 
 ---

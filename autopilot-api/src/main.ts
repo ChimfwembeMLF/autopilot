@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe, LogLevel } from '@nestjs/common';
 import { setupSwagger } from './setup-swagger';
 import { resolveApiPublicUrl } from './common/env-urls.util';
+import { resolveCorsOrigins } from './common/cors.util';
 import type { RequestHandler } from 'express';
 import type { SessionOptions } from 'express-session';
 import * as passport from 'passport';
@@ -107,7 +108,9 @@ async function configureExpressSession(
 
 async function bootstrap() {
   normalizeLegacyEnv();
-  console.log('[boot] Mako API starting (same-origin proxy mode)');
+  const corsOrigins = resolveCorsOrigins();
+  console.log('[boot] Mako API starting (cross-origin mode)');
+  console.log('[cors] allowed origins:', corsOrigins.join(', '));
 
   const logLevels = (process.env.LOG_LEVEL?.split(',') ?? ['error', 'warn', 'log']) as LogLevel[];
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
