@@ -6,9 +6,14 @@ import { existsSync } from 'fs';
 import { AppModule } from './app.module';
 import { ValidationPipe, LogLevel } from '@nestjs/common';
 import { setupSwagger } from './setup-swagger';
-import { configureExpressSession } from './config/session.config';
 import { resolveApiPublicUrl } from './common/env-urls.util';
+import type { RequestHandler } from 'express';
+import type { SessionOptions } from 'express-session';
 import * as passport from 'passport';
+
+// Same CJS pattern as passport — avoids broken default import at runtime under PM2
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const expressSession = require('express-session') as (options: SessionOptions) => RequestHandler;
 
 function normalizeLegacyEnv(): void {
   if (process.env.APP_URL && !process.env.FRONTEND_URL) {
@@ -19,8 +24,75 @@ function normalizeLegacyEnv(): void {
   }
 }
 
+async function configureExpressSession(
+  app: NestExpressApplication,
+  isProduction: boolean,
+): Promise<void> {
+  const sessionSecret = process.env.SESSION_SECRET || 'dev_session_secret';
+  const maxAgeMs = Number(process.env.SESSION_EXPIRY || 86400) * 1000;
+
+  const sessionOptions: SessionOptions = {
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    name: 'mako.sid',
+    cookie: {
+      maxAge: maxAgeMs,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+    },
+  };
+
+  const useRedis = process.env.SESSION_STORE !== 'memory';
+  if (useRedis) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { createClient } = require('redis');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { RedisStore } = require('connect-redis');
+
+      const host = process.env.REDIS_HOST || 'localhost';
+      const port = Number(process.env.REDIS_PORT || 6379);
+      const password = process.env.REDIS_PASSWORD?.trim() || undefined;
+      const database = Number(process.env.REDIS_DB || 0);
+
+      const client = createClient({
+        socket: { host, port },
+        password,
+        database,
+      });
+      client.on('error', (err: Error) =>
+        console.error('[session] Redis client error:', err.message),
+      );
+      await client.connect();
+
+      sessionOptions.store = new RedisStore({
+        client,
+        prefix: 'mako:sess:',
+      });
+      app.use(expressSession(sessionOptions));
+      console.log(`[session] Redis store active (${host}:${port}, db ${database})`);
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[session] Redis unavailable (${message}); using MemoryStore`);
+      if (isProduction) {
+        console.warn(
+          '[session] PM2 cluster + MemoryStore breaks OAuth — use Redis or set instances:1',
+        );
+      }
+    }
+  }
+
+  app.use(expressSession(sessionOptions));
+  console.log('[session] MemoryStore active');
+}
+
 async function bootstrap() {
   normalizeLegacyEnv();
+  console.log('[boot] Mako API starting (session-fix-v3)');
+
   const logLevels = (process.env.LOG_LEVEL?.split(',') ?? ['error', 'warn', 'log']) as LogLevel[];
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: logLevels,
@@ -75,7 +147,6 @@ async function bootstrap() {
     );
   }
 
-  // Legacy read-only: existing /uploads files until migrated via npm run storage:migrate
   const uploadsDir = join(process.cwd(), 'uploads');
   if (existsSync(uploadsDir)) {
     app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
@@ -97,4 +168,7 @@ async function bootstrap() {
   console.log(`Bull Board on http://localhost:${port}/admin/queues`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('[boot] Fatal startup error:', err);
+  process.exit(1);
+});
