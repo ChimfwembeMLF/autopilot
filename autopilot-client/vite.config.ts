@@ -13,6 +13,12 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 3000,
     hmr: { overlay: false },
+    proxy: {
+      "/api": { target: "http://localhost:4000", changeOrigin: true },
+      "/uploads": { target: "http://localhost:4000", changeOrigin: true },
+      "/documentation": { target: "http://localhost:4000", changeOrigin: true },
+      "/admin": { target: "http://localhost:4000", changeOrigin: true },
+    },
   },
   plugins: [
     react(),

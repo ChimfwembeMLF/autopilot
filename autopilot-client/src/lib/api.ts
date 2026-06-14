@@ -5,18 +5,25 @@ import { withWorkspace } from './workspace-query';
 
 export { ApiError, isNetworkError, isAuthError } from './api-errors';
 
-/** Resolves VITE_API_BASE_URL; `//host` uses the page protocol (http or https). */
+/** Resolves API base URL. Empty VITE_API_BASE_URL = same origin (production proxy or Vite dev proxy). */
 export function resolveApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  if (!raw?.trim()) return 'http://localhost:4000';
-  const configured = raw.trim().replace(/^["']|["']$/g, '');
+  const configured = raw?.trim().replace(/^["']|["']$/g, '') ?? '';
+
+  if (!configured) {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost:4000';
+  }
+
   if (configured.startsWith('//')) {
     if (typeof window !== 'undefined' && window.location?.protocol) {
       return `${window.location.protocol}${configured}`;
     }
     return `https:${configured}`;
   }
-  return configured;
+  return configured.replace(/\/$/, '');
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();

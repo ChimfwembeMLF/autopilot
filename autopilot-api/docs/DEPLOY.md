@@ -43,6 +43,9 @@ npm run migrations:run
 npm run seed:prod
 npm run pm2:start
 
+# Same-origin API proxy on the frontend vhost — see docs/SAME_ORIGIN_PROXY.md
+```
+
 # After code updates
 npm run deploy:prod
 
@@ -59,9 +62,8 @@ npm run pm2:startup   # run the sudo command it prints
 | `DB_SYNCHRONIZE` | `false` |
 | `JWT_SECRET` | Strong random string |
 | `SESSION_SECRET` | Strong random string (required — app exits if missing) |
-| `API_PUBLIC_URL` | `https://api.yourdomain.com` |
+| `API_PUBLIC_URL` | `https://app.yourdomain.com` (same host as frontend when using `/api` proxy) |
 | `FRONTEND_URL` | `https://app.yourdomain.com` |
-| `CORS_ORIGIN` | `https://app.yourdomain.com` |
 | `MISTRAL_API_KEY` | Your Mistral key |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | Public media bucket (recommended) |
 | `PAYMENTS_DEV_AUTO_COMPLETE` | `false` |
@@ -103,14 +105,14 @@ Secrets live in `.env` on the server — NestJS loads them at boot; PM2 does not
 ## 3. Client environment
 
 ```env
-# Protocol-relative — matches page protocol (http or https)
-VITE_API_BASE_URL=//makoapi.tekreminnovations.com
+# Empty = same origin (LiteSpeed proxies /api → NestJS). See docs/SAME_ORIGIN_PROXY.md
+VITE_API_BASE_URL=
 ```
 
 | Host | Role |
 |------|------|
-| `mako.tekreminnovations.com` | Frontend (static SPA) |
-| `makoapi.tekreminnovations.com` | API (NestJS / PM2) |
+| `mako.tekreminnovations.com` | Frontend (static SPA) + `/api` proxy to NestJS |
+| `makoapi.tekreminnovations.com` | Optional direct API access (not required with same-origin proxy) |
 
 Build & deploy static files:
 ```bash
@@ -228,7 +230,7 @@ Queues: `content-publish`, `comments`, `webhooks`, `ai`, `email`. Job status: `G
 - [ ] Meta Data Deletion Callback registered
 - [ ] OAuth callback URLs updated to production domains
 - [ ] `PAYMENTS_DEV_AUTO_COMPLETE=false`
-- [ ] CORS limited to your frontend origin
+- [ ] LiteSpeed `/api` proxy to NestJS (see `docs/SAME_ORIGIN_PROXY.md`) or CORS configured
 - [ ] Publish test post → verify `content_publications` row + comment sync
 
 ---
