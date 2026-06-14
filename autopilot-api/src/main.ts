@@ -14,6 +14,42 @@ import * as passport from 'passport';
 // Same CJS pattern as passport — avoids broken default import at runtime under PM2
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const expressSession = require('express-session') as (options: SessionOptions) => RequestHandler;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cors = require('cors') as typeof import('cors');
+
+function resolveCorsOrigins(): string[] {
+  return process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+    : [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://mako.tekreminnovations.com',
+        'https://mako.tekreminnovations.com',
+      ];
+}
+
+function applyCors(app: NestExpressApplication): void {
+  const corsOrigins = resolveCorsOrigins();
+  console.log(`[cors] allowed origins: ${corsOrigins.join(', ')}`);
+
+  app.use(
+    cors({
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean | string) => void,
+      ) => {
+        if (!origin) return callback(null, true);
+        if (corsOrigins.includes(origin)) return callback(null, origin);
+        console.warn('[cors] blocked origin:', origin);
+        return callback(null, false);
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Visitor-Id', 'Accept'],
+      optionsSuccessStatus: 204,
+    }),
+  );
+}
 
 function normalizeLegacyEnv(): void {
   if (process.env.APP_URL && !process.env.FRONTEND_URL) {
@@ -91,12 +127,15 @@ async function configureExpressSession(
 
 async function bootstrap() {
   normalizeLegacyEnv();
-  console.log('[boot] Mako API starting (session-fix-v3)');
+  console.log('[boot] Mako API starting (session-fix-v3, cors-v4)');
 
   const logLevels = (process.env.LOG_LEVEL?.split(',') ?? ['error', 'warn', 'log']) as LogLevel[];
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: logLevels,
   });
+
+  applyCors(app);
+
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (isProduction) {
@@ -115,27 +154,6 @@ async function bootstrap() {
       console.warn('WARNING: API_PUBLIC_URL should be a public HTTPS URL for social media publishing');
     }
   }
-
-  const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
-    : [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://mako.tekreminnovations.com',
-        'https://mako.tekreminnovations.com',
-      ];
-
-  app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (corsOrigins.includes(origin)) return callback(null, origin);
-      console.warn('Blocked CORS request from:', origin);
-      return callback(null, false);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Visitor-Id'],
-    credentials: true,
-  });
 
   await configureExpressSession(app, isProduction);
 
